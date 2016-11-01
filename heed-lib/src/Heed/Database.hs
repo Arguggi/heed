@@ -108,8 +108,8 @@ data FeedItem a b c d e f = FeedItem
 
 $(makeAdaptorAndInstance "pFeedItem" ''FeedItem)
 
-type FeedItemWrite = FeedItem (Maybe (O.Column O.PGInt4)) (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (Maybe (O.Column O.PGText))
-type FeedItemRead = FeedItem (O.Column O.PGInt4) (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column O.PGText)
+type FeedItemWrite = FeedItem (Maybe (O.Column O.PGInt4)) (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
+type FeedItemRead = FeedItem (O.Column O.PGInt4) (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
 
 feedItemTable :: O.Table FeedItemWrite FeedItemRead
 feedItemTable =
@@ -122,7 +122,7 @@ feedItemTable =
              , feedItemTitle = O.required "title"
              , feedItemUrl = O.required "url"
              , feedItemDate = O.required "date"
-             , feedItemComments = O.optional "commentUrl"
+             , feedItemComments = O.required "commentUrl"
              })
 
 ----------------------------
