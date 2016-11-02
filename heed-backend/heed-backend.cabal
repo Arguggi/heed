@@ -13,5 +13,12 @@ cabal-version:       >=1.10
 executable heed-backend
   main-is:             Main.hs
   build-depends:       base >=4.9 && <4.10
+                     , heed-lib
+                     , http-client
+                     , http-client-tls
+                     , ini
+                     , opaleye
+                     , postgresql-simple
+                     , text
   hs-source-dirs:      src
   default-language:    Haskell2010

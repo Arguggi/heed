@@ -10,6 +10,7 @@ CREATE TABLE "FeedInfo" (
     name varchar (128) NOT NULL,
     url text NOT NULL,
     updateEvery integer NOT NULL,
+    lastUpdated timestamp with time zone NOT NULL,
     CONSTRAINT in_future CHECK (updateEvery > 0)
 );
 

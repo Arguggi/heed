@@ -5,8 +5,9 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Heed.Database
-  ( userTable
+  ( User(..)
   , UserH
+  , userTable
   , feedInfoTable
   , FeedInfoH
   , subscriptionTable
@@ -17,6 +18,7 @@ module Heed.Database
 import Data.ByteString (ByteString)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Text (Text)
+import Data.Time.Clock (UTCTime)
 import qualified Opaleye as O
 
 -- Type name guide:
@@ -24,7 +26,6 @@ import qualified Opaleye as O
 -- R = Read
 -- H = Haskell world
 -- WO = Write Optional
-
 -- Users Table
 data User a b c d = User
     { userId :: a -- PGInt4
@@ -66,11 +67,12 @@ userTable =
 
 -----------------------------------------
 -- Feeds Table
-data FeedInfo a b c d = FeedInfo
+data FeedInfo a b c d e = FeedInfo
     { feedInfoId :: a -- PGInt4
     , feedInfoName :: b -- Text
     , feedInfoUrl :: c -- Url
     , feedInfoUpdateEvery :: d -- Minutes
+    , feedInfoLastUpdated :: e -- timestamp
     }
 
 $(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
@@ -80,11 +82,11 @@ newtype FeedInfoId' a =
 
 $(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId')
 
-type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4)
+type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4) (O.Column O.PGTimestamptz)
 
-type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4)
+type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4) (O.Column O.PGTimestamptz)
 
-type FeedInfoH = FeedInfo (Maybe Int) Text Text Int
+type FeedInfoH = FeedInfo (Maybe Int) Text Text Int UTCTime
 
 type FeedInfoIdColumnWO = FeedInfoId' (Maybe (O.Column O.PGInt4))
 
@@ -102,6 +104,7 @@ feedInfoTable =
              , feedInfoName = O.required "name"
              , feedInfoUrl = O.required "url"
              , feedInfoUpdateEvery = O.required "updateEvery"
+             , feedInfoLastUpdated = O.required "lastUpdated"
              })
 
 ----------------------------
