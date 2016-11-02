@@ -14,6 +14,8 @@ library
   exposed-modules:     Heed.Database
   build-depends:       base >=4.9 && <4.10
                      , aeson
+                     , bytestring
+                     , feed
                      , mtl
                      , opaleye
                      , product-profunctors

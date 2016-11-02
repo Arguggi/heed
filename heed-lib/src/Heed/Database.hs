@@ -6,17 +6,26 @@
 
 module Heed.Database
   ( userTable
-  , feedTable
+  , UserH
+  , feedInfoTable
+  , FeedInfoH
   , subscriptionTable
   , feedItemTable
   , unreadItemTable
   ) where
 
+import Data.ByteString (ByteString)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
+import Data.Text (Text)
 import qualified Opaleye as O
 
--- Users Table
+-- Type name guide:
+-- W = Write
+-- R = Read
+-- H = Haskell world
+-- WO = Write Optional
 
+-- Users Table
 data User a b c d = User
     { userId :: a -- PGInt4
     , userName :: b -- Text
@@ -26,16 +35,30 @@ data User a b c d = User
 
 $(makeAdaptorAndInstance "pUser" ''User)
 
-type UserWrite = User (Maybe (O.Column O.PGInt4)) (O.Column O.PGText) (O.Column O.PGBytea) (O.Column O.PGText)
-type UserRead = User (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGBytea) (O.Column O.PGText)
+newtype UserId' a =
+    UserId' a
 
-userTable :: O.Table UserWrite UserRead
+$(makeAdaptorAndInstance "pUserId" ''UserId')
+
+type UserW = User UserIdColumnWO (O.Column O.PGText) (O.Column O.PGBytea) (O.Column O.PGText)
+
+type UserR = User UserIdColumnR (O.Column O.PGText) (O.Column O.PGBytea) (O.Column O.PGText)
+
+type UserH = User (Maybe Int) Text ByteString Text
+
+type UserIdColumnWO = UserId' (Maybe (O.Column O.PGInt4))
+
+type UserIdColumnW = UserId' (O.Column O.PGInt4)
+
+type UserIdColumnR = UserId' (O.Column O.PGInt4)
+
+userTable :: O.Table UserW UserR
 userTable =
     O.Table
         "User"
         (pUser
              User
-             { userId = O.optional "id"
+             { userId = pUserId (UserId' (O.optional "id"))
              , userName = O.required "username"
              , userPassword = O.required "password"
              , userEmail = O.required "email"
@@ -43,34 +66,46 @@ userTable =
 
 -----------------------------------------
 -- Feeds Table
-
-data Feed a b c d = Feed
-    { feedId :: a -- PGInt4
-    , feedName :: b -- Text
-    , feedUrl :: c -- Url
-    , feedUpdateEvery :: d -- Minutes
+data FeedInfo a b c d = FeedInfo
+    { feedInfoId :: a -- PGInt4
+    , feedInfoName :: b -- Text
+    , feedInfoUrl :: c -- Url
+    , feedInfoUpdateEvery :: d -- Minutes
     }
 
-$(makeAdaptorAndInstance "pFeed" ''Feed)
+$(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
 
-type FeedWrite = Feed (Maybe (O.Column O.PGInt4)) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4)
-type FeedRead = Feed (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4)
+newtype FeedInfoId' a =
+    FeedInfoId' a
 
-feedTable :: O.Table FeedWrite FeedRead
-feedTable =
+$(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId')
+
+type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4)
+
+type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4)
+
+type FeedInfoH = FeedInfo (Maybe Int) Text Text Int
+
+type FeedInfoIdColumnWO = FeedInfoId' (Maybe (O.Column O.PGInt4))
+
+type FeedInfoIdColumnW = FeedInfoId' (O.Column O.PGInt4)
+
+type FeedInfoIdColumnR = FeedInfoId' (O.Column O.PGInt4)
+
+feedInfoTable :: O.Table FeedInfoW FeedInfoR
+feedInfoTable =
     O.Table
-        "Feed"
-        (pFeed
-             Feed
-             { feedId = O.optional "id"
-             , feedName = O.required "name"
-             , feedUrl = O.required "url"
-             , feedUpdateEvery = O.required "updateEvery"
+        "FeedInfo"
+        (pFeedInfo
+             FeedInfo
+             { feedInfoId = pFeedInfoId (FeedInfoId' (O.optional "id"))
+             , feedInfoName = O.required "name"
+             , feedInfoUrl = O.required "url"
+             , feedInfoUpdateEvery = O.required "updateEvery"
              })
 
 ----------------------------
 -- Feeds <-> Users (Subscriptions)
-
 data Subscription a b = Subscription
     { subscriptionFeedId :: a -- PGInt4
     , subscriptionUserId :: b -- PGInt4
@@ -78,23 +113,22 @@ data Subscription a b = Subscription
 
 $(makeAdaptorAndInstance "pSubscription" ''Subscription)
 
-type SubscriptionWrite = Subscription (O.Column O.PGInt4) (O.Column O.PGInt4)
-type SubscriptionRead = Subscription (O.Column O.PGInt4) (O.Column O.PGInt4)
+type SubscriptionW = Subscription FeedInfoIdColumnW UserIdColumnW
 
-subscriptionTable :: O.Table SubscriptionWrite SubscriptionRead
+type SubscriptionR = Subscription FeedInfoIdColumnR UserIdColumnR
+
+subscriptionTable :: O.Table SubscriptionW SubscriptionR
 subscriptionTable =
     O.Table
         "Subscription"
         (pSubscription
              Subscription
-             { subscriptionFeedId = O.required "feedId"
-             , subscriptionUserId = O.required "userId"
+             { subscriptionFeedId = pFeedInfoId (FeedInfoId' (O.required "feedInfoId"))
+             , subscriptionUserId = pUserId (UserId' (O.required "userId"))
              })
-
 
 ----------------------------
 -- Feed items
-
 data FeedItem a b c d e f = FeedItem
     { feedItemId :: a -- PGInt4
     , feedItemFeedId :: b -- PGInt4
@@ -106,26 +140,37 @@ data FeedItem a b c d e f = FeedItem
 
 $(makeAdaptorAndInstance "pFeedItem" ''FeedItem)
 
-type FeedItemWrite = FeedItem (Maybe (O.Column O.PGInt4)) (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
-type FeedItemRead = FeedItem (O.Column O.PGInt4) (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
+newtype FeedItemId' a =
+    FeedItemId' a
 
-feedItemTable :: O.Table FeedItemWrite FeedItemRead
+$(makeAdaptorAndInstance "pFeedItemId" ''FeedItemId')
+
+type FeedItemW = FeedItem FeedItemIdColumnWO FeedInfoIdColumnW (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
+
+type FeedItemR = FeedItem FeedItemIdColumnR FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
+
+type FeedItemIdColumnWO = FeedItemId' (Maybe (O.Column O.PGInt4))
+
+type FeedItemIdColumnW = FeedItemId' (O.Column O.PGInt4)
+
+type FeedItemIdColumnR = FeedItemId' (O.Column O.PGInt4)
+
+feedItemTable :: O.Table FeedItemW FeedItemR
 feedItemTable =
     O.Table
         "FeedItem"
         (pFeedItem
              FeedItem
-             { feedItemId = O.optional "id"
-             , feedItemFeedId = O.required "feedId"
+             { feedItemId = pFeedItemId (FeedItemId' (O.optional "id"))
+             , feedItemFeedId = pFeedInfoId (FeedInfoId' (O.required "feedId"))
              , feedItemTitle = O.required "title"
              , feedItemUrl = O.required "url"
-             , feedItemDate = O.required "date"
+             , feedItemDate = O.required "pubDate"
              , feedItemComments = O.required "commentUrl"
              })
 
 ----------------------------
 -- Unread items
-
 data UnreadItem a b = UnreadItem
     { unreadFeedItemId :: a -- PGInt4
     , unreadUserId :: b -- PGInt4
@@ -133,15 +178,16 @@ data UnreadItem a b = UnreadItem
 
 $(makeAdaptorAndInstance "pUnreadItem" ''UnreadItem)
 
-type UnreadItemWrite = UnreadItem (O.Column O.PGInt4) (O.Column O.PGInt4)
-type UnreadItemRead = UnreadItem (O.Column O.PGInt4) (O.Column O.PGInt4)
+type UnreadItemW = UnreadItem FeedItemIdColumnW UserIdColumnW
 
-unreadItemTable :: O.Table UnreadItemWrite UnreadItemRead
+type UnreadItemR = UnreadItem FeedItemIdColumnR UserIdColumnR
+
+unreadItemTable :: O.Table UnreadItemW UnreadItemR
 unreadItemTable =
     O.Table
         "UnreadItem"
         (pUnreadItem
              UnreadItem
-             { unreadFeedItemId = O.required "feedItemId"
-             , unreadUserId = O.required "userId"
+             { unreadFeedItemId = pFeedItemId (FeedItemId' (O.required "feedItemId"))
+             , unreadUserId = pUserId (UserId' (O.required "userId"))
              })
