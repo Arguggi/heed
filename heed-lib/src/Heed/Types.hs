@@ -1,20 +1,23 @@
+{-# LANGUAGE GADTs #-}
+
 module Heed.Types where
 
 import Control.Exception.Base
 import qualified Database.PostgreSQL.Simple as PG
 import Network.HTTP.Client
-       (HasHttpManager(..), Manager)
+       (HasHttpManager(..), HttpException, Manager)
 
 class HasDbConnection a  where
     getDbConnection :: a -> PG.Connection
 
-data HeedError
-    = InvalidXML
-    | InvalidUrl
-    | InvalidFeedData
-    | DownloadFailed
-    | MultipleFeedsSameUrl
-    deriving (Eq, Show)
+data HeedError where
+        InvalidXML :: HeedError
+        InvalidFeedData :: HeedError
+        MultipleFeedsSameUrl :: HeedError
+        InvalidUrl :: HttpException -> HeedError
+        DownloadFailed :: HttpException -> HeedError
+        HSqlException :: PG.SqlError -> HeedError
+    deriving (Show)
 
 instance Exception HeedError
 

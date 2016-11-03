@@ -1,4 +1,3 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -6,19 +5,22 @@
 module Heed.Extract where
 
 import Control.Applicative ((<|>))
-import Control.Arrow (returnA)
 import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
+import Data.List (sortBy)
 import Data.Maybe (fromMaybe)
+import Data.Ord (compare)
 import qualified Data.Text as T
+import Data.Text.Encoding.Error (lenientDecode)
+import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
 import Database.PostgreSQL.Simple as PG
 import Heed.Database
+import Heed.Query
 import Heed.Types
 import Network.HTTP.Client
-import qualified Opaleye as O
 import qualified Safe
 import qualified Text.Atom.Feed as Atom
 import Text.Feed.Import (parseFeedSource)
@@ -36,36 +38,39 @@ addFeed
 addFeed conf url = do
     let manager = getHttpManager conf
         dbConn = getDbConnection conf
-    request <- liftHttpException InvalidUrl . parseRequest $ "GET " ++ T.unpack url
-    feed <- liftHttpException DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
-    validFeed <- liftJust InvalidXML $ parseFeedSource feed
+    request <- catchHttpException InvalidUrl . parseRequest $ "GET " ++ T.unpack url
+    feed <- catchHttpException DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
+    validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
     now <- liftIO getCurrentTime
     (feedInfo, feedItems) <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
     oldFeeds <- liftIO $ runFeedInfoQuery dbConn (thisFeed feedInfo)
     case length oldFeeds of
         0 -> do
             insertedFeed <- insertFeed dbConn feedInfo
-            insertItems dbConn feedItems $ getFeedId insertedFeed
+            asd <- insertItems dbConn feedItems $ getFeedId insertedFeed
+            liftIO $ putStrLn ("Inserted " ++ show asd ++ " items")
             return ()
         1 -> do
-            insertItems dbConn feedItems $ getFeedId oldFeeds
+            let oldUpdateTime = feedInfoLastUpdated . head $ oldFeeds
+            liftIO $ putStrLn "Old time"
+            liftIO $ print oldUpdateTime
+            liftIO $ putStrLn "New Times"
+            liftIO $ mapM_ print (feedItemDate <$> sortBy after feedItems)
+            let newItems = filter (isNewItem oldUpdateTime) feedItems
+            insertedItems <-
+                if feedInfoLastUpdated feedInfo > oldUpdateTime && not (null newItems)
+                    then insertItems dbConn (filter (isNewItem oldUpdateTime) feedItems) $
+                         getFeedId oldFeeds
+                    else return 0
+            timeUpdated <- setFeedLastUpdated dbConn (getFeedId oldFeeds) now
+            liftIO $ putStrLn ("Inserted " ++ show insertedItems ++ " items")
+            liftIO $ putStrLn ("Updated " ++ show timeUpdated ++ " row")
             return ()
         _ -> throwError MultipleFeedsSameUrl
   where
     getFeedId = feedInfoId . head
-
-insertFeed
-    :: (MonadIO m)
-    => PG.Connection -> FeedInfoH -> m [FeedInfoHR]
-insertFeed conn newFeed =
-    liftIO $ O.runInsertManyReturning conn feedInfoTable [feedInfoHToW newFeed] id
-
-insertItems
-    :: (MonadIO m)
-    => PG.Connection -> [FeedItemH] -> FeedInfoId Int -> m ()
-insertItems conn newItems feedId = do
-    _ <- liftIO $ O.runInsertMany conn feedItemTable (feedItemHToW feedId <$> newItems)
-    return ()
+    isNewItem oldUpdateTime item = feedItemDate item > oldUpdateTime
+    after x y = compare (feedItemDate x) (feedItemDate y)
 
 extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoH, [FeedItemH])
 extractInfoFromFeed now url (AtomFeed feed) = Just (feedInfo, feedItems)
@@ -114,22 +119,23 @@ rssEntryToItem now entry =
 parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
 
-thisFeed :: FeedInfoH -> O.Query FeedInfoR
-thisFeed fresh =
-    proc () ->
-  do feeds <- O.queryTable feedInfoTable -< ()
-     O.restrict -<
-       feedInfoUrl feeds O..== O.pgStrictText (feedInfoUrl fresh)
-     returnA -< feeds
-
-liftHttpException
+catchHttpException
     :: (MonadCatch m, MonadError HeedError m)
-    => HeedError -> m a -> m a
-liftHttpException e action =
+    => (HttpException -> HeedError) -> m a -> m a
+catchHttpException excep action =
     action `catch`
-    (\httpError ->
-          let _ = httpError :: HttpException
-          in throwError e)
+    (\httpExcep ->
+          let _ = httpExcep :: HttpException
+          in throwError $ excep httpExcep)
+
+catchSqlException
+    :: (MonadCatch m, MonadError HeedError m)
+    => (SqlError -> HeedError) -> m a -> m a
+catchSqlException excep action =
+    action `catch`
+    (\sqlError ->
+          let _ = sqlError :: SqlError
+          in throwError $ excep sqlError)
 
 liftJust
     :: (MonadError HeedError m)

@@ -14,6 +14,7 @@ library
   exposed-modules:     Heed.Database
                      , Heed.Types
                      , Heed.Extract
+                     , Heed.Query
   build-depends:       base >=4.9 && <4.10
                      , aeson
                      , bytestring

@@ -10,33 +10,11 @@
 
 module Heed.Database where
 
---( User(..)
---, UserH
---, userTable
---, defFeedInfo
---, FeedInfo(..)
---, FeedInfoId(..)
---, FeedInfoH
---, FeedInfoHR
---, FeedInfoR
---, feedInfoHToW
---, feedInfoTable
---, subscriptionTable
---, FeedItem(..)
---, FeedItemH
---, feedItemHToW
---, defFeedItem
---, feedItemTable
---, unreadItemTable
---, runFeedInfoQuery
---, defTime
---) where
 import Data.ByteString (ByteString)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
-import Database.PostgreSQL.Simple as PG
 import qualified Opaleye as O
 
 type Url = Text
@@ -52,7 +30,7 @@ data User a b c d = User
     , userName :: b -- Text
     , userPassword :: c -- Bytestring
     , userEmail :: c -- Text
-    } deriving (Show)
+    }
 
 $(makeAdaptorAndInstance "pUser" ''User)
 
@@ -97,9 +75,9 @@ data FeedInfo a b c d e = FeedInfo
 
 $(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
 
-newtype FeedInfoId a =
-    FeedInfoId a
-    deriving (Functor)
+newtype FeedInfoId a = FeedInfoId
+    { getFeedInfoId :: a
+    } deriving (Functor)
 
 $(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId)
 
@@ -116,6 +94,13 @@ type FeedInfoIdColumnWO = FeedInfoId (Maybe (O.Column O.PGInt4))
 type FeedInfoIdColumnW = FeedInfoId (O.Column O.PGInt4)
 
 type FeedInfoIdColumnR = FeedInfoId (O.Column O.PGInt4)
+
+setTime :: UTCTime -> FeedInfoR -> FeedInfoW
+setTime utc feedInfo =
+    feedInfo
+    { feedInfoId = FeedInfoId $ Just (getFeedInfoId . feedInfoId $ feedInfo)
+    , feedInfoLastUpdated = O.pgUTCTime utc
+    }
 
 feedInfoHToW :: FeedInfoH -> FeedInfoW
 feedInfoHToW FeedInfo {..} =
@@ -262,14 +247,3 @@ unreadItemTable =
              { unreadFeedItemId = pFeedItemId (FeedItemId (O.required "feed_item_id"))
              , unreadUserId = pUserId (UserId' (O.required "user_id"))
              })
-
---
---
---users <- runUsersQuery dbConnection getUsers
-runFeedInfoQuery :: PG.Connection -> O.Query FeedInfoR -> IO [FeedInfoHR]
-runFeedInfoQuery = O.runQuery
---getUsers :: O.Query
---getUsers =
---    proc () ->
---  do users <- O.queryTable userTable -< ()
---     returnA -< userName users
