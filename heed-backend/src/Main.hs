@@ -1,17 +1,17 @@
-{-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
-import Control.Arrow (returnA)
 import Control.Monad (forM_)
+import Control.Monad.Trans.Except
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
 import Database.PostgreSQL.Simple as PG
-import Heed.Database (User(..), userTable)
-import Network.HTTP.Client (newManager)
+import Heed.Extract (addFeed)
+import Heed.Types (BackendConf(..))
+import Network.HTTP.Client
+       (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
-import qualified Opaleye as O
 import System.Environment (setEnv)
 import System.Exit (die)
 
@@ -20,14 +20,14 @@ pgEnvVar = ["PGUSER", "PGDATABASE"]
 
 main :: IO ()
 main = do
-    setPostgresEnv
-    dbConnection <- PG.connectPostgreSQL ""
-    manager <- newManager tlsManagerSettings
-    users <- runUsersQuery dbConnection getUsers
-    print users
+    setupPostgresEnv
+    baConf <- setupBackendConf
+    --users <- runUsersQuery dbConnection getUsers
+    result <- runExceptT $ addFeed baConf "https://ilblogdimm.it/atom.xml"
+    print result
 
-setPostgresEnv :: IO ()
-setPostgresEnv = do
+setupPostgresEnv :: IO ()
+setupPostgresEnv = do
     iniFile <- Ini.readIniFile "./heed-backend/config/devel.ini"
     case iniFile of
         Left e -> die $ "Invalid ini file: " ++ e
@@ -37,11 +37,5 @@ setPostgresEnv = do
                  setEnv var . T.unpack $
                  either (const "") id (Ini.lookupValue "PostgreSQL" (T.pack var) ini)
 
-runUsersQuery :: PG.Connection -> O.Query (O.Column O.PGText) -> IO [T.Text]
-runUsersQuery = O.runQuery
-
-getUsers :: O.Query (O.Column O.PGText)
-getUsers =
-    proc () ->
-  do (User _ name _ _) <- O.queryTable userTable -< ()
-     returnA -< name
+setupBackendConf :: IO BackendConf
+setupBackendConf = BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings

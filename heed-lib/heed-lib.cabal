@@ -12,14 +12,25 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Heed.Database
+                     , Heed.Types
+                     , Heed.Extract
   build-depends:       base >=4.9 && <4.10
                      , aeson
                      , bytestring
+                     , data-default-class
+                     , exceptions
                      , feed
+                     , http-client
+                     , http-client-tls
+                     , iso8601-time
                      , mtl
                      , opaleye
+                     , postgresql-simple
                      , product-profunctors
+                     , safe
                      , text
                      , time
+                     , transformers
   hs-source-dirs:      src
   default-language:    Haskell2010
+  ghc-options:         -Wall
