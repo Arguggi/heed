@@ -25,13 +25,14 @@ insertFeed
     :: (MonadIO m)
     => PG.Connection -> FeedInfoH -> m [FeedInfoHR]
 insertFeed conn newFeed =
-    liftIO $ O.runInsertManyReturning conn feedInfoTable [feedInfoHToW newFeed] id
+    liftIO $ O.runInsertManyReturning conn feedInfoTable [O.constant newFeed] id
 
 insertItems
     :: (MonadIO m)
     => PG.Connection -> [FeedItemH] -> FeedInfoId Int -> m Int64
 insertItems conn newItems feedId =
-    liftIO $ O.runInsertMany conn feedItemTable (feedItemHToW feedId <$> newItems)
+    liftIO $ O.runInsertMany conn feedItemTable $ O.constant <$> (setId feedId <$> newItems)
+    where setId fid item = item { feedItemFeedId = fid }
 
 setFeedLastUpdated
     :: (MonadIO m)

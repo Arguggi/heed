@@ -14,6 +14,7 @@ import Data.ByteString (ByteString)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
+import qualified Data.Profunctor.Product.Default as D
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
 import qualified Opaleye as O
 
@@ -95,21 +96,18 @@ type FeedInfoIdColumnW = FeedInfoId (O.Column O.PGInt4)
 
 type FeedInfoIdColumnR = FeedInfoId (O.Column O.PGInt4)
 
+-- | Works but is really ugly fix
+instance D.Default O.Constant (Maybe (FeedInfoId Int)) (FeedInfoId (Maybe (O.Column O.PGInt4))) where
+  def = O.Constant (\x -> case x of
+        Nothing -> FeedInfoId Nothing
+        Just fid -> Just . O.pgInt4 <$> fid)
+
 setTime :: UTCTime -> FeedInfoR -> FeedInfoW
 setTime utc feedInfo =
     feedInfo
     { feedInfoId = FeedInfoId $ Just (getFeedInfoId . feedInfoId $ feedInfo)
     , feedInfoLastUpdated = O.pgUTCTime utc
     }
-
-feedInfoHToW :: FeedInfoH -> FeedInfoW
-feedInfoHToW FeedInfo {..} =
-    FeedInfo
-        (FeedInfoId Nothing)
-        (O.pgStrictText feedInfoName)
-        (O.pgStrictText feedInfoUrl)
-        (O.pgInt4 feedInfoUpdateEvery)
-        (O.pgUTCTime feedInfoLastUpdated)
 
 defFeedInfo :: FeedInfoH
 defFeedInfo =
@@ -190,15 +188,12 @@ type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
 
 type FeedItemH = FeedItem (Maybe Int) (Maybe Int) Text Url UTCTime (Maybe Url)
 
-feedItemHToW :: FeedInfoId Int -> FeedItemH -> FeedItemW
-feedItemHToW (FeedInfoId feedInfoId) FeedItem {..} =
-    FeedItem
-        (FeedItemId Nothing)
-        (FeedInfoId (O.pgInt4 feedInfoId))
-        (O.pgStrictText feedItemTitle)
-        (O.pgStrictText feedItemUrl)
-        (O.pgUTCTime feedItemDate)
-        (O.maybeToNullable (O.pgStrictText <$> feedItemComments))
+
+-- | Works but is really ugly fix
+instance D.Default O.Constant (Maybe Int) (FeedItemId (Maybe (O.Column O.PGInt4))) where
+  def = O.Constant (\x -> case x of
+        Nothing -> FeedItemId Nothing
+        Just fid -> FeedItemId . Just . O.pgInt4 $ fid)
 
 defFeedItem :: FeedItemH
 defFeedItem =
