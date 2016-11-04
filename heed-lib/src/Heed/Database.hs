@@ -14,7 +14,6 @@ import Data.ByteString (ByteString)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
-import qualified Data.Profunctor.Product.Default as D
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
 import qualified Opaleye as O
 
@@ -88,19 +87,13 @@ type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGTe
 
 type FeedInfoHR = FeedInfo (FeedInfoId Int) Text Text Int UTCTime
 
-type FeedInfoH = FeedInfo (Maybe (FeedInfoId Int)) Text Text Int UTCTime
+type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime
 
 type FeedInfoIdColumnWO = FeedInfoId (Maybe (O.Column O.PGInt4))
 
 type FeedInfoIdColumnW = FeedInfoId (O.Column O.PGInt4)
 
 type FeedInfoIdColumnR = FeedInfoId (O.Column O.PGInt4)
-
--- | Works but is really ugly fix
-instance D.Default O.Constant (Maybe (FeedInfoId Int)) (FeedInfoId (Maybe (O.Column O.PGInt4))) where
-  def = O.Constant (\x -> case x of
-        Nothing -> FeedInfoId Nothing
-        Just fid -> Just . O.pgInt4 <$> fid)
 
 setTime :: UTCTime -> FeedInfoR -> FeedInfoW
 setTime utc feedInfo =
@@ -109,10 +102,10 @@ setTime utc feedInfo =
     , feedInfoLastUpdated = O.pgUTCTime utc
     }
 
-defFeedInfo :: FeedInfoH
+defFeedInfo :: FeedInfoHW
 defFeedInfo =
     FeedInfo
-    { feedInfoId = Nothing
+    { feedInfoId = FeedInfoId Nothing
     , feedInfoName = ""
     , feedInfoUrl = ""
     , feedInfoUpdateEvery = 60
@@ -173,6 +166,7 @@ $(makeAdaptorAndInstance "pFeedItem" ''FeedItem)
 
 newtype FeedItemId a =
     FeedItemId a
+    deriving (Eq, Functor)
 
 $(makeAdaptorAndInstance "pFeedItemId" ''FeedItemId)
 
@@ -186,20 +180,15 @@ type FeedItemIdColumnW = FeedItemId (O.Column O.PGInt4)
 
 type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
 
-type FeedItemH = FeedItem (Maybe Int) (Maybe Int) Text Url UTCTime (Maybe Url)
+type FeedItemHW = FeedItem (FeedItemId (Maybe Int)) (FeedInfoId (Maybe Int)) Text Url UTCTime (Maybe Url)
+type FeedItemHR = FeedItem (FeedItemId Int) (FeedInfoId Int) Text Url UTCTime (Maybe Url)
 
 
--- | Works but is really ugly fix
-instance D.Default O.Constant (Maybe Int) (FeedItemId (Maybe (O.Column O.PGInt4))) where
-  def = O.Constant (\x -> case x of
-        Nothing -> FeedItemId Nothing
-        Just fid -> FeedItemId . Just . O.pgInt4 $ fid)
-
-defFeedItem :: FeedItemH
+defFeedItem :: FeedItemHW
 defFeedItem =
     FeedItem
-    { feedItemId = Nothing
-    , feedItemFeedId = Nothing
+    { feedItemId = FeedItemId Nothing
+    , feedItemFeedId = FeedInfoId Nothing
     , feedItemTitle = ""
     , feedItemUrl = ""
     , feedItemDate = defTime

@@ -12,8 +12,8 @@ import Database.PostgreSQL.Simple as PG
 import Heed.Database
 import qualified Opaleye as O
 
-runUsersQuery :: PG.Connection -> O.Query (O.Column O.PGText) -> IO [T.Text]
-runUsersQuery = O.runQuery
+runUsersQuery :: (MonadIO m) => PG.Connection -> O.Query (O.Column O.PGText) -> m [T.Text]
+runUsersQuery conn quer = liftIO $ O.runQuery conn quer
 
 getUsers :: O.Query (O.Column O.PGText)
 getUsers =
@@ -21,15 +21,26 @@ getUsers =
   do users <- O.queryTable userTable -< ()
      returnA -< userName users
 
+getItemsFrom :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
+getItemsFrom (FeedInfoId feedId) from = proc () -> do
+    items <- O.queryTable feedItemTable -< ()
+    O.restrict -<
+      (getFeedInfoId . feedItemFeedId $ items) O..== O.pgInt4 feedId
+      O..&& (feedItemDate items O..>= O.pgUTCTime from)
+    returnA -< items
+
+getRecentItems :: (MonadIO m) => PG.Connection -> FeedInfoId Int -> UTCTime -> m [FeedItemHR]
+getRecentItems conn feedId time = liftIO $ O.runQuery conn (getItemsFrom feedId time)
+
 insertFeed
     :: (MonadIO m)
-    => PG.Connection -> FeedInfoH -> m [FeedInfoHR]
+    => PG.Connection -> FeedInfoHW -> m [FeedInfoHR]
 insertFeed conn newFeed =
     liftIO $ O.runInsertManyReturning conn feedInfoTable [O.constant newFeed] id
 
 insertItems
     :: (MonadIO m)
-    => PG.Connection -> [FeedItemH] -> FeedInfoId Int -> m Int64
+    => PG.Connection -> [FeedItemHW] -> FeedInfoId Int -> m Int64
 insertItems conn newItems feedId =
     liftIO $ O.runInsertMany conn feedItemTable $ O.constant <$> (setId feedId <$> newItems)
     where setId fid item = item { feedItemFeedId = fid }
@@ -45,7 +56,7 @@ setFeedLastUpdated conn (FeedInfoId feedId) time =
         (setTime time)
         (\row -> (getFeedInfoId . feedInfoId $ row) O..== O.pgInt4 feedId)
 
-thisFeed :: FeedInfoH -> O.Query FeedInfoR
+thisFeed :: FeedInfoHW -> O.Query FeedInfoR
 thisFeed fresh =
     proc () ->
   do feeds <- O.queryTable feedInfoTable -< ()

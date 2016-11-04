@@ -8,7 +8,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
-import Data.List (sortBy)
+import Data.List (sortBy, minimumBy, deleteFirstsBy)
 import Data.Maybe (fromMaybe)
 import Data.Ord (compare)
 import qualified Data.Text as T
@@ -54,13 +54,15 @@ addFeed conf url = do
             let oldUpdateTime = feedInfoLastUpdated . head $ oldFeeds
             liftIO $ putStrLn "Old time"
             liftIO $ print oldUpdateTime
-            liftIO $ putStrLn "New Times"
+            liftIO $ putStrLn "Feed Items"
             liftIO $ mapM_ print (feedItemDate <$> sortBy after feedItems)
-            let newItems = filter (isNewItem oldUpdateTime) feedItems
+            recentItems <- getRecentItems dbConn (getFeedId oldFeeds) (feedItemDate (minimumBy after feedItems))
+            let newItems = deleteFirstsBy (sameItem (getFeedId oldFeeds)) (setFeedId (getFeedId oldFeeds) <$> feedItems) (applyJust <$> recentItems)
+            liftIO $ putStrLn "NEW ITEMS"
+            liftIO $ mapM_ print (feedItemDate <$> sortBy after newItems)
             insertedItems <-
-                if feedInfoLastUpdated feedInfo > oldUpdateTime && not (null newItems)
-                    then insertItems dbConn (filter (isNewItem oldUpdateTime) feedItems) $
-                         getFeedId oldFeeds
+                if not (null newItems)
+                    then insertItems dbConn newItems $ getFeedId oldFeeds
                     else return 0
             timeUpdated <- setFeedLastUpdated dbConn (getFeedId oldFeeds) now
             liftIO $ putStrLn ("Inserted " ++ show insertedItems ++ " items")
@@ -69,10 +71,20 @@ addFeed conf url = do
         _ -> throwError MultipleFeedsSameUrl
   where
     getFeedId = feedInfoId . head
-    isNewItem oldUpdateTime item = feedItemDate item > oldUpdateTime
+    --isNewItem oldUpdateTime item = feedItemDate item > oldUpdateTime
     after x y = compare (feedItemDate x) (feedItemDate y)
+    sameItem feedId fromHttp fromDb  = (getFeedInfoId . feedItemFeedId $ fromDb) == getFeedInfoId (Just <$> feedId)
+        && (feedItemTitle fromDb == feedItemTitle fromHttp)
+        && (feedItemUrl fromDb == feedItemUrl fromHttp)
+    setFeedId fid hw = hw { feedItemFeedId = Just <$> fid }
 
-extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoH, [FeedItemH])
+applyJust :: FeedItemHR -> FeedItemHW
+applyJust hr = hr
+    { feedItemId = Just <$> feedItemId hr
+    , feedItemFeedId = Just <$> feedItemFeedId hr
+    }
+
+extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoHW, [FeedItemHW])
 extractInfoFromFeed now url (AtomFeed feed) = Just (feedInfo, feedItems)
   where
     feedInfo =
@@ -99,7 +111,7 @@ extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
 extractInfoFromFeed _ _ (RSS1Feed _) = error "RSS1 still todo"
 extractInfoFromFeed _ _ (XMLFeed _) = Nothing
 
-atomEntryToItem :: UTCTime -> Atom.Entry -> FeedItemH
+atomEntryToItem :: UTCTime -> Atom.Entry -> FeedItemHW
 atomEntryToItem now entry =
     defFeedItem
     { feedItemTitle = T.pack . Atom.txtToString . Atom.entryTitle $ entry
@@ -107,7 +119,7 @@ atomEntryToItem now entry =
     , feedItemDate = fromMaybe now $ parseISO8601 (Atom.entryUpdated entry)
     }
 
-rssEntryToItem :: UTCTime -> RSS.RSSItem -> FeedItemH
+rssEntryToItem :: UTCTime -> RSS.RSSItem -> FeedItemHW
 rssEntryToItem now entry =
     defFeedItem
     { feedItemTitle = T.pack . fromMaybe "No Title" . RSS.rssItemTitle $ entry
