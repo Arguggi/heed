@@ -9,6 +9,7 @@ import qualified Data.Text as T
 import Database.PostgreSQL.Simple as PG
 import Heed.Extract (addFeed)
 import Heed.Types (BackendConf(..))
+import Heed.Server
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Environment (setEnv)
@@ -21,8 +22,9 @@ main :: IO ()
 main = do
     setupPostgresEnv
     baConf <- setupBackendConf
-    result <- runExceptT $ addFeed baConf "https://news.ycombinator.com/rss"
-    print result
+    --result <- runExceptT $ addFeed baConf "https://news.ycombinator.com/rss"
+    --print result
+    genAuthMain baConf
 
 setupPostgresEnv :: IO ()
 setupPostgresEnv = do

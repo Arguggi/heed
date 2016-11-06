@@ -66,3 +66,36 @@ thisFeed fresh =
 
 runFeedInfoQuery :: PG.Connection -> O.Query FeedInfoR -> IO [FeedInfoHR]
 runFeedInfoQuery = O.runQuery
+
+getUser :: T.Text -> O.Query UserR
+getUser un = proc () -> do
+    user <- O.queryTable userTable -< ()
+    O.restrict -< (userName user O..== O.pgStrictText un)
+    returnA -< user
+    --
+getUserDb :: (MonadIO m) => PG.Connection -> T.Text -> m (Maybe UserH)
+getUserDb conn un = liftIO $ do
+    ids <- O.runQuery conn (getUser un)
+    case length (ids :: [UserH]) of
+        0 -> return Nothing
+        _ -> return $ Just (head ids)
+
+saveTokenDb :: (MonadIO m) => PG.Connection -> T.Text -> UserId Int -> m Int64
+saveTokenDb conn token uid = liftIO $ O.runUpdate conn authTokenTable (setToken token) (filterUser uid)
+
+setToken :: T.Text -> AuthTokenR -> AuthTokenW
+setToken token auth = auth { authTokenToken = O.pgStrictText token }
+
+filterUser :: UserId Int -> AuthTokenR -> O.Column O.PGBool
+filterUser (UserId userid) auth = (getUserId . authTokenHeedUserId $ auth) O..== O.pgInt4 userid
+
+verifyToken :: (MonadIO m) => PG.Connection -> T.Text -> m [UserH]
+verifyToken conn token = liftIO $ O.runQuery conn (tokenToUser token)
+
+tokenToUser :: T.Text -> O.Query UserR
+tokenToUser token = proc () -> do
+    users <- O.queryTable userTable -< ()
+    tokens <- O.queryTable authTokenTable -< ()
+    O.restrict -< ((getUserId . userId $ users) O..== (getUserId . authTokenHeedUserId $ tokens))
+        O..&& (authTokenToken tokens O..== O.pgStrictText token)
+    returnA -< users

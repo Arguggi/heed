@@ -10,7 +10,6 @@
 
 module Heed.Database where
 
-import Data.ByteString (ByteString)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
@@ -34,22 +33,23 @@ data User a b c d = User
 
 $(makeAdaptorAndInstance "pUser" ''User)
 
-newtype UserId' a =
-    UserId' a
+newtype UserId a = UserId
+    { getUserId :: a
+    } deriving (Functor)
 
-$(makeAdaptorAndInstance "pUserId" ''UserId')
+$(makeAdaptorAndInstance "pUserId" ''UserId)
 
-type UserW = User UserIdColumnWO (O.Column O.PGText) (O.Column O.PGBytea) (O.Column O.PGText)
+type UserW = User UserIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGText)
 
-type UserR = User UserIdColumnR (O.Column O.PGText) (O.Column O.PGBytea) (O.Column O.PGText)
+type UserR = User UserIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGText)
 
-type UserH = User (Maybe Int) Text ByteString Text
+type UserH = User (UserId Int) Text Text Text
 
-type UserIdColumnWO = UserId' (Maybe (O.Column O.PGInt4))
+type UserIdColumnWO = UserId (Maybe (O.Column O.PGInt4))
 
-type UserIdColumnW = UserId' (O.Column O.PGInt4)
+type UserIdColumnW = UserId (O.Column O.PGInt4)
 
-type UserIdColumnR = UserId' (O.Column O.PGInt4)
+type UserIdColumnR = UserId (O.Column O.PGInt4)
 
 userTable :: O.Table UserW UserR
 userTable =
@@ -57,7 +57,7 @@ userTable =
         "heed_user"
         (pUser
              User
-             { userId = pUserId (UserId' (O.optional "id"))
+             { userId = pUserId (UserId (O.optional "id"))
              , userName = O.required "username"
              , userPassword = O.required "password"
              , userEmail = O.required "email"
@@ -148,7 +148,7 @@ subscriptionTable =
         (pSubscription
              Subscription
              { subscriptionFeedId = pFeedInfoId (FeedInfoId (O.required "feedInfoId"))
-             , subscriptionUserId = pUserId (UserId' (O.required "userId"))
+             , subscriptionUserId = pUserId (UserId (O.required "userId"))
              })
 
 ----------------------------
@@ -229,5 +229,26 @@ unreadItemTable =
         (pUnreadItem
              UnreadItem
              { unreadFeedItemId = pFeedItemId (FeedItemId (O.required "feed_item_id"))
-             , unreadUserId = pUserId (UserId' (O.required "user_id"))
+             , unreadUserId = pUserId (UserId (O.required "user_id"))
              })
+
+data AuthToken a b = AuthToken
+    { authTokenHeedUserId :: a
+    , authTokenToken :: b
+    }
+
+$(makeAdaptorAndInstance "pAuthToken" ''AuthToken)
+
+type AuthTokenW = AuthToken UserIdColumnW  (O.Column O.PGText)
+
+type AuthTokenR = AuthToken UserIdColumnR (O.Column O.PGText)
+
+authTokenTable :: O.Table AuthTokenW AuthTokenR
+authTokenTable =
+    O.Table
+        "auth_token"
+        (pAuthToken
+            AuthToken
+            { authTokenHeedUserId = pUserId (UserId (O.required "user_id"))
+            , authTokenToken = O.required "token"
+            })

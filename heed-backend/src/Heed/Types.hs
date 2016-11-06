@@ -31,3 +31,7 @@ instance HasHttpManager BackendConf where
 
 instance HasDbConnection BackendConf where
     getDbConnection = dbConnection
+
+data CredStatus
+    = Verified
+    | Unverified

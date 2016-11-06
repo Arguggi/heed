@@ -1,7 +1,7 @@
 CREATE TABLE heed_user (
     id serial PRIMARY KEY,
     username varchar (128) NOT NULL,
-    password bytea NOT NULL,
+    password text NOT NULL,
     email varchar (128) NOT NULL
 );
 
@@ -34,3 +34,26 @@ CREATE TABLE unread_item (
     user_id serial REFERENCES heed_user(id) ON DELETE CASCADE NOT NULL,
     PRIMARY KEY (feed_item_id, user_id)
 );
+
+CREATE TABLE auth_token (
+    user_id serial REFERENCES heed_user(id) ON DELETE CASCADE NOT NULL,
+    token text NOT NULL,
+    PRIMARY KEY (user_id)
+);
+
+CREATE OR REPLACE FUNCTION add_id_token() RETURNS TRIGGER AS
+$BODY$
+BEGIN
+    INSERT INTO
+        auth_token(user_id,token)
+        VALUES(new.id,'invalid');
+    RETURN new;
+END;
+$BODY$
+language plpgsql;
+
+CREATE TRIGGER after_new_user
+    AFTER INSERT ON heed_user
+    FOR EACH ROW
+        EXECUTE PROCEDURE add_id_token();
+

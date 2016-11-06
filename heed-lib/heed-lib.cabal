@@ -11,23 +11,13 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Heed.Database
-                     , Heed.Types
-                     , Heed.Extract
-                     , Heed.Query
+  exposed-modules:     Heed.Commands
   build-depends:       base >=4.9 && <4.10
                      , aeson
                      , bytestring
                      , data-default-class
                      , exceptions
-                     , feed
-                     , http-client
-                     , http-client-tls
-                     , iso8601-time
                      , mtl
-                     , opaleye
-                     , postgresql-simple
-                     , product-profunctors
                      , safe
                      , text
                      , time
