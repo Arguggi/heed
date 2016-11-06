@@ -1,23 +1,22 @@
 <!DOCTYPE html>
 <html>
 <head>
- <title>Login</title>
+ <meta charset="UTF-8">
+ <title>Heed - Login</title>
+ <link rel="stylesheet" href="style.css">
 </head>
 <body>
  <header>
-  Login
+     <h1>Heed - Login</h1>
  </header>
+ <div class="container">
  <section class="loginform cf">
  <form name="login" action="/login" method="post" accept-charset="utf-8">
-   <ul>
-     <li><label for="username">Email</label>
-     <input type="text" name="username" placeholder="username" required></li>
-     <li><label for="password">Password</label>
-     <input type="password" name="password" placeholder="password" required></li>
-     <li>
-     <input type="submit" value="Login"></li>
-   </ul>
+     <input class="inputField" type="text" name="username" placeholder="Username" required>
+     <input class="inputField" type="password" name="password" placeholder="Password" required></li>
+     <input class="loginButton" type="submit" value="Login">
  </form>
  </section>
+ </div>
 </body>
 </html>
