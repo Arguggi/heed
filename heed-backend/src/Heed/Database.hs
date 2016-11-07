@@ -181,8 +181,8 @@ type FeedItemIdColumnW = FeedItemId (O.Column O.PGInt4)
 type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
 
 type FeedItemHW = FeedItem (FeedItemId (Maybe Int)) (FeedInfoId (Maybe Int)) Text Url UTCTime (Maybe Url)
-type FeedItemHR = FeedItem (FeedItemId Int) (FeedInfoId Int) Text Url UTCTime (Maybe Url)
 
+type FeedItemHR = FeedItem (FeedItemId Int) (FeedInfoId Int) Text Url UTCTime (Maybe Url)
 
 defFeedItem :: FeedItemHW
 defFeedItem =
@@ -239,7 +239,7 @@ data AuthToken a b = AuthToken
 
 $(makeAdaptorAndInstance "pAuthToken" ''AuthToken)
 
-type AuthTokenW = AuthToken UserIdColumnW  (O.Column O.PGText)
+type AuthTokenW = AuthToken UserIdColumnW (O.Column O.PGText)
 
 type AuthTokenR = AuthToken UserIdColumnR (O.Column O.PGText)
 
@@ -248,7 +248,7 @@ authTokenTable =
     O.Table
         "auth_token"
         (pAuthToken
-            AuthToken
-            { authTokenHeedUserId = pUserId (UserId (O.required "user_id"))
-            , authTokenToken = O.required "token"
-            })
+             AuthToken
+             { authTokenHeedUserId = pUserId (UserId (O.required "user_id"))
+             , authTokenToken = O.required "token"
+             })

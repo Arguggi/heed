@@ -8,7 +8,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
-import Data.List (sortBy, minimumBy, deleteFirstsBy)
+import Data.List (deleteFirstsBy, minimumBy, sortBy)
 import Data.Maybe (fromMaybe)
 import Data.Ord (compare)
 import qualified Data.Text as T
@@ -56,8 +56,16 @@ addFeed conf url = do
             liftIO $ print oldUpdateTime
             liftIO $ putStrLn "Feed Items"
             liftIO $ mapM_ print (feedItemDate <$> sortBy after feedItems)
-            recentItems <- getRecentItems dbConn (getFeedId oldFeeds) (feedItemDate (minimumBy after feedItems))
-            let newItems = deleteFirstsBy (sameItem (getFeedId oldFeeds)) (setFeedId (getFeedId oldFeeds) <$> feedItems) (applyJust <$> recentItems)
+            recentItems <-
+                getRecentItems
+                    dbConn
+                    (getFeedId oldFeeds)
+                    (feedItemDate (minimumBy after feedItems))
+            let newItems =
+                    deleteFirstsBy
+                        (sameItem (getFeedId oldFeeds))
+                        (setFeedId (getFeedId oldFeeds) <$> feedItems)
+                        (applyJust <$> recentItems)
             liftIO $ putStrLn "NEW ITEMS"
             liftIO $ mapM_ print (feedItemDate <$> sortBy after newItems)
             insertedItems <-
@@ -73,13 +81,18 @@ addFeed conf url = do
     getFeedId = feedInfoId . head
     --isNewItem oldUpdateTime item = feedItemDate item > oldUpdateTime
     after x y = compare (feedItemDate x) (feedItemDate y)
-    sameItem feedId fromHttp fromDb  = (getFeedInfoId . feedItemFeedId $ fromDb) == getFeedInfoId (Just <$> feedId)
-        && (feedItemTitle fromDb == feedItemTitle fromHttp)
-        && (feedItemUrl fromDb == feedItemUrl fromHttp)
-    setFeedId fid hw = hw { feedItemFeedId = Just <$> fid }
+    sameItem feedId fromHttp fromDb =
+        (getFeedInfoId . feedItemFeedId $ fromDb) == getFeedInfoId (Just <$> feedId) &&
+        (feedItemTitle fromDb == feedItemTitle fromHttp) &&
+        (feedItemUrl fromDb == feedItemUrl fromHttp)
+    setFeedId fid hw =
+        hw
+        { feedItemFeedId = Just <$> fid
+        }
 
 applyJust :: FeedItemHR -> FeedItemHW
-applyJust hr = hr
+applyJust hr =
+    hr
     { feedItemId = Just <$> feedItemId hr
     , feedItemFeedId = Just <$> feedItemFeedId hr
     }
