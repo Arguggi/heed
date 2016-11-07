@@ -122,8 +122,7 @@ type instance AuthServerData (AuthProtect "cookie-auth") = UserName
 genAuthServer :: BackendConf -> Server AuthGenAPI
 genAuthServer conf =
     let loginPage = serveDirectory "./static/login/"
-        rssApp _ = app
-    in (checkCreds conf :<|> loginPage) :<|> rssApp
+    in (checkCreds conf :<|> loginPage) :<|> app
 
 checkCreds :: BackendConf -> AuthData -> Handler NoContent
 checkCreds conf (AuthData un pw) = do
@@ -179,20 +178,21 @@ err303ValidAuth token =
         ]
     }
 
-app :: Application
-app = websocketsOr defaultConnectionOptions wsApp backupApp
-  where
-    wsApp :: ServerApp
-    wsApp pending_conn = do
-        putStrLn "new connection"
-        conn <- acceptRequest pending_conn
-        forkPingThread conn 10
-        forever $
-            do asd <- receiveData conn
-               let qwe :: Maybe Up = decode asd
-               putStrLn "received"
-               print qwe
-               putStrLn "sending"
-               sendBinaryData conn (encode Testing)
-    backupApp :: Application
-    backupApp = staticApp $ defaultFileServerSettings "./heed-frontend/output/"
+app :: UserName -> Application
+app uname = websocketsOr defaultConnectionOptions (wsApp uname) backupApp
+
+wsApp :: UserName -> ServerApp
+wsApp uname pending_conn = do
+    putStrLn "new connection"
+    conn <- acceptRequest pending_conn
+    forkPingThread conn 10
+    sendBinaryData conn (encode (Name $ unUserName uname))
+    forever $
+        do asd <- receiveData conn
+           let qwe :: Maybe Up = decode asd
+           putStrLn "received"
+           print qwe
+           putStrLn "sending"
+
+backupApp :: Application
+backupApp = staticApp $ defaultFileServerSettings "./heed-frontend/output/"
