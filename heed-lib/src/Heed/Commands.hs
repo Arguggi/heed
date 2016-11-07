@@ -7,6 +7,7 @@ module Heed.Commands
 
 import Data.Aeson
 import GHC.Generics
+import qualified Data.Text as T
 
 data Up = GetFeeds deriving (Generic, Show)
 
@@ -16,6 +17,7 @@ instance ToJSON Up
 data Down
     = NewItems
     | Testing
+    | Name T.Text
     deriving (Generic, Show)
 
 
