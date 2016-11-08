@@ -1,5 +1,6 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -7,43 +8,23 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Heed.Database where
+module Heed.DbTypes where
 
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
-import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
+import Heed.Database
 import qualified Opaleye as O
 
-type Url = Text
-
--- Type name guide:
--- W = Write
--- R = Read
--- H = Haskell world
--- WO = Write Optional
--- Users Table
-data User a b c d = User
-    { userId :: a -- PGInt4
-    , userName :: b -- Text
-    , userPassword :: c -- Bytestring
-    , userEmail :: c -- Text
-    }
-
 $(makeAdaptorAndInstance "pUser" ''User)
-
-newtype UserId a = UserId
-    { getUserId :: a
-    } deriving (Functor)
 
 $(makeAdaptorAndInstance "pUserId" ''UserId)
 
 type UserW = User UserIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGText)
 
 type UserR = User UserIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGText)
-
-type UserH = User (UserId Int) Text Text Text
 
 type UserIdColumnWO = UserId (Maybe (O.Column O.PGInt4))
 
@@ -65,29 +46,14 @@ userTable =
 
 -----------------------------------------
 -- Feeds Table
-data FeedInfo a b c d e = FeedInfo
-    { feedInfoId :: a -- PGInt4
-    , feedInfoName :: b -- Text
-    , feedInfoUrl :: c -- Url
-    , feedInfoUpdateEvery :: d -- Minutes
-    , feedInfoLastUpdated :: e -- timestamp
-    }
 
 $(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
-
-newtype FeedInfoId a = FeedInfoId
-    { getFeedInfoId :: a
-    } deriving (Functor)
 
 $(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId)
 
 type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4) (O.Column O.PGTimestamptz)
 
 type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4) (O.Column O.PGTimestamptz)
-
-type FeedInfoHR = FeedInfo (FeedInfoId Int) Text Text Int UTCTime
-
-type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime
 
 type FeedInfoIdColumnWO = FeedInfoId (Maybe (O.Column O.PGInt4))
 
@@ -130,10 +96,6 @@ feedInfoTable =
 
 ----------------------------
 -- Feeds <-> Users (Subscriptions)
-data Subscription a b = Subscription
-    { subscriptionFeedId :: a -- PGInt4
-    , subscriptionUserId :: b -- PGInt4
-    }
 
 $(makeAdaptorAndInstance "pSubscription" ''Subscription)
 
@@ -153,20 +115,8 @@ subscriptionTable =
 
 ----------------------------
 -- Feed items
-data FeedItem a b c d e f = FeedItem
-    { feedItemId :: a -- PGInt4
-    , feedItemFeedId :: b -- PGInt4
-    , feedItemTitle :: c -- Text
-    , feedItemUrl :: d -- Url
-    , feedItemDate :: e -- UTC
-    , feedItemComments :: f -- Maybe Url
-    }
 
 $(makeAdaptorAndInstance "pFeedItem" ''FeedItem)
-
-newtype FeedItemId a =
-    FeedItemId a
-    deriving (Eq, Functor)
 
 $(makeAdaptorAndInstance "pFeedItemId" ''FeedItemId)
 
@@ -179,10 +129,6 @@ type FeedItemIdColumnWO = FeedItemId (Maybe (O.Column O.PGInt4))
 type FeedItemIdColumnW = FeedItemId (O.Column O.PGInt4)
 
 type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
-
-type FeedItemHW = FeedItem (FeedItemId (Maybe Int)) (FeedInfoId (Maybe Int)) Text Url UTCTime (Maybe Url)
-
-type FeedItemHR = FeedItem (FeedItemId Int) (FeedInfoId Int) Text Url UTCTime (Maybe Url)
 
 defFeedItem :: FeedItemHW
 defFeedItem =
@@ -211,10 +157,6 @@ feedItemTable =
 
 ----------------------------
 -- Unread items
-data UnreadItem a b = UnreadItem
-    { unreadFeedItemId :: a -- PGInt4
-    , unreadUserId :: b -- PGInt4
-    }
 
 $(makeAdaptorAndInstance "pUnreadItem" ''UnreadItem)
 
@@ -231,11 +173,6 @@ unreadItemTable =
              { unreadFeedItemId = pFeedItemId (FeedItemId (O.required "feed_item_id"))
              , unreadUserId = pUserId (UserId (O.required "user_id"))
              })
-
-data AuthToken a b = AuthToken
-    { authTokenHeedUserId :: a
-    , authTokenToken :: b
-    }
 
 $(makeAdaptorAndInstance "pAuthToken" ''AuthToken)
 

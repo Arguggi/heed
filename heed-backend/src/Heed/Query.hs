@@ -9,6 +9,7 @@ import Data.Int (Int64)
 import qualified Data.Text as T
 import Data.Time
 import Database.PostgreSQL.Simple as PG
+import Heed.DbTypes
 import Heed.Database
 import qualified Opaleye as O
 

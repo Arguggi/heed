@@ -8,9 +8,12 @@ module Heed.Commands
 import Data.Aeson
 import qualified Data.Text as T
 import GHC.Generics
+import Heed.Database
 
-data Up =
-    GetFeeds
+data Up
+    = GetFeeds
+    | GetFeedItems FeedItemIdH
+    | ItemRead FeedItemIdH
     deriving (Generic, Show)
 
 instance FromJSON Up

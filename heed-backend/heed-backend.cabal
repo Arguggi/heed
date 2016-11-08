@@ -13,7 +13,7 @@ cabal-version:       >=1.10
 executable heed-backend
   main-is:             Main.hs
   other-modules:       Heed.Crypto
-                     , Heed.Database
+                     , Heed.DbTypes
                      , Heed.Extract
                      , Heed.Query
                      , Heed.Server
