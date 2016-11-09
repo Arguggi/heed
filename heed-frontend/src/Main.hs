@@ -24,7 +24,6 @@ bodyWidget
     :: MonadWidget t m
     => m ()
 bodyWidget = do
-    el "header" $ elClass "h1" "page-title" homePageLink
     clickEvent <- button "Click me"
     let clickStream = const ([toStrict . encode $ GetFeeds] :: [ByteString]) <$> clickEvent
     ws <-
@@ -36,8 +35,3 @@ bodyWidget = do
     wsReceive <- holdDyn (Just NewItems) (decode . fromStrict <$> _webSocket_recv ws)
     display wsReceive
     return ()
-
-homePageLink
-    :: DomBuilder t m
-    => m ()
-homePageLink = text "log"
