@@ -17,6 +17,7 @@ library
                      , aeson
                      , bytestring
                      , data-default-class
+                     , deepseq
                      , exceptions
                      , mtl
                      , safe

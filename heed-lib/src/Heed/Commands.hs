@@ -4,6 +4,7 @@
 
 module Heed.Commands where
 
+import Control.DeepSeq
 import Data.Aeson
 import Data.Int
 import qualified Data.Text as T
@@ -42,3 +43,5 @@ type FeedList = FeedList' Int T.Text Int64
 instance FromJSON FeedList
 
 instance ToJSON FeedList
+
+instance NFData FeedList

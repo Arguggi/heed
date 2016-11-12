@@ -37,6 +37,7 @@ executable heed-backend
                      , mtl
                      , mwc-random
                      , opaleye
+                     , opaleye-trans
                      , postgresql-simple
                      , product-profunctors
                      , safe
