@@ -23,7 +23,7 @@ instance ToJSON Up
 
 data Down
     = NewItems
-    | Feeds [FeedList]
+    | Feeds [ReactFeedInfo]
     deriving (Generic, Show)
 
 instance FromJSON Down
@@ -31,17 +31,17 @@ instance FromJSON Down
 instance ToJSON Down
 
 
-data FeedList' a b c
-    = FeedList'
+data ReactFeedInfo' a b c
+    = ReactFeedInfo'
     { feedListId :: a
     , feedListName :: b
     , feedListUnread :: c
     } deriving (Generic, Show)
 
-type FeedList = FeedList' Int T.Text Int64
+type ReactFeedInfo = ReactFeedInfo' Int T.Text Int64
 
-instance FromJSON FeedList
+instance FromJSON ReactFeedInfo
 
-instance ToJSON FeedList
+instance ToJSON ReactFeedInfo
 
-instance NFData FeedList
+instance NFData ReactFeedInfo

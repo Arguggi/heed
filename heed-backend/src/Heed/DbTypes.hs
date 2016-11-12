@@ -187,6 +187,6 @@ authTokenTable =
              , authTokenToken = O.required "token"
              })
 
-$(makeAdaptorAndInstance "pFeedList" ''FeedList')
+$(makeAdaptorAndInstance "pReactFeedInfo" ''ReactFeedInfo')
 
-type FeedListR = FeedList' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
+type ReactFeedInfoR = ReactFeedInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)

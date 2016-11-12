@@ -13,8 +13,8 @@ import Data.Typeable (Typeable)
 import qualified Data.Text as T
 import Heed.Commands
 
-newtype HeedFeedList = HeedFeedList
-    { feedList :: [FeedList]
+newtype FeedListStore = FeedListStore
+    { feedList :: [ReactFeedInfo]
     } deriving (Show, Typeable)
 
 data FeedItem = FeedItem
@@ -23,14 +23,14 @@ data FeedItem = FeedItem
     } deriving (Show, Typeable)
 
 data FeedListAction =
-    SetFeedList [FeedList]
+    SetFeedList [ReactFeedInfo]
     deriving (Show, Typeable, Generic, NFData)
 
-instance StoreData HeedFeedList where
-    type StoreAction HeedFeedList = FeedListAction
+instance StoreData FeedListStore where
+    type StoreAction FeedListStore = FeedListAction
     transform action _ =
         case action of
-            SetFeedList feeds -> return $ HeedFeedList feeds
+            SetFeedList feeds -> return $ FeedListStore feeds
 
-feedListStore :: ReactStore HeedFeedList
-feedListStore = mkStore $ HeedFeedList []
+feedListStore :: ReactStore FeedListStore
+feedListStore = mkStore $ FeedListStore [ReactFeedInfo' 2 "asdsad" 23]

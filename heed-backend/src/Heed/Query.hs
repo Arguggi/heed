@@ -164,7 +164,7 @@ getUserUnreadItems (UserId userid) =
     idCol = O.pgInt4 userid
 
 getAllUserFeedInfo :: UserId Int
-                   -> O.Query FeedListR
+                   -> O.Query ReactFeedInfoR
 getAllUserFeedInfo uid =
     proc () ->
   do allfeeds <- getUserFeeds uid -< ()
@@ -173,9 +173,9 @@ getAllUserFeedInfo uid =
          fIName = feedInfoName allfeeds
          unreadCount = snd allunread
      O.restrict -< fIId O..== (getFeedInfoId . feedInfoId) allfeeds
-     returnA -< FeedList' fIId fIName unreadCount
+     returnA -< ReactFeedInfo' fIId fIName unreadCount
 
-getUserFeedInfo :: (MonadIO m) => PG.Connection -> UserId Int -> m [FeedList]
+getUserFeedInfo :: (MonadIO m) => PG.Connection -> UserId Int -> m [ReactFeedInfo]
 getUserFeedInfo conn userid = liftIO $ O.runQuery conn $ getAllUserFeedInfo userid
 
 insertUnread
