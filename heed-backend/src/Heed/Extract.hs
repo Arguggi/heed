@@ -8,7 +8,7 @@ import Control.Applicative ((<|>))
 import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
-import Data.List (deleteFirstsBy, minimumBy, sortBy)
+import Data.List (deleteFirstsBy, minimumBy)
 import Data.Maybe (fromMaybe)
 import Data.Ord (compare)
 import qualified Data.Text as T
@@ -35,8 +35,8 @@ addFeed
        ,HasDbConnection a
        ,MonadIO m
        ,MonadError HeedError m)
-    => a -> Url -> m ()
-addFeed conf url = do
+    => a -> Url -> UserId Int -> m ()
+addFeed conf url uid = do
     let manager = getHttpManager conf
         dbConn = getDbConnection conf
     request <- catchHttpException InvalidUrl . parseRequest $ "GET " ++ T.unpack url
@@ -48,15 +48,16 @@ addFeed conf url = do
     case length oldFeeds of
         0 -> do
             insertedFeed <- insertFeed dbConn feedInfo
-            asd <- insertItems dbConn feedItems $ getFeedId insertedFeed
-            liftIO $ putStrLn ("Inserted " ++ show asd ++ " items")
+            insertedItems <- insertItems dbConn feedItems $ getFeedId insertedFeed
+            _ <- insertUnread dbConn insertedItems uid
+            _ <- addSubscription dbConn uid (getFeedId insertedFeed)
             return ()
         1 -> do
-            let oldUpdateTime = feedInfoLastUpdated . head $ oldFeeds
-            liftIO $ putStrLn "Old time"
-            liftIO $ print oldUpdateTime
-            liftIO $ putStrLn "Feed Items"
-            liftIO $ mapM_ print (feedItemDate <$> sortBy after feedItems)
+            let newFeedItems = setFeedId (getFeedId oldFeeds) <$> feedItems
+                setFeedId fid hw =
+                    hw
+                    { feedItemFeedId = Just <$> fid
+                    }
             recentItems <-
                 getRecentItems
                     dbConn
@@ -65,31 +66,25 @@ addFeed conf url = do
             let newItems =
                     deleteFirstsBy
                         (sameItem (getFeedId oldFeeds))
-                        (setFeedId (getFeedId oldFeeds) <$> feedItems)
+                        newFeedItems
                         (applyJust <$> recentItems)
-            liftIO $ putStrLn "NEW ITEMS"
-            liftIO $ mapM_ print (feedItemDate <$> sortBy after newItems)
-            insertedItems <-
+            _ <-
                 if not (null newItems)
-                    then insertItems dbConn newItems $ getFeedId oldFeeds
+                    then do
+                        insertedItems <- insertItems dbConn newFeedItems $ getFeedId oldFeeds
+                        _ <- insertUnread dbConn insertedItems uid
+                        insertUnread dbConn insertedItems uid
                     else return 0
-            timeUpdated <- setFeedLastUpdated dbConn (getFeedId oldFeeds) now
-            liftIO $ putStrLn ("Inserted " ++ show insertedItems ++ " items")
-            liftIO $ putStrLn ("Updated " ++ show timeUpdated ++ " row")
+            _ <- setFeedLastUpdated dbConn (getFeedId oldFeeds) now
             return ()
         _ -> throwError MultipleFeedsSameUrl
   where
     getFeedId = feedInfoId . head
-    --isNewItem oldUpdateTime item = feedItemDate item > oldUpdateTime
     after x y = compare (feedItemDate x) (feedItemDate y)
     sameItem feedId fromHttp fromDb =
         (getFeedInfoId . feedItemFeedId $ fromDb) == getFeedInfoId (Just <$> feedId) &&
         (feedItemTitle fromDb == feedItemTitle fromHttp) &&
         (feedItemUrl fromDb == feedItemUrl fromHttp)
-    setFeedId fid hw =
-        hw
-        { feedItemFeedId = Just <$> fid
-        }
 
 applyJust :: FeedItemHR -> FeedItemHW
 applyJust hr =

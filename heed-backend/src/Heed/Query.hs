@@ -1,14 +1,18 @@
 {-# LANGUAGE Arrows #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Heed.Query where
 
 import Control.Arrow (returnA)
 import Control.Monad.IO.Class
+import Data.Maybe (listToMaybe)
+import Data.Profunctor.Product (p2)
 import Data.Int (Int64)
 import qualified Data.Text as T
 import Data.Time
-import Database.PostgreSQL.Simple as PG
+import qualified Database.PostgreSQL.Simple as PG
+import Heed.Commands
 import Heed.DbTypes
 import Heed.Database
 import qualified Opaleye as O
@@ -46,14 +50,18 @@ insertFeed conn newFeed =
 
 insertItems
     :: (MonadIO m)
-    => PG.Connection -> [FeedItemHW] -> FeedInfoId Int -> m Int64
+    => PG.Connection -> [FeedItemHW] -> FeedInfoId Int -> m [FeedItemHR]
 insertItems conn newItems feedId =
-    liftIO $ O.runInsertMany conn feedItemTable $ O.constant <$> (setId feedId <$> newItems)
-  where
-    setId fid item =
-        item
-        { feedItemFeedId = fid
-        }
+    liftIO $
+    O.runInsertManyReturning conn feedItemTable (O.constant <$> (setId feedId <$> newItems)) id
+
+setId
+    :: forall a b c d e f b1.
+       b -> FeedItem a b1 c d e f -> FeedItem a b c d e f
+setId fid item =
+    item
+    { feedItemFeedId = fid
+    }
 
 setFeedLastUpdated
     :: (MonadIO m)
@@ -112,8 +120,10 @@ filterUser (UserId userid) auth = (getUserId . authTokenHeedUserId $ auth) O..==
 
 verifyToken
     :: (MonadIO m)
-    => PG.Connection -> T.Text -> m [UserH]
-verifyToken conn token = liftIO $ O.runQuery conn (tokenToUser token)
+    => PG.Connection -> T.Text -> m (Maybe UserH)
+verifyToken conn token = liftIO $ do
+    user <- O.runQuery conn (tokenToUser token)
+    return $ listToMaybe user
 
 tokenToUser :: T.Text -> O.Query UserR
 tokenToUser token =
@@ -125,3 +135,58 @@ tokenToUser token =
           (getUserId . authTokenHeedUserId $ tokens))
          O..&& (authTokenToken tokens O..== O.pgStrictText token)
      returnA -< users
+
+getUserFeeds :: UserId Int -> O.Query FeedInfoR
+getUserFeeds (UserId userid) =
+    proc () ->
+  do subs <- O.queryTable subscriptionTable -< ()
+     feeds <- O.queryTable feedInfoTable -< ()
+     O.restrict -< ((getUserId . subscriptionUserId) subs O..== idCol)
+     O.restrict -<
+       ((getFeedInfoId . feedInfoId) feeds O..==
+          (getFeedInfoId . subscriptionFeedId) subs)
+     returnA -< feeds
+  where
+    idCol = O.pgInt4 userid
+
+getUserUnreadItems :: UserId Int -> O.Query (O.Column O.PGInt4, O.Column O.PGInt8)
+getUserUnreadItems (UserId userid) =
+    O.aggregate (p2 (O.groupBy, O.count)) $
+    proc () ->
+  do unread <- O.queryTable unreadItemTable -< ()
+     item <- O.queryTable feedItemTable -< ()
+     O.restrict -< (getUserId . unreadUserId) unread O..== idCol
+     O.restrict -<
+       ((getFeedItemId . feedItemId) item O..==
+          (getFeedItemId . unreadFeedItemId) unread)
+     returnA -< ((getFeedInfoId . feedItemFeedId) item, O.pgInt8 1)
+  where
+    idCol = O.pgInt4 userid
+
+getAllUserFeedInfo :: UserId Int
+                   -> O.Query FeedListR
+getAllUserFeedInfo uid =
+    proc () ->
+  do allfeeds <- getUserFeeds uid -< ()
+     allunread <- getUserUnreadItems uid -< ()
+     let fIId = fst allunread
+         fIName = feedInfoName allfeeds
+         unreadCount = snd allunread
+     O.restrict -< fIId O..== (getFeedInfoId . feedInfoId) allfeeds
+     returnA -< FeedList' fIId fIName unreadCount
+
+getUserFeedInfo :: (MonadIO m) => PG.Connection -> UserId Int -> m [FeedList]
+getUserFeedInfo conn userid = liftIO $ O.runQuery conn $ getAllUserFeedInfo userid
+
+insertUnread
+    :: (MonadIO m)
+    => PG.Connection -> [FeedItemHR] -> UserId Int -> m Int64
+insertUnread conn newItems uid = liftIO $ O.runInsertMany conn unreadItemTable $ O.constant <$> pairings
+  where
+    pairings = map (\x -> (\item userid -> UnreadItem (feedItemId item) userid) x uid) newItems
+
+addSubscription
+    :: (MonadIO m)
+    => PG.Connection -> UserId Int -> FeedInfoId Int -> m Int64
+addSubscription conn uid fid =
+    liftIO $ O.runInsertMany conn subscriptionTable [O.constant $ Subscription fid uid]

@@ -19,12 +19,11 @@ executable heed-frontend
                      , aeson
                      , bytestring
                      , data-default
+                     , deepseq
                      , heed-lib
                      , lens
                      , lucid
                      , react-flux
-                     , reflex
-                     , reflex-dom
                      , time
                      , text
                      , vector

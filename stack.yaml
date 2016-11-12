@@ -5,21 +5,11 @@ packages:
 - heed-backend
 - heed-frontend
 - heed-lib
-- location:
-    git: https://github.com/reflex-frp/reflex.git
-    commit: 64902eaa55b8fc5d1457c06d69ae41cbd11daaa5
-  extra-dep: true
-- location:
-    git: https://github.com/reflex-frp/reflex-dom.git
-    commit: f2d7c28b873e116ed795ded01a62b07586b703e4
-  extra-dep: true
 
 extra-deps:
-- ghcjs-dom-0.2.4.0
-- exception-transformers-0.4.0.4
-- webkitgtk3-javascriptcore-0.13.2.0
+- ghcjs-dom-0.5.0.2
 - ref-tf-0.4.0.1
-- zenc-0.1.1
-- haskell-src-meta-0.6.0.14
-- haskell-src-exts-1.17.1
 - react-flux-1.2.3
+- ghcjs-dom-jsaddle-0.5.0.0
+- jsaddle-dom-0.5.0.1
+- jsaddle-0.5.2.0

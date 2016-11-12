@@ -41,7 +41,6 @@ import Servant.Server.Experimental.Auth
 import Servant.Utils.StaticFiles (serveDirectory)
 import Web.Cookie
 import Web.FormUrlEncoded
-
 import Crypto.KDF.BCrypt
 import Heed.Commands
 import Heed.Crypto
@@ -65,11 +64,12 @@ genAuthMain :: BackendConf -> IO ()
 genAuthMain conf =
     run 8080 (serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
 
--- | A Token we generate if username and password are correct
-newtype UserName = UserName
+data UserName = UserName
     { unUserName :: Text
+    , unUserId :: Int
     }
 
+-- | A Token we generate if username and password are correct
 newtype Token = Token
     { unToken :: Text
     }
@@ -90,11 +90,11 @@ lookupTok conf cookies =
         Just cookieToken -> do
             let dbConn = dbConnection conf
             tokenInfo <- verifyToken dbConn (decodeUtf8 cookieToken)
-            case length tokenInfo of
-                0 -> throwError err303ToLogin
-                _ -> do
-                    liftIO . print $ "username: " <> (userName . head $ tokenInfo)
-                    return $ UserName (userName . head $ tokenInfo)
+            case tokenInfo of
+                Nothing -> throwError err303ToLogin
+                (Just user) -> do
+                    liftIO . print $ "username: " <> userName user
+                    return $ UserName (userName user) (getUserId . userId $ user)
 
 -- | The auth handler wraps a function from Request -> Handler Tok
 -- we look for a Cookie and pass the value of the cookie to `lookupTok`.
@@ -122,7 +122,7 @@ type instance AuthServerData (AuthProtect "cookie-auth") = UserName
 genAuthServer :: BackendConf -> Server AuthGenAPI
 genAuthServer conf =
     let loginPage = serveDirectory "./static/login/"
-    in (checkCreds conf :<|> loginPage) :<|> app
+    in (checkCreds conf :<|> loginPage) :<|> app conf
 
 checkCreds :: BackendConf -> AuthData -> Handler NoContent
 checkCreds conf (AuthData un pw) = do
@@ -178,15 +178,16 @@ err303ValidAuth token =
         ]
     }
 
-app :: UserName -> Application
-app uname = websocketsOr defaultConnectionOptions (wsApp uname) backupApp
+app :: BackendConf -> UserName -> Application
+app conf uname = websocketsOr defaultConnectionOptions (wsApp conf uname) backupApp
 
-wsApp :: UserName -> ServerApp
-wsApp uname pending_conn = do
+wsApp :: BackendConf -> UserName -> ServerApp
+wsApp conf uname pending_conn = do
     putStrLn "new connection"
     conn <- acceptRequest pending_conn
     forkPingThread conn 10
-    sendBinaryData conn (encode (Name $ unUserName uname))
+    feeds <- getUserFeedInfo (dbConnection conf) (UserId (unUserId uname))
+    sendBinaryData conn $ encode (Feeds feeds)
     forever $
         do asd <- receiveData conn
            let qwe :: Maybe Up = decode asd

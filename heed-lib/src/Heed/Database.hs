@@ -43,19 +43,28 @@ data FeedInfo a b c d e = FeedInfo
     , feedInfoUrl :: c -- Url
     , feedInfoUpdateEvery :: d -- Minutes
     , feedInfoLastUpdated :: e -- timestamp
-    }
+    } deriving (Show, Generic)
 
 newtype FeedInfoId a = FeedInfoId
     { getFeedInfoId :: a
-    } deriving (Functor)
+    } deriving (Functor, Show, Generic)
+
+instance FromJSON FeedInfoIdH
+
+instance ToJSON FeedInfoIdH
+
+type FeedInfoIdH = FeedInfoId Int
 
 type FeedInfoHR = FeedInfo (FeedInfoId Int) Text Text Int UTCTime
 
 type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime
 
+instance FromJSON FeedInfoHR
+
+instance ToJSON FeedInfoHR
+
 ----------------------------
 -- Feeds <-> Users (Subscriptions)
-
 data Subscription a b = Subscription
     { subscriptionFeedId :: a -- PGInt4
     , subscriptionUserId :: b -- PGInt4
@@ -72,9 +81,9 @@ data FeedItem a b c d e f = FeedItem
     , feedItemComments :: f -- Maybe Url
     }
 
-newtype FeedItemId a =
-    FeedItemId a
-    deriving (Eq, Functor, Generic, Show)
+newtype FeedItemId a = FeedItemId
+    { getFeedItemId :: a
+    } deriving (Functor, Show, Generic)
 
 type FeedItemIdH = FeedItemId Int
 

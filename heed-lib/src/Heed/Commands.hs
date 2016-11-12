@@ -1,11 +1,11 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 
-module Heed.Commands
-  ( Up(..)
-  , Down(..)
-  ) where
+module Heed.Commands where
 
 import Data.Aeson
+import Data.Int
 import qualified Data.Text as T
 import GHC.Generics
 import Heed.Database
@@ -22,10 +22,23 @@ instance ToJSON Up
 
 data Down
     = NewItems
-    | Testing
-    | Name T.Text
+    | Feeds [FeedList]
     deriving (Generic, Show)
 
 instance FromJSON Down
 
 instance ToJSON Down
+
+
+data FeedList' a b c
+    = FeedList'
+    { feedListId :: a
+    , feedListName :: b
+    , feedListUnread :: c
+    } deriving (Generic, Show)
+
+type FeedList = FeedList' Int T.Text Int64
+
+instance FromJSON FeedList
+
+instance ToJSON FeedList

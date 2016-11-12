@@ -16,6 +16,7 @@ import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
 import Heed.Database
+import Heed.Commands
 import qualified Opaleye as O
 
 $(makeAdaptorAndInstance "pUser" ''User)
@@ -46,7 +47,6 @@ userTable =
 
 -----------------------------------------
 -- Feeds Table
-
 $(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
 
 $(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId)
@@ -96,7 +96,6 @@ feedInfoTable =
 
 ----------------------------
 -- Feeds <-> Users (Subscriptions)
-
 $(makeAdaptorAndInstance "pSubscription" ''Subscription)
 
 type SubscriptionW = Subscription FeedInfoIdColumnW UserIdColumnW
@@ -115,7 +114,6 @@ subscriptionTable =
 
 ----------------------------
 -- Feed items
-
 $(makeAdaptorAndInstance "pFeedItem" ''FeedItem)
 
 $(makeAdaptorAndInstance "pFeedItemId" ''FeedItemId)
@@ -157,7 +155,6 @@ feedItemTable =
 
 ----------------------------
 -- Unread items
-
 $(makeAdaptorAndInstance "pUnreadItem" ''UnreadItem)
 
 type UnreadItemW = UnreadItem FeedItemIdColumnW UserIdColumnW
@@ -189,3 +186,7 @@ authTokenTable =
              { authTokenHeedUserId = pUserId (UserId (O.required "user_id"))
              , authTokenToken = O.required "token"
              })
+
+$(makeAdaptorAndInstance "pFeedList" ''FeedList')
+
+type FeedListR = FeedList' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
