@@ -106,11 +106,11 @@ type SubscriptionR = Subscription FeedInfoIdColumnR UserIdColumnR
 subscriptionTable :: O.Table SubscriptionW SubscriptionR
 subscriptionTable =
     O.Table
-        "Subscription"
+        "subscription"
         (pSubscription
              Subscription
-             { subscriptionFeedId = pFeedInfoId (FeedInfoId (O.required "feedInfoId"))
-             , subscriptionUserId = pUserId (UserId (O.required "userId"))
+             { subscriptionFeedId = pFeedInfoId (FeedInfoId (O.required "feed_info_id"))
+             , subscriptionUserId = pUserId (UserId (O.required "user_id"))
              })
 
 ----------------------------
