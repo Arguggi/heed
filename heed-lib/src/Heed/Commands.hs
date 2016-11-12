@@ -22,8 +22,8 @@ instance FromJSON Up
 instance ToJSON Up
 
 data Down
-    = NewItems
-    | Feeds [ReactFeedInfo]
+    = Feeds [ReactFeedInfo]
+    | InvalidReceived
     deriving (Generic, Show)
 
 instance FromJSON Down

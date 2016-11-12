@@ -181,18 +181,19 @@ app conf uname = websocketsOr WS.defaultConnectionOptions (wsApp conf uname) bac
 
 wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do
-    putStrLn "new connection"
+    print $ unUserName uname <> " opened a websocket connection"
+    -- User heed protocol
     let ar = WS.AcceptRequest (Just "heed")
     conn <- WS.acceptRequestWith pending_conn ar
     WS.forkPingThread conn 10
+    -- As soon as someone connects get the relevant feeds from the db
     feeds <- getUserFeedInfo (dbConnection conf) (UserId (unUserId uname))
-    WS.sendBinaryData conn $ encode (Feeds feeds)
+    WS.sendTextData conn $ encode (Feeds feeds)
     forever $
         do asd <- WS.receiveData conn
            let qwe :: Maybe Up = decode asd
            putStrLn "received"
            print qwe
-           putStrLn "sending"
 
 backupApp :: Application
 backupApp = staticApp $ defaultFileServerSettings "./heed-frontend/output/"

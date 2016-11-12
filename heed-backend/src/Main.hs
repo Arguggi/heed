@@ -23,8 +23,8 @@ main :: IO ()
 main = do
     setupPostgresEnv
     baConf <- setupBackendConf
-    result <- runExceptT $ addFeed baConf "https://news.ycombinator.com/rss" (UserId 1)
-    print result
+    --result <- runExceptT $ addFeed baConf "https://news.ycombinator.com/rss" (UserId 1)
+    --print result
     genAuthMain baConf
 
 setupPostgresEnv :: IO ()

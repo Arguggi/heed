@@ -27,6 +27,7 @@ executable heed-frontend
                      , jsaddle-dom
                      , lens
                      , lucid
+                     , mtl
                      , react-flux
                      , time
                      , text
