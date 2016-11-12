@@ -72,7 +72,6 @@ addFeed conf url uid = do
                 if not (null newItems)
                     then do
                         insertedItems <- insertItems dbConn newFeedItems $ getFeedId oldFeeds
-                        _ <- insertUnread dbConn insertedItems uid
                         insertUnread dbConn insertedItems uid
                     else return 0
             _ <- setFeedLastUpdated dbConn (getFeedId oldFeeds) now

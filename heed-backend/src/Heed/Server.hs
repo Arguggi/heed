@@ -48,9 +48,7 @@ import Heed.Database
 import Heed.Query
 import Heed.Types
 import Network.Wai.Handler.WebSockets (websocketsOr)
-import Network.WebSockets
-       (ServerApp, acceptRequest, defaultConnectionOptions,
-        forkPingThread, receiveData, sendBinaryData)
+import qualified Network.WebSockets as WS
 
 data AuthData = AuthData
     { username :: Text
@@ -179,17 +177,18 @@ err303ValidAuth token =
     }
 
 app :: BackendConf -> UserName -> Application
-app conf uname = websocketsOr defaultConnectionOptions (wsApp conf uname) backupApp
+app conf uname = websocketsOr WS.defaultConnectionOptions (wsApp conf uname) backupApp
 
-wsApp :: BackendConf -> UserName -> ServerApp
+wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do
     putStrLn "new connection"
-    conn <- acceptRequest pending_conn
-    forkPingThread conn 10
+    let ar = WS.AcceptRequest (Just "heed")
+    conn <- WS.acceptRequestWith pending_conn ar
+    WS.forkPingThread conn 10
     feeds <- getUserFeedInfo (dbConnection conf) (UserId (unUserId uname))
-    sendBinaryData conn $ encode (Feeds feeds)
+    WS.sendBinaryData conn $ encode (Feeds feeds)
     forever $
-        do asd <- receiveData conn
+        do asd <- WS.receiveData conn
            let qwe :: Maybe Up = decode asd
            putStrLn "received"
            print qwe

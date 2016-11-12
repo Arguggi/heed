@@ -3,14 +3,23 @@
 
 module Main where
 
-import Data.Aeson (decode, encode)
-import Data.ByteString (ByteString)
-import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.Default (def)
-import qualified Data.Text as T
-import Heed.Commands
 import Heed.Views
 import React.Flux
+--import JavaScript.Web.WebSocket
+import JSDOM.Generated.WebSocket
+import JSDOM.Types
+--import GHCJS.DOM.WebSocket
+--
+wsUrl :: String
+wsUrl = "ws://localhost:8080"
+
+protocols :: Maybe [String]
+protocols = Just ["heed"]
+
+heedProtocol :: String
+heedProtocol = "heed"
 
 main :: IO ()
-main = reactRender "heedapp" heedApp ()
+main = do
+    ws <- runJSM (newWebSocket' wsUrl heedProtocol) undefined
+    reactRender "heedapp" heedApp ()

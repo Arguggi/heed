@@ -23,6 +23,8 @@ executable heed-frontend
                      , data-default
                      , deepseq
                      , heed-lib
+                     , jsaddle
+                     , jsaddle-dom
                      , lens
                      , lucid
                      , react-flux
