@@ -12,7 +12,8 @@ cabal-version:       >=1.10
 
 executable heed-frontend
   main-is:             Main.hs
-  other-modules:       Heed.FeedListStore
+  other-modules:       Heed.Dispatcher
+                     , Heed.FeedListStore
                      , Heed.Views
   hs-source-dirs:      src
   default-language:    Haskell2010

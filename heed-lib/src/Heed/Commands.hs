@@ -13,7 +13,7 @@ import Heed.Database
 
 data Up
     = GetFeeds
-    | GetFeedItems FeedItemIdH
+    | GetFeedItems Int
     | ItemRead FeedItemIdH
     deriving (Generic, Show)
 
@@ -30,9 +30,7 @@ instance FromJSON Down
 
 instance ToJSON Down
 
-
-data ReactFeedInfo' a b c
-    = ReactFeedInfo'
+data ReactFeedInfo' a b c = ReactFeedInfo'
     { feedListId :: a
     , feedListName :: b
     , feedListUnread :: c

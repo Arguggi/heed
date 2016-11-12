@@ -121,9 +121,10 @@ filterUser (UserId userid) auth = (getUserId . authTokenHeedUserId $ auth) O..==
 verifyToken
     :: (MonadIO m)
     => PG.Connection -> T.Text -> m (Maybe UserH)
-verifyToken conn token = liftIO $ do
-    user <- O.runQuery conn (tokenToUser token)
-    return $ listToMaybe user
+verifyToken conn token =
+    liftIO $
+    do user <- O.runQuery conn (tokenToUser token)
+       return $ listToMaybe user
 
 tokenToUser :: T.Text -> O.Query UserR
 tokenToUser token =
@@ -163,11 +164,11 @@ getUserUnreadItems (UserId userid) =
   where
     idCol = O.pgInt4 userid
 
-getAllUserFeedInfo :: UserId Int
-                   -> O.Query ReactFeedInfoR
+getAllUserFeedInfo :: UserId Int -> O.Query ReactFeedInfoR
 getAllUserFeedInfo uid =
     proc () ->
-  do allfeeds <- getUserFeeds uid -< ()
+  do allfeeds <- O.orderBy (O.asc feedInfoName) $ getUserFeeds uid -<
+                   ()
      allunread <- getUserUnreadItems uid -< ()
      let fIId = fst allunread
          fIName = feedInfoName allfeeds
@@ -175,7 +176,9 @@ getAllUserFeedInfo uid =
      O.restrict -< fIId O..== (getFeedInfoId . feedInfoId) allfeeds
      returnA -< ReactFeedInfo' fIId fIName unreadCount
 
-getUserFeedInfo :: (MonadIO m) => PG.Connection -> UserId Int -> m [ReactFeedInfo]
+getUserFeedInfo
+    :: (MonadIO m)
+    => PG.Connection -> UserId Int -> m [ReactFeedInfo]
 getUserFeedInfo conn userid = liftIO $ O.runQuery conn $ getAllUserFeedInfo userid
 
 insertUnread

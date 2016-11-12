@@ -13,8 +13,9 @@ import Data.Typeable (Typeable)
 import qualified Data.Text as T
 import Heed.Commands
 
-newtype FeedListStore = FeedListStore
+data FeedListStore = FeedListStore
     { feedList :: [ReactFeedInfo]
+    , selected :: Maybe Int
     } deriving (Show, Typeable)
 
 data FeedItem = FeedItem
@@ -22,15 +23,21 @@ data FeedItem = FeedItem
     , unreadCount :: Int
     } deriving (Show, Typeable)
 
-data FeedListAction =
-    SetFeedList [ReactFeedInfo]
+data FeedListAction
+    = SetFeedList [ReactFeedInfo]
+    | SetSelected Int
     deriving (Show, Typeable, Generic, NFData)
 
 instance StoreData FeedListStore where
     type StoreAction FeedListStore = FeedListAction
-    transform action _ =
+    transform action oldStore =
         case action of
-            SetFeedList feeds -> return $ FeedListStore feeds
+            SetFeedList feeds -> return $ FeedListStore feeds Nothing
+            SetSelected idSelected ->
+                return $
+                oldStore
+                { selected = Just idSelected
+                }
 
 feedListStore :: ReactStore FeedListStore
-feedListStore = mkStore $ FeedListStore [ReactFeedInfo' 2 "asdsad" 23]
+feedListStore = mkStore $ FeedListStore [ReactFeedInfo' 2 "asdsad" 23] Nothing

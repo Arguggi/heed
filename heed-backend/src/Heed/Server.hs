@@ -90,9 +90,7 @@ lookupTok conf cookies =
             tokenInfo <- verifyToken dbConn (decodeUtf8 cookieToken)
             case tokenInfo of
                 Nothing -> throwError err303ToLogin
-                (Just user) -> do
-                    liftIO . print $ "username: " <> userName user
-                    return $ UserName (userName user) (getUserId . userId $ user)
+                (Just user) -> return $ UserName (userName user) (getUserId . userId $ user)
 
 -- | The auth handler wraps a function from Request -> Handler Tok
 -- we look for a Cookie and pass the value of the cookie to `lookupTok`.

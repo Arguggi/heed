@@ -3,39 +3,47 @@
 module Heed.Views where
 
 import React.Flux
-import Data.Monoid
 import qualified Data.Text as T
-
 import Heed.FeedListStore
 import Heed.Commands
+import Heed.Dispatcher
 
 -- | The controller view and also the top level of the Heed app.
 heedApp :: ReactView ()
-heedApp = defineControllerView "Heed app" feedListStore $ \feedLStore () ->
-    div_ $ do
-        heedHeader_
-        div_ [ "id" $= "container"] $ feedList_ feedLStore
+heedApp =
+    defineControllerView "Heed app" feedListStore $
+    \feedLStore () ->
+         div_ $
+         do heedHeader_
+            div_ $ feedList_ feedLStore
 
 heedHeader_ :: ReactElementM eventHandler ()
 heedHeader_ = view heedHeader () mempty
 
 heedHeader :: ReactView ()
-heedHeader = defineView "header" $ \() ->
-    header_ [ "id" $= "header"] $ h1_ "Heed"
+heedHeader = defineView "header" $ \() -> header_ $ h1_ "Heed"
 
 feedList_ :: FeedListStore -> ReactElementM ViewEventHandler ()
-feedList_ flst = div_ [ "id" $= "feeds" ] $
-    ul_ [ "id" $= "feedList" ] $ mapM_ feed_ $ feedList flst
+feedList_ flst = div_ ["className" $= "feedList"] $ mapM_ (feed_ $ selected flst) $ feedList flst
 
-feed :: ReactView ReactFeedInfo
-feed = defineView "feed info" $ \feedinfo ->
-    li_ $ elemText (showFeedInfo feedinfo)
+feed :: Maybe Int -> ReactView ReactFeedInfo
+feed selectedId =
+    defineView "feed info" $
+    \feedInfo ->
+         div_
+             [ onClick (\_ _ -> dispatchHeed $ SetSelected (feedListId feedInfo))
+             , classNames
+                   [ ("selected", isSelected (feedListId feedInfo) selectedId)
+                   , ("feedInfoItem", True)
+                   ]
+             ] $
+         do span_ ["className" $= "feedName"] $ elemText $ feedListName feedInfo
+            span_ ["className" $= "feedUnread"] $ elemText $ unreadText feedInfo
+  where
+    isSelected feedId selId = Just feedId == selId
 
-feed_ :: ReactFeedInfo -> ReactElementM eventHandler ()
-feed_ feedInfo = viewWithIKey feed (feedListId feedInfo) feedInfo mempty
+feed_ :: Maybe Int -> ReactFeedInfo -> ReactElementM eventHandler ()
+feed_ selId feedInfo = viewWithIKey (feed selId) (feedListId feedInfo) feedInfo mempty
 
-showFeedInfo :: ReactFeedInfo -> T.Text
-showFeedInfo feedInfo = showId <> showName <> showUnread
-    where showId = T.pack . show . feedListId $ feedInfo
-          showName = feedListName feedInfo
-          showUnread = T.pack . show . feedListUnread $ feedInfo
+unreadText :: ReactFeedInfo -> T.Text
+unreadText = T.pack . show . feedListUnread
