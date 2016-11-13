@@ -1,0 +1,67 @@
+module Heed.Websocket where
+
+
+import Data.Aeson (decodeStrict')
+import Data.Maybe (fromMaybe)
+import Control.Concurrent.MVar
+import Heed.Commands
+import Heed.FeedListStore
+import Heed.ItemListStore
+import Heed.GlobalWebsocket
+import React.Flux
+import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text as T
+import JSDOM.Generated.WebSocket
+import JSDOM.Types
+import qualified JSDOM.EventM as E
+import Control.Monad.Reader
+import JSDOM.Generated.MessageEvent (getData)
+
+--
+wsUrl :: String
+wsUrl = "ws://localhost:8080"
+
+protocols :: Maybe [String]
+protocols = Just ["heed"]
+
+heedProtocol :: String
+heedProtocol = "heed"
+
+initWebsocket :: IO ()
+initWebsocket = do
+    websocket <-
+        runJ $
+        do ws <- newWebSocket' wsUrl heedProtocol
+           _ <- E.on ws open (sendInitialized ws)
+           _ <- E.on ws message commandToStore
+           return ws
+    putMVar heedWebsocket websocket
+
+-- onOpen websocket callback
+sendInitialized :: WebSocket ->  ReaderT e DOM ()
+sendInitialized ws = ReaderT $ \_ -> liftIO $ do
+    putStrLn "Connection opened"
+    putStrLn "Getting user info"
+    --runJ $ sendString ws (toStrict . decodeUtf8 . encode $ Initialized)
+    sendCommand ws Initialized
+
+
+-- onMessage websocket callback
+commandToStore :: ReaderT MessageEvent DOM ()
+commandToStore =
+    ReaderT $
+    \mess -> do
+        messData <- getData mess
+        tVal <- fromJSVal messData
+        let command =
+                fromMaybe InvalidSent $
+                do justVal <- tVal
+                   decodeWsMess justVal
+        case command of
+            InvalidSent -> liftIO $ putStrLn "Invalid command received"
+            Feeds feeds -> liftIO $ alterStore feedListStore (SetFeedList feeds)
+            FeedItems items -> liftIO $ alterStore itemListStore (SetItemList items)
+            _ -> liftIO $ putStrLn "TODO"
+
+decodeWsMess :: T.Text -> Maybe Down
+decodeWsMess val = decodeStrict' (encodeUtf8 val)

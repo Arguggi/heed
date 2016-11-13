@@ -193,3 +193,20 @@ addSubscription
     => PG.Connection -> UserId Int -> FeedInfoId Int -> m Int64
 addSubscription conn uid fid =
     liftIO $ O.runInsertMany conn subscriptionTable [O.constant $ Subscription fid uid]
+
+getUserItems :: (MonadIO m) => PG.Connection -> UserId Int -> FeedInfoId Int -> m [ReactItemInfo]
+getUserItems conn uid fid = liftIO $ O.runQuery conn (getUserItemsQ (O.constant uid) (O.constant fid))
+
+getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query ReactItemInfoR
+getUserItemsQ uid fid = proc () -> do
+    allItems <- O.orderBy (O.asc feedItemDate) $ O.queryTable feedItemTable -< ()
+    allUnread <- O.queryTable unreadItemTable -< ()
+    O.restrict -< uid O..=== unreadUserId allUnread
+    O.restrict -< fid O..=== feedItemFeedId allItems
+    O.restrict -< unreadFeedItemId allUnread O..=== feedItemId allItems
+    let unreadItemId = getFeedItemId . feedItemId $ allItems
+        unreadTitle = feedItemTitle allItems
+        unreadLink = feedItemUrl allItems
+        unreadDate = feedItemDate allItems
+        unreadComments = feedItemComments allItems
+    returnA -< ReactItemInfo' unreadItemId unreadTitle unreadLink unreadDate unreadComments

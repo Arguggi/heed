@@ -13,11 +13,12 @@ module Heed.Server where
 
 import Control.Monad (forever)
 import Control.Monad.IO.Class
-import Data.Aeson (decode, encode)
+import Data.Aeson (decode, encode, ToJSON)
 import Data.Binary.Builder (toLazyByteString)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
@@ -182,16 +183,29 @@ wsApp conf uname pending_conn = do
     print $ unUserName uname <> " opened a websocket connection"
     -- User heed protocol
     let ar = WS.AcceptRequest (Just "heed")
+        dbConn = dbConnection conf
+        uid = UserId $ unUserId uname
     conn <- WS.acceptRequestWith pending_conn ar
     WS.forkPingThread conn 10
     -- As soon as someone connects get the relevant feeds from the db
-    feeds <- getUserFeedInfo (dbConnection conf) (UserId (unUserId uname))
-    WS.sendTextData conn $ encode (Feeds feeds)
+    -- since we will have to send them once the client tells us it's ready
+    feeds <- getUserFeedInfo dbConn uid
     forever $
-        do asd <- WS.receiveData conn
-           let qwe :: Maybe Up = decode asd
-           putStrLn "received"
-           print qwe
+        do commandM <- decode <$> WS.receiveData conn
+           let command = fromMaybe InvalidReceived commandM
+           putStr "Received: "
+           print command
+           case command of
+               Initialized -> sendDown conn $ Feeds feeds
+               GetFeedItems feedId -> do
+                   items <- getUserItems dbConn uid (FeedInfoId feedId)
+                   sendDown conn (FeedItems items)
+               _ -> do
+                   print command
+                   putStrLn "TODO"
+
+sendDown :: (ToJSON a) => WS.Connection -> a -> IO ()
+sendDown conn info = WS.sendTextData conn $ encode info
 
 backupApp :: Application
 backupApp = staticApp $ defaultFileServerSettings "./heed-frontend/output/"

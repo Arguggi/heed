@@ -6,15 +6,23 @@ body {
 .feedList {
     display: flex;
     flex-direction: column;
-    max-width: 30%;
+    width: 25%;
     margin: 0.5em;
 }
 
-.feedInfoItem {
+.itemList {
+    font-size: 1em;
+    display: flex;
+    flex-direction: column;
+    margin: 0.5em;
+    width: 100%;
+}
+
+.feedInfoItem, .itemInfoItem {
     align-items: center;
     display: flex;
     flex-direction: row;
-    justify-content: space-around;
+    justify-content: space-between;
     border-bottom: thin groove black;
     padding: 0.25em;
 }
@@ -30,3 +38,9 @@ body {
 .selected {
     background-color: #4289f4;
 }
+
+.container {
+    display: flex;
+    flex-direction: row;
+}
+

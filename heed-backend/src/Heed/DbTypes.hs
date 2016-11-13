@@ -190,3 +190,7 @@ authTokenTable =
 $(makeAdaptorAndInstance "pReactFeedInfo" ''ReactFeedInfo')
 
 type ReactFeedInfoR = ReactFeedInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
+
+$(makeAdaptorAndInstance "pReactItemInfo" ''ReactItemInfo')
+
+type ReactItemInfoR = ReactItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
