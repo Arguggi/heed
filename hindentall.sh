@@ -2,6 +2,7 @@
 
 projects=("heed-backend" "heed-frontend" "heed-lib")
 
+echo "Running stylish-haskell and hindent"
 for i in "${projects[@]}"; do
     find "$i/src/" -iname "*.hs" -type f \
         -exec stylish-haskell -i {} \; \
