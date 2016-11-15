@@ -9,7 +9,7 @@ import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Data.List (deleteFirstsBy, minimumBy)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Ord (compare)
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
@@ -44,41 +44,35 @@ addFeed conf url uid = do
     validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
     now <- liftIO getCurrentTime
     (feedInfo, feedItems) <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
-    oldFeeds <- liftIO $ runFeedInfoQuery dbConn (thisFeed feedInfo)
-    case length oldFeeds of
-        0 -> do
-            insertedFeed <- insertFeed dbConn feedInfo
-            insertedItems <- insertItems dbConn feedItems $ getFeedId insertedFeed
-            _ <- insertUnread dbConn insertedItems uid
-            _ <- addSubscription dbConn uid (getFeedId insertedFeed)
-            return ()
-        1 -> do
-            let newFeedItems = setFeedId (getFeedId oldFeeds) <$> feedItems
-                setFeedId fid hw =
-                    hw
-                    { feedItemFeedId = Just <$> fid
-                    }
-            recentItems <-
-                getRecentItems
-                    dbConn
-                    (getFeedId oldFeeds)
-                    (feedItemDate (minimumBy after feedItems))
-            let newItems =
-                    deleteFirstsBy
-                        (sameItem (getFeedId oldFeeds))
-                        newFeedItems
-                        (applyJust <$> recentItems)
-            _ <-
-                if not (null newItems)
-                    then do
-                        insertedItems <- insertItems dbConn newFeedItems $ getFeedId oldFeeds
-                        insertUnread dbConn insertedItems uid
-                    else return 0
-            _ <- setFeedLastUpdated dbConn (getFeedId oldFeeds) now
-            return ()
-        _ -> throwError MultipleFeedsSameUrl
+    oldFeeds <- runTransaction dbConn $ runFeedInfoQuery (thisFeed feedInfo)
+    case listToMaybe oldFeeds
+         -- We don't have this feed in the common database, insert it
+          of
+        Nothing ->
+            runTransaction dbConn $
+            do insertedFeed <- insertFeed feedInfo
+               let newFeedId = feedInfoId . head $ insertedFeed
+               insertedItems <- insertItems feedItems newFeedId
+               _ <- insertUnread insertedItems uid
+               _ <- addSubscription uid newFeedId
+               return ()
+        -- This feed is already present in the database, add the user to the subscription
+        Just oldFeed ->
+            runTransaction dbConn $
+            do let newFeedItems = setFeedId (feedInfoId oldFeed) <$> feedItems
+                   oldFeedId = feedInfoId oldFeed
+               recentItems <- getRecentItems oldFeedId (feedItemDate (minimumBy after feedItems))
+               let newItems =
+                       deleteFirstsBy (sameItem oldFeedId) newFeedItems (applyJust <$> recentItems)
+               _ <-
+                   if not (null newItems)
+                       then do
+                           insertedItems <- insertItems newFeedItems oldFeedId
+                           insertUnread insertedItems uid
+                       else return 0
+               _ <- setFeedLastUpdated oldFeedId now
+               return ()
   where
-    getFeedId = feedInfoId . head
     after x y = compare (feedItemDate x) (feedItemDate y)
     sameItem feedId fromHttp fromDb =
         (getFeedInfoId . feedItemFeedId $ fromDb) == getFeedInfoId (Just <$> feedId) &&
@@ -90,6 +84,14 @@ applyJust hr =
     hr
     { feedItemId = Just <$> feedItemId hr
     , feedItemFeedId = Just <$> feedItemFeedId hr
+    }
+
+setFeedId
+    :: Functor f1
+    => f1 a1 -> FeedItem a b c d e f -> FeedItem a (f1 (Maybe a1)) c d e f
+setFeedId fid hw =
+    hw
+    { feedItemFeedId = Just <$> fid
     }
 
 extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoHW, [FeedItemHW])

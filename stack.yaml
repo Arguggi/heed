@@ -5,6 +5,8 @@ packages:
 - heed-backend
 - heed-frontend
 - heed-lib
+- location: './opaleye-trans'
+  extra-dep: true
 
 extra-deps:
 - ref-tf-0.4.0.1

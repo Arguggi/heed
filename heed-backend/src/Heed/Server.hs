@@ -88,7 +88,7 @@ lookupTok conf cookies =
         Nothing -> throwError err303InvalidAuth
         Just cookieToken -> do
             let dbConn = dbConnection conf
-            tokenInfo <- verifyToken dbConn (decodeUtf8 cookieToken)
+            tokenInfo <- runTransaction dbConn $ verifyToken (decodeUtf8 cookieToken)
             case tokenInfo of
                 Nothing -> throwError err303ToLogin
                 (Just user) -> return $ UserName (userName user) (getUserId . userId $ user)
@@ -125,7 +125,7 @@ checkCreds :: BackendConf -> AuthData -> Handler NoContent
 checkCreds conf (AuthData un pw) = do
     liftIO $ putStrLn "Checking auth"
     let dbConn = dbConnection conf
-    userDbM <- getUserDb dbConn un
+    userDbM <- runQueryNoT dbConn $ getUserDb un
     case userDbM of
         Just userDb -> do
             liftIO $ putStrLn "got pw hash"
@@ -134,7 +134,7 @@ checkCreds conf (AuthData un pw) = do
                 then do
                     liftIO $ putStrLn "Verified"
                     newToken <- generateToken
-                    _ <- saveTokenDb dbConn newToken (userId userDb)
+                    _ <- runQueryNoT dbConn $ saveTokenDb newToken (userId userDb)
                     throwError $ err303ValidAuth (Token newToken)
                 else (do liftIO $ putStrLn "Invalid password"
                          throwError err401)
@@ -189,7 +189,7 @@ wsApp conf uname pending_conn = do
     WS.forkPingThread conn 10
     -- As soon as someone connects get the relevant feeds from the db
     -- since we will have to send them once the client tells us it's ready
-    feeds <- getUserFeedInfo dbConn uid
+    feeds <- runQueryNoT dbConn $ getUserFeedInfo uid
     forever $
         do commandM <- decode <$> WS.receiveData conn
            let command = fromMaybe InvalidReceived commandM
@@ -198,7 +198,7 @@ wsApp conf uname pending_conn = do
            case command of
                Initialized -> sendDown conn $ Feeds feeds
                GetFeedItems feedId -> do
-                   items <- getUserItems dbConn uid (FeedInfoId feedId)
+                   items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
                    sendDown conn (FeedItems items)
                _ -> do
                    print command

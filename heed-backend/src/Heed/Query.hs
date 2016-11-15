@@ -7,7 +7,6 @@ module Heed.Query where
 import Control.Arrow (returnA)
 import Control.Monad.IO.Class
 import Data.Int (Int64)
-import Data.Maybe (listToMaybe)
 import Data.Profunctor.Product (p2)
 import qualified Data.Text as T
 import Data.Time
@@ -16,20 +15,29 @@ import Heed.Commands
 import Heed.Database
 import Heed.DbTypes
 import qualified Opaleye as O
+import qualified Opaleye.Trans as OT
 
-runUsersQuery
+runTransaction
     :: (MonadIO m)
-    => PG.Connection -> O.Query (O.Column O.PGText) -> m [T.Text]
-runUsersQuery conn quer = liftIO $ O.runQuery conn quer
+    => PG.Connection -> OT.Transaction a -> m a
+runTransaction conn trans = OT.runOpaleyeT conn $ OT.transaction trans
 
-getUsers :: O.Query (O.Column O.PGText)
-getUsers =
+runQueryNoT
+    :: (MonadIO m)
+    => PG.Connection -> OT.Transaction a -> m a
+runQueryNoT conn trans = OT.runOpaleyeT conn $ OT.run trans
+
+getUsers :: O.Query (O.Column O.PGText) -> OT.Transaction [T.Text]
+getUsers = OT.query
+
+getUsersQuery :: O.Query (O.Column O.PGText)
+getUsersQuery =
     proc () ->
   do users <- O.queryTable userTable -< ()
      returnA -< userName users
 
-getItemsFrom :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
-getItemsFrom (FeedInfoId feedId) from =
+getItemsFromQuery :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
+getItemsFromQuery (FeedInfoId feedId) from =
     proc () ->
   do items <- O.queryTable feedItemTable -< ()
      O.restrict -<
@@ -37,23 +45,15 @@ getItemsFrom (FeedInfoId feedId) from =
          O..&& (feedItemDate items O..>= O.pgUTCTime from)
      returnA -< items
 
-getRecentItems
-    :: (MonadIO m)
-    => PG.Connection -> FeedInfoId Int -> UTCTime -> m [FeedItemHR]
-getRecentItems conn feedId time = liftIO $ O.runQuery conn (getItemsFrom feedId time)
+getRecentItems :: FeedInfoId Int -> UTCTime -> OT.Transaction [FeedItemHR]
+getRecentItems feedId time = OT.query $ getItemsFromQuery feedId time
 
-insertFeed
-    :: (MonadIO m)
-    => PG.Connection -> FeedInfoHW -> m [FeedInfoHR]
-insertFeed conn newFeed =
-    liftIO $ O.runInsertManyReturning conn feedInfoTable [O.constant newFeed] id
+insertFeed :: FeedInfoHW -> OT.Transaction [FeedInfoHR]
+insertFeed newFeed = OT.insertManyReturning feedInfoTable [O.constant newFeed] id
 
-insertItems
-    :: (MonadIO m)
-    => PG.Connection -> [FeedItemHW] -> FeedInfoId Int -> m [FeedItemHR]
-insertItems conn newItems feedId =
-    liftIO $
-    O.runInsertManyReturning conn feedItemTable (O.constant <$> (setId feedId <$> newItems)) id
+insertItems :: [FeedItemHW] -> FeedInfoId Int -> OT.Transaction [FeedItemHR]
+insertItems newItems feedId =
+    OT.insertManyReturning feedItemTable (O.constant <$> (setId feedId <$> newItems)) id
 
 setId
     :: forall a b c d e f b1.
@@ -63,13 +63,9 @@ setId fid item =
     { feedItemFeedId = fid
     }
 
-setFeedLastUpdated
-    :: (MonadIO m)
-    => PG.Connection -> FeedInfoId Int -> UTCTime -> m Int64
-setFeedLastUpdated conn (FeedInfoId feedId) time =
-    liftIO $
-    O.runUpdate
-        conn
+setFeedLastUpdated :: FeedInfoId Int -> UTCTime -> OT.Transaction Int64
+setFeedLastUpdated (FeedInfoId feedId) time =
+    OT.update
         feedInfoTable
         (setTime time)
         (\row -> (getFeedInfoId . feedInfoId $ row) O..== O.pgInt4 feedId)
@@ -82,8 +78,8 @@ thisFeed fresh =
        feedInfoUrl feeds O..== O.pgStrictText (feedInfoUrl fresh)
      returnA -< feeds
 
-runFeedInfoQuery :: PG.Connection -> O.Query FeedInfoR -> IO [FeedInfoHR]
-runFeedInfoQuery = O.runQuery
+runFeedInfoQuery :: O.Query FeedInfoR -> OT.Transaction [FeedInfoHR]
+runFeedInfoQuery = OT.query
 
 getUser :: T.Text -> O.Query UserR
 getUser un =
@@ -92,22 +88,11 @@ getUser un =
      O.restrict -< (userName user O..== O.pgStrictText un)
      returnA -< user
 
---
-getUserDb
-    :: (MonadIO m)
-    => PG.Connection -> T.Text -> m (Maybe UserH)
-getUserDb conn un =
-    liftIO $
-    do ids <- O.runQuery conn (getUser un)
-       case length (ids :: [UserH]) of
-           0 -> return Nothing
-           _ -> return $ Just (head ids)
+getUserDb :: T.Text -> OT.Transaction (Maybe UserH)
+getUserDb un = OT.queryFirst (getUser un)
 
-saveTokenDb
-    :: (MonadIO m)
-    => PG.Connection -> T.Text -> UserId Int -> m Int64
-saveTokenDb conn token uid =
-    liftIO $ O.runUpdate conn authTokenTable (setToken token) (filterUser uid)
+saveTokenDb :: T.Text -> UserId Int -> OT.Transaction Int64
+saveTokenDb token uid = OT.update authTokenTable (setToken token) (filterUser uid)
 
 setToken :: T.Text -> AuthTokenR -> AuthTokenW
 setToken token auth =
@@ -118,13 +103,8 @@ setToken token auth =
 filterUser :: UserId Int -> AuthTokenR -> O.Column O.PGBool
 filterUser (UserId userid) auth = (getUserId . authTokenHeedUserId $ auth) O..== O.pgInt4 userid
 
-verifyToken
-    :: (MonadIO m)
-    => PG.Connection -> T.Text -> m (Maybe UserH)
-verifyToken conn token =
-    liftIO $
-    do user <- O.runQuery conn (tokenToUser token)
-       return $ listToMaybe user
+verifyToken :: T.Text -> OT.Transaction (Maybe UserH)
+verifyToken token = OT.queryFirst (tokenToUser token)
 
 tokenToUser :: T.Text -> O.Query UserR
 tokenToUser token =
@@ -176,29 +156,19 @@ getAllUserFeedInfo uid =
      O.restrict -< fIId O..== (getFeedInfoId . feedInfoId) allfeeds
      returnA -< ReactFeedInfo' fIId fIName unreadCount
 
-getUserFeedInfo
-    :: (MonadIO m)
-    => PG.Connection -> UserId Int -> m [ReactFeedInfo]
-getUserFeedInfo conn userid = liftIO $ O.runQuery conn $ getAllUserFeedInfo userid
+getUserFeedInfo :: UserId Int -> OT.Transaction [ReactFeedInfo]
+getUserFeedInfo userid = OT.query $ getAllUserFeedInfo userid
 
-insertUnread
-    :: (MonadIO m)
-    => PG.Connection -> [FeedItemHR] -> UserId Int -> m Int64
-insertUnread conn newItems uid = liftIO $ O.runInsertMany conn unreadItemTable $ O.constant <$> pairings
+insertUnread :: [FeedItemHR] -> UserId Int -> OT.Transaction Int64
+insertUnread newItems uid = OT.insertMany unreadItemTable $ O.constant <$> pairings
   where
     pairings = map (\x -> (\item userid -> UnreadItem (feedItemId item) userid) x uid) newItems
 
-addSubscription
-    :: (MonadIO m)
-    => PG.Connection -> UserId Int -> FeedInfoId Int -> m Int64
-addSubscription conn uid fid =
-    liftIO $ O.runInsertMany conn subscriptionTable [O.constant $ Subscription fid uid]
+addSubscription :: UserId Int -> FeedInfoId Int -> OT.Transaction Int64
+addSubscription uid fid = OT.insertMany subscriptionTable [O.constant $ Subscription fid uid]
 
-getUserItems
-    :: (MonadIO m)
-    => PG.Connection -> UserId Int -> FeedInfoId Int -> m [ReactItemInfo]
-getUserItems conn uid fid =
-    liftIO $ O.runQuery conn (getUserItemsQ (O.constant uid) (O.constant fid))
+getUserItems :: UserId Int -> FeedInfoId Int -> OT.Transaction [ReactItemInfo]
+getUserItems uid fid = OT.query (getUserItemsQ (O.constant uid) (O.constant fid))
 
 getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query ReactItemInfoR
 getUserItemsQ uid fid =

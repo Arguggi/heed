@@ -18,9 +18,9 @@ heedApp =
     \() -> do
         heedHeader_
         container_
+
 --heedFeeds_
 --feedItems_
-
 container_ :: ReactElementM eventHandler ()
 container_ = view container () mempty
 
