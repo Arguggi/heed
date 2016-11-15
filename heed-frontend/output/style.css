@@ -1,38 +1,53 @@
+html {
+  box-sizing: border-box;
+}
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+header {
+    text-align: center;
+}
+
+section {
+    max-height: 100vh;
+}
+
 body {
     background-color: #f7f7f7;
     font-size: 1.25em;
 }
 
 .feedList {
-    display: flex;
-    flex-direction: column;
-    width: 25%;
     margin: 0.5em;
+    overflow-y: auto;
+    width: 25%;
 }
 
 .itemList {
     font-size: 1em;
-    display: flex;
-    flex-direction: column;
     margin: 0.5em;
+    max-height: 90vh;
+    overflow-y: auto;
     width: 100%;
 }
 
 .feedInfoItem, .itemInfoItem {
     align-items: center;
+    border-bottom: thin groove black;
     display: flex;
     flex-direction: row;
     justify-content: space-between;
-    border-bottom: thin groove black;
     padding: 0.25em;
 }
 
 .feedUnread {
     background-color: gray;
-    padding: 0.2em;
-    color: white;
     border-radius: 0.1em;
+    color: white;
     font-size: 1em;
+    padding: 0.2em;
 }
 
 .selected {
@@ -43,4 +58,3 @@ body {
     display: flex;
     flex-direction: row;
 }
-

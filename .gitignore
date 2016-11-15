@@ -19,3 +19,5 @@ cabal.sandbox.config
 .stack-work/
 codex.tags
 todo
+!heed-frontend/output/react-dom-15.3.1.min.js
+!heed-frontend/output/react-15.3.1.min.js
