@@ -13,7 +13,8 @@ module Heed.Server where
 
 import Control.Monad (forever)
 import Control.Monad.IO.Class
-import Data.Aeson (decode, encode, ToJSON)
+import Crypto.KDF.BCrypt
+import Data.Aeson (ToJSON, decode, encode)
 import Data.Binary.Builder (toLazyByteString)
 import Data.ByteString (ByteString)
 import Data.ByteString.Lazy (toStrict)
@@ -24,10 +25,17 @@ import Data.Proxy (Proxy(Proxy))
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import GHC.Generics (Generic)
+import Heed.Commands
+import Heed.Crypto
+import Heed.Database
+import Heed.Query
+import Heed.Types
 import Network.Wai (Application, Request, requestHeaders)
 import Network.Wai.Application.Static
        (defaultFileServerSettings, staticApp)
 import Network.Wai.Handler.Warp (run)
+import Network.Wai.Handler.WebSockets (websocketsOr)
+import qualified Network.WebSockets as WS
 import Servant
        (NoContent, ServantErr(..), err303, throwError, throwError)
 import Servant.API
@@ -42,14 +50,6 @@ import Servant.Server.Experimental.Auth
 import Servant.Utils.StaticFiles (serveDirectory)
 import Web.Cookie
 import Web.FormUrlEncoded
-import Crypto.KDF.BCrypt
-import Heed.Commands
-import Heed.Crypto
-import Heed.Database
-import Heed.Query
-import Heed.Types
-import Network.Wai.Handler.WebSockets (websocketsOr)
-import qualified Network.WebSockets as WS
 
 data AuthData = AuthData
     { username :: Text
@@ -204,7 +204,9 @@ wsApp conf uname pending_conn = do
                    print command
                    putStrLn "TODO"
 
-sendDown :: (ToJSON a) => WS.Connection -> a -> IO ()
+sendDown
+    :: (ToJSON a)
+    => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendTextData conn $ encode info
 
 backupApp :: Application

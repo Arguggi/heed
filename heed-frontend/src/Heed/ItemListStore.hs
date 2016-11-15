@@ -1,16 +1,16 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Heed.ItemListStore where
 
-import React.Flux
 import Control.DeepSeq
-import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
+import GHC.Generics (Generic)
 import Heed.Commands
+import React.Flux
 
 data ItemListStore = ItemListStore
     { itemList :: [ReactItemInfo]

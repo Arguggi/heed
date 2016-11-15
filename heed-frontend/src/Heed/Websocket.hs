@@ -1,21 +1,20 @@
 module Heed.Websocket where
 
-
+import Control.Concurrent.MVar
+import Control.Monad.Reader
 import Data.Aeson (decodeStrict')
 import Data.Maybe (fromMaybe)
-import Control.Concurrent.MVar
+import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import Heed.Commands
 import Heed.FeedListStore
-import Heed.ItemListStore
 import Heed.GlobalWebsocket
-import React.Flux
-import Data.Text.Encoding (encodeUtf8)
-import qualified Data.Text as T
+import Heed.ItemListStore
+import qualified JSDOM.EventM as E
+import JSDOM.Generated.MessageEvent (getData)
 import JSDOM.Generated.WebSocket
 import JSDOM.Types
-import qualified JSDOM.EventM as E
-import Control.Monad.Reader
-import JSDOM.Generated.MessageEvent (getData)
+import React.Flux
 
 --
 wsUrl :: String
@@ -38,13 +37,15 @@ initWebsocket = do
     putMVar heedWebsocket websocket
 
 -- onOpen websocket callback
-sendInitialized :: WebSocket ->  ReaderT e DOM ()
-sendInitialized ws = ReaderT $ \_ -> liftIO $ do
-    putStrLn "Connection opened"
-    putStrLn "Getting user info"
-    --runJ $ sendString ws (toStrict . decodeUtf8 . encode $ Initialized)
-    sendCommand ws Initialized
-
+sendInitialized :: WebSocket -> ReaderT e DOM ()
+sendInitialized ws =
+    ReaderT $
+    \_ ->
+         liftIO $
+         do putStrLn "Connection opened"
+            putStrLn "Getting user info"
+            --runJ $ sendString ws (toStrict . decodeUtf8 . encode $ Initialized)
+            sendCommand ws Initialized
 
 -- onMessage websocket callback
 commandToStore :: ReaderT MessageEvent DOM ()

@@ -1,8 +1,8 @@
 module Heed.Dispatcher where
 
-import React.Flux
 import Heed.FeedListStore
 import Heed.ItemListStore
+import React.Flux
 
 data Action
     = Feed FeedListAction

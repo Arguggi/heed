@@ -17,8 +17,8 @@ import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
 import Database.PostgreSQL.Simple as PG
-import Heed.DbTypes
 import Heed.Database
+import Heed.DbTypes
 import Heed.Query
 import Heed.Types
 import Network.HTTP.Client

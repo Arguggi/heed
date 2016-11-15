@@ -2,34 +2,37 @@
 
 module Heed.Views where
 
-import React.Flux
 import qualified Data.Text as T
-import Heed.FeedListStore
-import Heed.ItemListStore
-import Heed.Commands
-import Heed.Dispatcher
 import Data.Time.Clock
 import Data.Time.Format
-
+import Heed.Commands
+import Heed.Dispatcher
+import Heed.FeedListStore
+import Heed.ItemListStore
+import React.Flux
 
 -- | The controller view and also the top level of the Heed app.
 heedApp :: ReactView ()
-heedApp = defineView "Heed app" $ \() -> do
-    heedHeader_
-    container_
-    --heedFeeds_
-    --feedItems_
+heedApp =
+    defineView "Heed app" $
+    \() -> do
+        heedHeader_
+        container_
+--heedFeeds_
+--feedItems_
 
 container_ :: ReactElementM eventHandler ()
 container_ = view container () mempty
 
 container :: ReactView ()
-container = defineView "container" $ \() -> div_ ["className" $= "container" ] $ do
-    heedFeeds_
-    feedItems_
+container =
+    defineView "container" $
+    \() ->
+         div_ ["className" $= "container"] $
+         do heedFeeds_
+            feedItems_
 
 ---- Header
-
 heedHeader_ :: ReactElementM eventHandler ()
 heedHeader_ = view heedHeader () mempty
 
@@ -37,7 +40,6 @@ heedHeader :: ReactView ()
 heedHeader = defineView "header" $ \() -> header_ $ h1_ "Heed"
 
 ---- Feed List
-
 heedFeeds_ :: ReactElementM eventHandler ()
 heedFeeds_ = view heedFeeds () mempty
 

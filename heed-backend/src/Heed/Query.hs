@@ -6,15 +6,15 @@ module Heed.Query where
 
 import Control.Arrow (returnA)
 import Control.Monad.IO.Class
+import Data.Int (Int64)
 import Data.Maybe (listToMaybe)
 import Data.Profunctor.Product (p2)
-import Data.Int (Int64)
 import qualified Data.Text as T
 import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
 import Heed.Commands
-import Heed.DbTypes
 import Heed.Database
+import Heed.DbTypes
 import qualified Opaleye as O
 
 runUsersQuery
@@ -194,19 +194,27 @@ addSubscription
 addSubscription conn uid fid =
     liftIO $ O.runInsertMany conn subscriptionTable [O.constant $ Subscription fid uid]
 
-getUserItems :: (MonadIO m) => PG.Connection -> UserId Int -> FeedInfoId Int -> m [ReactItemInfo]
-getUserItems conn uid fid = liftIO $ O.runQuery conn (getUserItemsQ (O.constant uid) (O.constant fid))
+getUserItems
+    :: (MonadIO m)
+    => PG.Connection -> UserId Int -> FeedInfoId Int -> m [ReactItemInfo]
+getUserItems conn uid fid =
+    liftIO $ O.runQuery conn (getUserItemsQ (O.constant uid) (O.constant fid))
 
 getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query ReactItemInfoR
-getUserItemsQ uid fid = proc () -> do
-    allItems <- O.orderBy (O.asc feedItemDate) $ O.queryTable feedItemTable -< ()
-    allUnread <- O.queryTable unreadItemTable -< ()
-    O.restrict -< uid O..=== unreadUserId allUnread
-    O.restrict -< fid O..=== feedItemFeedId allItems
-    O.restrict -< unreadFeedItemId allUnread O..=== feedItemId allItems
-    let unreadItemId = getFeedItemId . feedItemId $ allItems
-        unreadTitle = feedItemTitle allItems
-        unreadLink = feedItemUrl allItems
-        unreadDate = feedItemDate allItems
-        unreadComments = feedItemComments allItems
-    returnA -< ReactItemInfo' unreadItemId unreadTitle unreadLink unreadDate unreadComments
+getUserItemsQ uid fid =
+    proc () ->
+  do allItems <- O.orderBy (O.asc feedItemDate) $
+                   O.queryTable feedItemTable
+                   -< ()
+     allUnread <- O.queryTable unreadItemTable -< ()
+     O.restrict -< uid O..=== unreadUserId allUnread
+     O.restrict -< fid O..=== feedItemFeedId allItems
+     O.restrict -< unreadFeedItemId allUnread O..=== feedItemId allItems
+     let unreadItemId = getFeedItemId . feedItemId $ allItems
+         unreadTitle = feedItemTitle allItems
+         unreadLink = feedItemUrl allItems
+         unreadDate = feedItemDate allItems
+         unreadComments = feedItemComments allItems
+     returnA -<
+       ReactItemInfo' unreadItemId unreadTitle unreadLink unreadDate
+         unreadComments

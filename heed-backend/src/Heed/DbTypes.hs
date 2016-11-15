@@ -15,8 +15,8 @@ module Heed.DbTypes where
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
-import Heed.Database
 import Heed.Commands
+import Heed.Database
 import qualified Opaleye as O
 
 $(makeAdaptorAndInstance "pUser" ''User)

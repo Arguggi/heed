@@ -1,14 +1,14 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Heed.Commands where
 
 import Control.DeepSeq
 import Data.Aeson
-import Data.Time.Clock
 import Data.Int
 import qualified Data.Text as T
+import Data.Time.Clock
 import GHC.Generics
 import Heed.Database
 
@@ -49,7 +49,6 @@ instance FromJSON ReactFeedInfo
 instance ToJSON ReactFeedInfo
 
 instance NFData ReactFeedInfo
-
 
 data ReactItemInfo' a b c d e = ReactItemInfo'
     { itemInfoId :: a

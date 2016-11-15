@@ -1,18 +1,18 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Heed.FeedListStore where
 
-import React.Flux
-import Control.DeepSeq
 import Control.Concurrent.MVar (tryReadMVar)
-import GHC.Generics (Generic)
+import Control.DeepSeq
 import Data.Typeable (Typeable)
+import GHC.Generics (Generic)
 import Heed.Commands
 import Heed.GlobalWebsocket
+import React.Flux
 
 data FeedListStore = FeedListStore
     { feedList :: [ReactFeedInfo]
@@ -34,7 +34,8 @@ instance StoreData FeedListStore where
                 case wsM of
                     Nothing -> return ()
                     Just ws -> sendCommand ws (GetFeedItems idSelected)
-                return $ oldStore
+                return $
+                    oldStore
                     { selectedFeed = Just idSelected
                     }
 
