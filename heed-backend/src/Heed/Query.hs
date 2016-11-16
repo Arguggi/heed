@@ -41,7 +41,7 @@ getItemsFromQuery (FeedInfoId feedId) from =
     proc () ->
   do items <- O.queryTable feedItemTable -< ()
      O.restrict -<
-       (getFeedInfoId . feedItemFeedId $ items) O..== O.pgInt4 feedId
+       ((getFeedInfoId . feedItemFeedId $ items) O..== O.pgInt4 feedId)
          O..&& (feedItemDate items O..>= O.pgUTCTime from)
      returnA -< items
 
