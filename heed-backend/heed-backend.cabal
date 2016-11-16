@@ -20,11 +20,13 @@ executable heed-backend
                      , Heed.Types
   build-depends:       base >=4.9 && <4.10
                      , aeson
+                     , async
                      , binary
                      , bytestring
                      , containers
                      , cookie
                      , cryptonite
+                     , data-default
                      , feed
                      , exceptions
                      , heed-lib
@@ -43,6 +45,7 @@ executable heed-backend
                      , safe
                      , servant
                      , servant-server
+                     , tagsoup
                      , text
                      , time
                      , transformers

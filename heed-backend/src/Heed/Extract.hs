@@ -10,9 +10,11 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Data.List (deleteFirstsBy, minimumBy)
 import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Monoid ((<>))
 import Data.Ord (compare)
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
+import qualified Data.Text.IO as TIO
 import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
@@ -28,6 +30,9 @@ import Text.Feed.Import (parseFeedSource)
 import Text.Feed.Types
 import qualified Text.RSS.Syntax as RSS
 
+import qualified Text.HTML.TagSoup as TS
+import qualified Text.HTML.TagSoup.Match as TS
+
 addFeed
     :: (MonadThrow m
        ,MonadCatch m
@@ -37,6 +42,7 @@ addFeed
        ,MonadError HeedError m)
     => a -> Url -> UserId Int -> m ()
 addFeed conf url uid = do
+    liftIO . TIO.putStrLn $ "Adding: " <> url
     let manager = getHttpManager conf
         dbConn = getDbConnection conf
     request <- catchHttpException InvalidUrl . parseRequest $ "GET " ++ T.unpack url
@@ -67,7 +73,7 @@ addFeed conf url uid = do
                _ <-
                    if not (null newItems)
                        then do
-                           insertedItems <- insertItems newFeedItems oldFeedId
+                           insertedItems <- insertItems newItems oldFeedId
                            insertUnread insertedItems uid
                        else return 0
                _ <- setFeedLastUpdated oldFeedId now
@@ -118,7 +124,8 @@ extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
             join (parseRfc822 <$> (RSS.rssPubDate channel <|> RSS.rssLastUpdate channel))
         }
     feedItems = rssEntryToItem now <$> RSS.rssItems channel
-extractInfoFromFeed _ _ (RSS1Feed _) = error "RSS1 still todo"
+-- TODO
+extractInfoFromFeed _ _ (RSS1Feed _) = Nothing
 extractInfoFromFeed _ _ (XMLFeed _) = Nothing
 
 atomEntryToItem :: UTCTime -> Atom.Entry -> FeedItemHW
@@ -140,6 +147,48 @@ rssEntryToItem now entry =
 
 parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
+
+importOPML
+    :: (MonadThrow m
+       ,MonadCatch m
+       ,HasHttpManager a
+       ,HasDbConnection a
+       ,MonadIO m
+       ,MonadError HeedError m)
+    => a -> T.Text -> UserId Int -> m ()
+importOPML conf opml userid = do
+    feeds <- liftJust InvalidOPMLData $ parseTTRssOPML opml
+    forM_ feeds $
+        \url -> do
+            result <- runExceptT $ addFeed conf url userid
+            case result of
+                Left _ -> liftIO . TIO.putStrLn $ "Failed to add: " <> url
+                Right _ -> liftIO . TIO.putStrLn $ "Added: " <> url
+            return ()
+    return ()
+
+parseTTRssOPML :: T.Text -> Maybe [T.Text]
+parseTTRssOPML opml = maybeFeeds
+  where
+    parsedTags = TS.parseTags opml
+    dataTags = ttRssTags parsedTags
+    urls = getFeedUrl <$> dataTags
+    maybeFeeds =
+        case urls of
+            [] -> Nothing
+            a -> Just a
+
+ttRssTags :: [TS.Tag T.Text] -> [TS.Tag T.Text]
+ttRssTags = filter $ TS.tagOpenLit "outline" matchAllAttr
+
+matchAllAttr :: [TS.Attribute T.Text] -> Bool
+matchAllAttr attrs = all (`TS.anyAttrNameLit` attrs) ttRssAttrNames
+
+ttRssAttrNames :: [T.Text]
+ttRssAttrNames = ["type", "text", "xmlUrl"]
+
+getFeedUrl :: TS.Tag T.Text -> T.Text
+getFeedUrl = TS.fromAttrib "xmlUrl"
 
 catchHttpException
     :: (MonadCatch m, MonadError HeedError m)

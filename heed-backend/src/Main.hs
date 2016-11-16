@@ -6,9 +6,10 @@ import Control.Monad (forM_)
 import Control.Monad.Trans.Except
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import Database.PostgreSQL.Simple as PG
 import Heed.Database
-import Heed.Extract (addFeed)
+import Heed.Extract (importOPML)
 import Heed.Server
 import Heed.Types (BackendConf(..))
 import Network.HTTP.Client (newManager)
@@ -23,8 +24,6 @@ main :: IO ()
 main = do
     setupPostgresEnv
     baConf <- setupBackendConf
-    runExceptT $ addFeed baConf "https://news.ycombinator.com/rss" (UserId 1)
-    runExceptT $ addFeed baConf "https://ilblogdimm.it/atom.xml" (UserId 1)
     genAuthMain baConf
 
 setupPostgresEnv :: IO ()

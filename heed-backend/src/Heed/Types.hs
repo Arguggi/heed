@@ -13,6 +13,7 @@ class HasDbConnection a  where
 data HeedError where
         InvalidXML :: HeedError
         InvalidFeedData :: HeedError
+        InvalidOPMLData :: HeedError
         MultipleFeedsSameUrl :: HeedError
         InvalidUrl :: HttpException -> HeedError
         DownloadFailed :: HttpException -> HeedError

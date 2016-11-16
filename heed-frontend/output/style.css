@@ -21,6 +21,7 @@ body {
 
 .feedList {
     margin: 0.5em;
+    max-height: 90vh;
     overflow-y: auto;
     width: 25%;
 }

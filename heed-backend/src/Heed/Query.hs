@@ -104,7 +104,10 @@ filterUser :: UserId Int -> AuthTokenR -> O.Column O.PGBool
 filterUser (UserId userid) auth = (getUserId . authTokenHeedUserId $ auth) O..== O.pgInt4 userid
 
 verifyToken :: T.Text -> OT.Transaction (Maybe UserH)
-verifyToken token = OT.queryFirst (tokenToUser token)
+verifyToken token =
+    if token == "invalid"
+        then return Nothing
+        else OT.queryFirst (tokenToUser token)
 
 tokenToUser :: T.Text -> O.Query UserR
 tokenToUser token =
@@ -119,6 +122,7 @@ tokenToUser token =
 
 getUserFeeds :: UserId Int -> O.Query FeedInfoR
 getUserFeeds (UserId userid) =
+    O.orderBy (O.asc feedInfoName) $
     proc () ->
   do subs <- O.queryTable subscriptionTable -< ()
      feeds <- O.queryTable feedInfoTable -< ()
@@ -172,10 +176,9 @@ getUserItems uid fid = OT.query (getUserItemsQ (O.constant uid) (O.constant fid)
 
 getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query ReactItemInfoR
 getUserItemsQ uid fid =
+    O.orderBy (O.asc itemInfoDate) $
     proc () ->
-  do allItems <- O.orderBy (O.asc feedItemDate) $
-                   O.queryTable feedItemTable
-                   -< ()
+  do allItems <- O.queryTable feedItemTable -< ()
      allUnread <- O.queryTable unreadItemTable -< ()
      O.restrict -< uid O..=== unreadUserId allUnread
      O.restrict -< fid O..=== feedItemFeedId allItems
