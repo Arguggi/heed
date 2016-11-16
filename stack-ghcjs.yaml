@@ -14,8 +14,8 @@ packages:
 - location:  './heed-lib/'
 
 extra-deps:
-- ghcjs-dom-0.5.0.2
+- ghcjs-dom-0.6.0.0
 - ref-tf-0.4.0.1
 - react-flux-1.2.3
-- jsaddle-dom-0.5.0.1
-- jsaddle-0.5.2.0
+- jsaddle-dom-0.6.0.0
+- jsaddle-0.6.0.1

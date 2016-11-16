@@ -11,5 +11,5 @@ packages:
 extra-deps:
 - ref-tf-0.4.0.1
 - react-flux-1.2.3
-- jsaddle-0.5.2.0
-- jsaddle-dom-0.5.0.1
+- jsaddle-0.6.0.1
+- jsaddle-dom-0.6.0.0
