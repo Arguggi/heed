@@ -16,12 +16,12 @@ import React.Flux
 
 data FeedListStore = FeedListStore
     { feedList :: [ReactFeedInfo]
-    , selectedFeed :: Maybe Int
+    , selectedFeed :: Maybe ReactFeedInfo
     } deriving (Show, Typeable)
 
 data FeedListAction
     = SetFeedList [ReactFeedInfo]
-    | SelectFeed Int
+    | SelectFeed ReactFeedInfo
     deriving (Show, Typeable, Generic, NFData)
 
 instance StoreData FeedListStore where
@@ -29,14 +29,14 @@ instance StoreData FeedListStore where
     transform action oldStore =
         case action of
             SetFeedList feeds -> return $ FeedListStore feeds Nothing
-            SelectFeed idSelected -> do
+            SelectFeed selFeed -> do
                 wsM <- tryReadMVar heedWebsocket
                 case wsM of
                     Nothing -> return ()
-                    Just ws -> sendCommand ws (GetFeedItems idSelected)
+                    Just ws -> sendCommand ws (GetFeedItems (feedListId selFeed))
                 return $
                     oldStore
-                    { selectedFeed = Just idSelected
+                    { selectedFeed = Just selFeed
                     }
 
 feedListStore :: ReactStore FeedListStore

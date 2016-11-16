@@ -19,8 +19,6 @@ heedApp =
         heedHeader_
         container_
 
---heedFeeds_
---feedItems_
 container_ :: ReactElementM eventHandler ()
 container_ = view container () mempty
 
@@ -51,21 +49,18 @@ feedList_ flst = div_ ["className" $= "feedList"] $ mapM_ (feed_ $ selectedFeed 
 
 ---- Feed List item
 --
-feed :: Maybe Int -> ReactView ReactFeedInfo
-feed selectedId =
+feed :: Maybe ReactFeedInfo -> ReactView ReactFeedInfo
+feed selFeed =
     defineView "feed info" $
     \feedInfo ->
          div_
-             [ onClick (\_ _ -> dispatchHeed $ selectFeed (feedListId feedInfo))
-             , classNames
-                   [ ("selected", isSelected (feedListId feedInfo) selectedId)
-                   , ("feedInfoItem", True)
-                   ]
+             [ onClick (\_ _ -> dispatchHeed $ selectFeed feedInfo)
+             , classNames [("selected", isSelected feedInfo selFeed), ("feedInfoItem", True)]
              ] $
          do span_ ["className" $= "feedName"] $ elemText $ feedListName feedInfo
             span_ ["className" $= "feedUnread"] $ elemText $ unreadText feedInfo
 
-feed_ :: Maybe Int -> ReactFeedInfo -> ReactElementM eventHandler ()
+feed_ :: Maybe ReactFeedInfo -> ReactFeedInfo -> ReactElementM eventHandler ()
 feed_ selId feedInfo = viewWithIKey (feed selId) (feedListId feedInfo) feedInfo mempty
 
 unreadText :: ReactFeedInfo -> T.Text
@@ -75,30 +70,45 @@ feedItems_ :: ReactElementM eventHandler ()
 feedItems_ = view feedItems () mempty
 
 feedItems :: ReactView ()
-feedItems = defineControllerView "item list" itemListStore $ \itemLStore _ -> rItemList_ itemLStore
+feedItems =
+    defineControllerView "item list" itemListStore $
+    \itemLStore _ ->
+         div_ ["className" $= "itemsContainer"] $
+         do rItemList_ itemLStore
+            rItemDetail_ itemLStore
 
 rItemList_ :: ItemListStore -> ReactElementM ViewEventHandler ()
 rItemList_ itst = div_ ["className" $= "itemList"] $ mapM_ (item_ $ selectedItem itst) $ itemList itst
 
-item_ :: Maybe Int -> ReactItemInfo -> ReactElementM eventHandler ()
-item_ selId itemInfo = viewWithIKey (item selId) (itemInfoId itemInfo) itemInfo mempty
+rItemDetail_ :: ItemListStore -> ReactElementM ViewEventHandler ()
+rItemDetail_ itst = view itemDetail (selectedItem itst) mempty
 
-item :: Maybe Int -> ReactView ReactItemInfo
-item selectedId =
+itemDetail :: ReactView (Maybe ReactItemInfo)
+itemDetail =
+    defineView "detail" $
+    \itemInfo ->
+         div_ ["className" $= "itemDetail"] $
+         case itemInfo of
+             Nothing -> mempty
+             Just info -> do
+                 a_ ["className" $= "detailName", "href" &= itemInfoLink info] $
+                     elemText $ itemInfoTitle info
+                 a_ ["className" $= "detailUrl", "href" &= itemInfoLink info] $
+                     elemText $ itemInfoLink info
+
+item_ :: Maybe ReactItemInfo -> ReactItemInfo -> ReactElementM eventHandler ()
+item_ selItem itemInfo = viewWithIKey (item selItem) (itemInfoId itemInfo) itemInfo mempty
+
+item :: Maybe ReactItemInfo -> ReactView ReactItemInfo
+item selItem =
     defineView "item info" $
     \itemInfo ->
          div_
-             [ onClick (\_ _ -> dispatchHeed $ selectItem (itemInfoId itemInfo))
-             , classNames
-                   [ ("selected", isSelected (itemInfoId itemInfo) selectedId)
-                   , ("itemInfoItem", True)
-                   ]
+             [ onClick (\_ _ -> dispatchHeed $ selectItem itemInfo)
+             , classNames [("selected", isSelected itemInfo selItem), ("itemInfoItem", True)]
              ] $
          do span_ ["className" $= "itemName"] $ elemText $ itemInfoTitle itemInfo
             span_ ["className" $= "itemDate"] $ elemString $ showUtc (itemInfoDate itemInfo)
-
-isSelected :: Int -> Maybe Int -> Bool
-isSelected elementId selId = Just elementId == selId
 
 showUtc :: UTCTime -> String
 showUtc = formatTime defaultTimeLocale "%T %D"

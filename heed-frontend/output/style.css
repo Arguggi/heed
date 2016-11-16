@@ -28,8 +28,9 @@ body {
 
 .itemList {
     font-size: 1em;
+    height: 80vh;
     margin: 0.5em;
-    max-height: 90vh;
+    max-height: 80vh;
     overflow-y: auto;
     width: 100%;
 }
@@ -51,11 +52,24 @@ body {
     padding: 0.2em;
 }
 
+.itemDetail {
+    border-top: thin groove gray;
+    display: flex;
+    flex-direction: column;
+    margin: 0.5em;
+    max-height: 10vh;
+    width: 100%
+}
+
 .selected {
-    background-color: #4289f4;
+    background-color: #d6e5ff;
 }
 
 .container {
     display: flex;
     flex-direction: row;
+}
+
+.itemsContainer {
+    width: 73vw;
 }

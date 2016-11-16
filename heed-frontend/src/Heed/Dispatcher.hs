@@ -1,5 +1,6 @@
 module Heed.Dispatcher where
 
+import Heed.Commands
 import Heed.FeedListStore
 import Heed.ItemListStore
 import React.Flux
@@ -8,10 +9,10 @@ data Action
     = Feed FeedListAction
     | Item ItemListAction
 
-selectFeed :: Int -> Action
+selectFeed :: ReactFeedInfo -> Action
 selectFeed = Feed . SelectFeed
 
-selectItem :: Int -> Action
+selectItem :: ReactItemInfo -> Action
 selectItem = Item . SelectItem
 
 dispatchHeed :: Action -> [SomeStoreAction]

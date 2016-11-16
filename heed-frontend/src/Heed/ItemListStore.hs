@@ -14,12 +14,12 @@ import React.Flux
 
 data ItemListStore = ItemListStore
     { itemList :: [ReactItemInfo]
-    , selectedItem :: Maybe Int
+    , selectedItem :: Maybe ReactItemInfo
     } deriving (Show, Typeable)
 
 data ItemListAction
     = SetItemList [ReactItemInfo]
-    | SelectItem Int
+    | SelectItem ReactItemInfo
     deriving (Show, Typeable, Generic, NFData)
 
 instance StoreData ItemListStore where
@@ -27,10 +27,10 @@ instance StoreData ItemListStore where
     transform action oldStore =
         case action of
             SetItemList items -> return $ ItemListStore items Nothing
-            SelectItem idSelected ->
+            SelectItem itemSelected ->
                 return $
                 oldStore
-                { selectedItem = Just idSelected
+                { selectedItem = Just itemSelected
                 }
 
 itemListStore :: ReactStore ItemListStore

@@ -65,3 +65,14 @@ instance FromJSON ReactItemInfo
 instance ToJSON ReactItemInfo
 
 instance NFData ReactItemInfo
+
+class IsSelected a  where
+    isSelected :: a -> Maybe a -> Bool
+
+instance IsSelected ReactFeedInfo where
+    isSelected _ Nothing = False
+    isSelected selId (Just feedInfo) = feedListId selId == feedListId feedInfo
+
+instance IsSelected ReactItemInfo where
+    isSelected _ Nothing = False
+    isSelected selId (Just itemInfo) = itemInfoId selId == itemInfoId itemInfo
