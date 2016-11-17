@@ -44,6 +44,9 @@ data ReactFeedInfo' a b c = ReactFeedInfo'
 
 type ReactFeedInfo = ReactFeedInfo' Int T.Text Int64
 
+instance Eq ReactFeedInfo where
+    a == b = feedListId a == feedListId b
+
 instance FromJSON ReactFeedInfo
 
 instance ToJSON ReactFeedInfo
@@ -59,6 +62,9 @@ data ReactItemInfo' a b c d e = ReactItemInfo'
     } deriving (Generic, Show)
 
 type ReactItemInfo = ReactItemInfo' Int T.Text T.Text UTCTime (Maybe T.Text)
+
+instance Eq ReactItemInfo where
+    a == b = itemInfoId a == itemInfoId b
 
 instance FromJSON ReactItemInfo
 

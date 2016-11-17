@@ -6,13 +6,16 @@
 
 module Heed.FeedListStore where
 
+import Control.Concurrent (forkIO)
 import Control.Concurrent.MVar (tryReadMVar)
 import Control.DeepSeq
+import Control.Monad (void)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Heed.Commands
 import Heed.GlobalWebsocket
 import React.Flux
+import Safe (headMay, lastMay)
 
 data FeedListStore = FeedListStore
     { feedList :: [ReactFeedInfo]
@@ -22,22 +25,62 @@ data FeedListStore = FeedListStore
 data FeedListAction
     = SetFeedList [ReactFeedInfo]
     | SelectFeed ReactFeedInfo
+    | NextFeed
+    | PrevFeed
     deriving (Show, Typeable, Generic, NFData)
 
 instance StoreData FeedListStore where
     type StoreAction FeedListStore = FeedListAction
     transform action oldStore =
         case action of
-            SetFeedList feeds -> return $ FeedListStore feeds Nothing
-            SelectFeed selFeed -> do
-                wsM <- tryReadMVar heedWebsocket
-                case wsM of
+            SetFeedList feeds -> do
+                let firstFeed = headMay feeds
+                case firstFeed of
                     Nothing -> return ()
-                    Just ws -> sendCommand ws (GetFeedItems (feedListId selFeed))
+                    Just ffeed ->
+                        void . forkIO $ mapM_ executeAction (dispatchFeedList . SelectFeed $ ffeed)
+                return $ FeedListStore feeds (headMay feeds)
+            SelectFeed selFeed -> do
+                loadFeed $ Just selFeed
                 return $
                     oldStore
                     { selectedFeed = Just selFeed
                     }
+            NextFeed -> do
+                let nextFeedM = do
+                        currentFeed <- selectedFeed oldStore
+                        let (_, _:afterFeeds) = break (== currentFeed) (feedList oldStore)
+                        if not (null afterFeeds)
+                            then headMay afterFeeds
+                            else headMay (feedList oldStore)
+                loadFeed nextFeedM
+                return
+                    oldStore
+                    { selectedFeed = nextFeedM
+                    }
+            PrevFeed -> do
+                let prevFeedM = do
+                        currentFeed <- selectedFeed oldStore
+                        let prevList = takeWhile (/= currentFeed) (feedList oldStore)
+                        if not (null prevList)
+                            then lastMay prevList
+                            else lastMay (feedList oldStore)
+                loadFeed prevFeedM
+                return
+                    oldStore
+                    { selectedFeed = prevFeedM
+                    }
+
+dispatchFeedList :: FeedListAction -> [SomeStoreAction]
+dispatchFeedList action = [SomeStoreAction feedListStore action]
 
 feedListStore :: ReactStore FeedListStore
 feedListStore = mkStore $ FeedListStore [] Nothing
+
+loadFeed :: Maybe ReactFeedInfo -> IO ()
+loadFeed Nothing = return ()
+loadFeed (Just feedInfo) = do
+    wsM <- tryReadMVar heedWebsocket
+    case wsM of
+        Nothing -> return ()
+        Just ws -> sendCommand ws $ GetFeedItems (feedListId feedInfo)

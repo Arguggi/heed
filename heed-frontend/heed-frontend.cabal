@@ -16,6 +16,8 @@ executable heed-frontend
                      , Heed.ItemListStore
                      , Heed.FeedListStore
                      , Heed.GlobalWebsocket
+                     , Heed.GHCJS
+                     , Heed.Keybindings
                      , Heed.Views
                      , Heed.Websocket
   hs-source-dirs:      src
@@ -24,6 +26,7 @@ executable heed-frontend
   build-depends:       base >=4.9 && <4.10
                      , aeson
                      , bytestring
+                     , containers
                      , data-default
                      , deepseq
                      , heed-lib
@@ -33,6 +36,7 @@ executable heed-frontend
                      , lucid
                      , mtl
                      , react-flux
+                     , safe
                      , time
                      , text
                      , vector
