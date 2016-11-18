@@ -2,14 +2,17 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE StrictData #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module Heed.FeedListStore where
 
 import Control.Concurrent (forkIO)
-import Control.Concurrent.MVar (tryReadMVar)
 import Control.DeepSeq
+import Control.Lens
 import Control.Monad (void)
+import Data.List (elemIndex)
+import Data.Maybe (fromJust)
 import Data.Typeable (Typeable)
 import GHC.Generics (Generic)
 import Heed.Commands
@@ -18,13 +21,16 @@ import React.Flux
 import Safe (headMay, lastMay)
 
 data FeedListStore = FeedListStore
-    { feedList :: [ReactFeedInfo]
-    , selectedFeed :: Maybe ReactFeedInfo
+    { _feedList :: [ReactFeedInfo]
+    , _selectedFeed :: Maybe ReactFeedInfo
     } deriving (Show, Typeable)
+
+makeLenses ''FeedListStore
 
 data FeedListAction
     = SetFeedList [ReactFeedInfo]
     | SelectFeed ReactFeedInfo
+    | FeedRead
     | NextFeed
     | PrevFeed
     deriving (Show, Typeable, Generic, NFData)
@@ -42,34 +48,30 @@ instance StoreData FeedListStore where
                 return $ FeedListStore feeds (headMay feeds)
             SelectFeed selFeed -> do
                 loadFeed $ Just selFeed
-                return $
-                    oldStore
-                    { selectedFeed = Just selFeed
-                    }
+                return $ oldStore & selectedFeed .~ Just selFeed
             NextFeed -> do
                 let nextFeedM = do
-                        currentFeed <- selectedFeed oldStore
-                        let (_, _:afterFeeds) = break (== currentFeed) (feedList oldStore)
+                        currentFeed <- _selectedFeed oldStore
+                        let (_, _:afterFeeds) = break (== currentFeed) (_feedList oldStore)
                         if not (null afterFeeds)
                             then headMay afterFeeds
-                            else headMay (feedList oldStore)
+                            else headMay (_feedList oldStore)
                 loadFeed nextFeedM
-                return
-                    oldStore
-                    { selectedFeed = nextFeedM
-                    }
+                return $ oldStore & selectedFeed .~ nextFeedM
             PrevFeed -> do
                 let prevFeedM = do
-                        currentFeed <- selectedFeed oldStore
-                        let prevList = takeWhile (/= currentFeed) (feedList oldStore)
+                        currentFeed <- _selectedFeed oldStore
+                        let prevList = takeWhile (/= currentFeed) (_feedList oldStore)
                         if not (null prevList)
                             then lastMay prevList
-                            else lastMay (feedList oldStore)
+                            else lastMay (_feedList oldStore)
                 loadFeed prevFeedM
-                return
-                    oldStore
-                    { selectedFeed = prevFeedM
-                    }
+                return $ oldStore & selectedFeed .~ prevFeedM
+            FeedRead -> do
+                let currentPos =
+                        fromJust $
+                        elemIndex (fromJust $ _selectedFeed oldStore) (_feedList oldStore)
+                return $ oldStore & feedList . ix currentPos . feedListUnread %~ subtractPositive 1
 
 dispatchFeedList :: FeedListAction -> [SomeStoreAction]
 dispatchFeedList action = [SomeStoreAction feedListStore action]
@@ -79,8 +81,12 @@ feedListStore = mkStore $ FeedListStore [] Nothing
 
 loadFeed :: Maybe ReactFeedInfo -> IO ()
 loadFeed Nothing = return ()
-loadFeed (Just feedInfo) = do
-    wsM <- tryReadMVar heedWebsocket
-    case wsM of
-        Nothing -> return ()
-        Just ws -> sendCommand ws $ GetFeedItems (feedListId feedInfo)
+loadFeed (Just feedInfo) = sendCommand $ GetFeedItems (_feedListId feedInfo)
+
+subtractPositive
+    :: (Num a, Ord a)
+    => a -> a -> a
+subtractPositive x y =
+    if y < 1
+        then 0
+        else y - x

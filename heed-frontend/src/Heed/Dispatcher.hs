@@ -13,10 +13,10 @@ data Action
 selectFeed :: ReactFeedInfo -> Action
 selectFeed = Feed . SelectFeed
 
-selectItem :: ReactItemInfo -> Action
+selectItem :: ReactItemStatus -> Action
 selectItem = Item . SelectItem
 
-nextFeed, nextItem, prevFeed, prevItem :: Action
+nextFeed, nextItem, prevFeed, prevItem, openItem :: Action
 nextFeed = Feed NextFeed
 
 nextItem = Item NextItem
@@ -24,6 +24,8 @@ nextItem = Item NextItem
 prevFeed = Feed PrevFeed
 
 prevItem = Item PrevItem
+
+openItem = Item OpenItem
 
 dispatchHeed :: Action -> [SomeStoreAction]
 dispatchHeed (Feed fla) = [SomeStoreAction feedListStore fla]

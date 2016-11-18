@@ -31,21 +31,21 @@ initWebsocket = do
     websocket <-
         runJ $
         do ws <- newWebSocket' wsUrl heedProtocol
-           _ <- E.on ws open (sendInitialized ws)
+           _ <- E.on ws open sendInitialized
            _ <- E.on ws message commandToStore
            return ws
     putMVar heedWebsocket websocket
 
 -- onOpen websocket callback
-sendInitialized :: WebSocket -> ReaderT e DOM ()
-sendInitialized ws =
+sendInitialized :: ReaderT e DOM ()
+sendInitialized =
     ReaderT $
     \_ ->
          liftIO $
          do putStrLn "Connection opened"
             putStrLn "Getting user info"
             --runJ $ sendString ws (toStrict . decodeUtf8 . encode $ Initialized)
-            sendCommand ws Initialized
+            sendCommand Initialized
 
 -- onMessage websocket callback
 commandToStore :: ReaderT MessageEvent DOM ()

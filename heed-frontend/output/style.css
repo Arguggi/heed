@@ -73,3 +73,7 @@ body {
 .itemsContainer {
     width: 73vw;
 }
+
+.read {
+    color: grey;
+}

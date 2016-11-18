@@ -13,6 +13,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Heed.Commands
                      , Heed.Database
+                     , Heed.Utils
   build-depends:       base >=4.9 && <4.10
                      , aeson
                      , bytestring
@@ -20,6 +21,7 @@ library
                      , deepseq
                      , exceptions
                      , mtl
+                     , lens
                      , safe
                      , text
                      , time

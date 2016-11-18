@@ -14,8 +14,12 @@ heedWebsocket = unsafePerformIO newEmptyMVar
 
 {-# NOINLINE heedWebsocket #-}
 
-sendCommand :: WebSocket -> Up -> IO ()
-sendCommand ws command = runJ $ sendString ws (toStrict . decodeUtf8 . encode $ command)
+sendCommand :: Up -> IO ()
+sendCommand command = do
+    wsM <- tryReadMVar heedWebsocket
+    case wsM of
+        Nothing -> return ()
+        Just ws -> runJ $ sendString ws (toStrict . decodeUtf8 . encode $ command)
 
 runJ :: JSM a -> IO a
 runJ = flip runJSM undefined

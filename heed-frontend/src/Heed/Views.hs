@@ -2,6 +2,7 @@
 
 module Heed.Views where
 
+import Control.Lens hiding (view)
 import qualified Data.Text as T
 import Data.Time.Clock
 import Data.Time.Format
@@ -45,7 +46,7 @@ heedFeeds :: ReactView ()
 heedFeeds = defineControllerView "feed list" feedListStore $ \feedLStore _ -> feedList_ feedLStore
 
 feedList_ :: FeedListStore -> ReactElementM ViewEventHandler ()
-feedList_ flst = div_ ["className" $= "feedList"] $ mapM_ (feed_ $ selectedFeed flst) $ feedList flst
+feedList_ flst = div_ ["className" $= "feedList"] $ mapM_ (feed_ $ _selectedFeed flst) $ _feedList flst
 
 ---- Feed List item
 --
@@ -57,14 +58,14 @@ feed selFeed =
              [ onClick (\_ _ -> dispatchHeed $ selectFeed feedInfo)
              , classNames [("selected", isSelected feedInfo selFeed), ("feedInfoItem", True)]
              ] $
-         do span_ ["className" $= "feedName"] $ elemText $ feedListName feedInfo
+         do span_ ["className" $= "feedName"] $ elemText $ _feedListName feedInfo
             span_ ["className" $= "feedUnread"] $ elemText $ unreadText feedInfo
 
 feed_ :: Maybe ReactFeedInfo -> ReactFeedInfo -> ReactElementM eventHandler ()
-feed_ selId feedInfo = viewWithIKey (feed selId) (feedListId feedInfo) feedInfo mempty
+feed_ selId feedInfo = viewWithIKey (feed selId) (_feedListId feedInfo) feedInfo mempty
 
 unreadText :: ReactFeedInfo -> T.Text
-unreadText = T.pack . show . feedListUnread
+unreadText = T.pack . show . _feedListUnread
 
 feedItems_ :: ReactElementM eventHandler ()
 feedItems_ = view feedItems () mempty
@@ -78,37 +79,48 @@ feedItems =
             rItemDetail_ itemLStore
 
 rItemList_ :: ItemListStore -> ReactElementM ViewEventHandler ()
-rItemList_ itst = div_ ["className" $= "itemList"] $ mapM_ (item_ $ selectedItem itst) $ itemList itst
+rItemList_ itst =
+    div_ ["className" $= "itemList"] $ mapM_ (item_ $ _selectedItem itst) $ _itemList itst
 
 rItemDetail_ :: ItemListStore -> ReactElementM ViewEventHandler ()
-rItemDetail_ itst = view itemDetail (selectedItem itst) mempty
+rItemDetail_ itst = view itemDetail (_selectedItem itst) mempty
 
-itemDetail :: ReactView (Maybe ReactItemInfo)
+itemDetail :: ReactView (Maybe ReactItemStatus)
 itemDetail =
     defineView "detail" $
-    \itemInfo ->
+    \iinfo ->
          div_ ["className" $= "itemDetail"] $
-         case itemInfo of
+         case iinfo of
              Nothing -> mempty
-             Just info -> do
-                 a_ ["className" $= "detailName", "href" &= itemInfoLink info] $
-                     elemText $ itemInfoTitle info
-                 a_ ["className" $= "detailUrl", "href" &= itemInfoLink info] $
-                     elemText $ itemInfoLink info
+             Just status -> do
+                 let info = _itemInfo status
+                 a_ ["className" $= "detailName", "href" &= _itemInfoLink info] $ elemText $
+                     _itemInfoTitle info
+                 a_ ["className" $= "detailUrl", "href" &= _itemInfoLink info] $ elemText $
+                     _itemInfoLink info
 
-item_ :: Maybe ReactItemInfo -> ReactItemInfo -> ReactElementM eventHandler ()
-item_ selItem itemInfo = viewWithIKey (item selItem) (itemInfoId itemInfo) itemInfo mempty
+item_ :: Maybe ReactItemStatus -> ReactItemStatus -> ReactElementM eventHandler ()
+item_ selItem info = viewWithIKey (item selItem) (info ^. itemInfo . itemInfoId) info mempty
 
-item :: Maybe ReactItemInfo -> ReactView ReactItemInfo
+item :: Maybe ReactItemStatus -> ReactView ReactItemStatus
 item selItem =
     defineView "item info" $
-    \itemInfo ->
-         div_
-             [ onClick (\_ _ -> dispatchHeed $ selectItem itemInfo)
-             , classNames [("selected", isSelected itemInfo selItem), ("itemInfoItem", True)]
-             ] $
-         do span_ ["className" $= "itemName"] $ elemText $ itemInfoTitle itemInfo
-            span_ ["className" $= "itemDate"] $ elemString $ showUtc (itemInfoDate itemInfo)
+    \status -> do
+        let iinfo = _itemInfo status
+        div_
+            [ onClick (\_ _ -> dispatchHeed $ selectItem status)
+            , classNames
+                  [ ("selected", isSelected iinfo (_itemInfo <$> selItem))
+                  , ("itemInfoItem", True)
+                  , ("read", isRead $ _readStatus status)
+                  ]
+            ] $
+            do span_ ["className" $= "itemName"] $ elemText $ _itemInfoTitle iinfo
+               span_ ["className" $= "itemDate"] $ elemString $ showUtc (_itemInfoDate iinfo)
 
 showUtc :: UTCTime -> String
 showUtc = formatTime defaultTimeLocale "%T %D"
+
+isRead :: ReadStatus -> Bool
+isRead Unread = False
+isRead Read = True

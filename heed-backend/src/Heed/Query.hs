@@ -176,7 +176,7 @@ getUserItems uid fid = OT.query (getUserItemsQ (O.constant uid) (O.constant fid)
 
 getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query ReactItemInfoR
 getUserItemsQ uid fid =
-    O.orderBy (O.asc itemInfoDate) $
+    O.orderBy (O.asc _itemInfoDate) $
     proc () ->
   do allItems <- O.queryTable feedItemTable -< ()
      allUnread <- O.queryTable unreadItemTable -< ()
@@ -191,3 +191,10 @@ getUserItemsQ uid fid =
      returnA -<
        ReactItemInfo' unreadItemId unreadTitle unreadLink unreadDate
          unreadComments
+
+readFeed :: UserId Int -> FeedItemId Int -> OT.Transaction Int64
+readFeed userid itemid =
+    OT.delete unreadItemTable $
+    \cols ->
+         (unreadUserId cols O..=== O.constant userid) O..&&
+         (unreadFeedItemId cols O..=== O.constant itemid)

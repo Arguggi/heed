@@ -33,6 +33,7 @@ keybindings =
         , ("j", dispatchHeed nextItem)
         , ("K", dispatchHeed prevFeed)
         , ("k", dispatchHeed prevItem)
+        , ("o", dispatchHeed openItem)
         ]
 
 handleKeypress :: ReaderT KeyboardEvent DOM ()

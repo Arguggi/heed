@@ -200,9 +200,10 @@ wsApp conf uname pending_conn = do
                GetFeedItems feedId -> do
                    items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
                    sendDown conn (FeedItems items)
-               _ -> do
-                   print command
-                   putStrLn "TODO"
+               ItemRead itemId -> do
+                   deleted <- runQueryNoT dbConn $ readFeed uid (FeedItemId itemId)
+                   putStrLn $ "Deleted " <> show deleted <> " items"
+               _ -> putStrLn "TODO"
 
 sendDown
     :: (ToJSON a)
