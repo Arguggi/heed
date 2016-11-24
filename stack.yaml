@@ -1,4 +1,4 @@
-resolver: nightly-2016-11-16
+resolver: nightly-2016-11-24
 packages:
 
 packages:
@@ -11,5 +11,5 @@ packages:
 extra-deps:
 - ref-tf-0.4.0.1
 - react-flux-1.2.3
-- jsaddle-0.6.0.1
-- jsaddle-dom-0.6.0.0
+- jsaddle-0.7.0.0
+- jsaddle-dom-0.7.0.0

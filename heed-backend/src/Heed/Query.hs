@@ -1,4 +1,6 @@
 {-# LANGUAGE Arrows #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 
@@ -7,7 +9,9 @@ module Heed.Query where
 import Control.Arrow (returnA)
 import Control.Monad.IO.Class
 import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
 import Data.Profunctor.Product (p2)
+import Data.Profunctor.Product.Default (Default)
 import qualified Data.Text as T
 import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
@@ -16,6 +20,11 @@ import Heed.Database
 import Heed.DbTypes
 import qualified Opaleye as O
 import qualified Opaleye.Trans as OT
+
+printSql
+    :: Default O.Unpackspec a a
+    => O.Query a -> IO ()
+printSql = putStrLn . fromMaybe "Empty query" . O.showSqlForPostgres
 
 runTransaction
     :: (MonadIO m)

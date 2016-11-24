@@ -97,7 +97,7 @@ selectFirstItem :: ReactItemStatus -> IO ()
 selectFirstItem ffeed = forkIO_ $ mapM_ executeAction (dispatchItemList . SelectItem $ ffeed)
 
 sendItemRead :: Maybe ReactItemStatus -> IO ()
-sendItemRead Nothing = return () -- Should never happen?j
+sendItemRead Nothing = return () -- Should never happen?
 sendItemRead (Just info) = sendCommand $ ItemRead (info ^. itemInfo . itemInfoId)
 
 updateUnreadCount :: IO ()

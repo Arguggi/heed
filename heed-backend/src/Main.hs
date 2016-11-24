@@ -3,13 +3,9 @@
 module Main where
 
 import Control.Monad (forM_)
-import Control.Monad.Trans.Except
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
 import Database.PostgreSQL.Simple as PG
-import Heed.Database
-import Heed.Extract (importOPML)
 import Heed.Server
 import Heed.Types (BackendConf(..))
 import Network.HTTP.Client (newManager)
