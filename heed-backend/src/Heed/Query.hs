@@ -144,18 +144,14 @@ getUserFeeds (UserId userid) =
     idCol = O.pgInt4 userid
 
 getUserUnreadItems :: UserId Int -> O.Query (O.Column O.PGInt4, O.Column O.PGInt8)
-getUserUnreadItems (UserId userid) =
+getUserUnreadItems userid =
     O.aggregate (p2 (O.groupBy, O.count)) $
     proc () ->
   do unread <- O.queryTable unreadItemTable -< ()
      item <- O.queryTable feedItemTable -< ()
-     O.restrict -< (getUserId . unreadUserId) unread O..== idCol
-     O.restrict -<
-       ((getFeedItemId . feedItemId) item O..==
-          (getFeedItemId . unreadFeedItemId) unread)
+     O.restrict -< unreadUserId unread O..=== O.constant userid
+     O.restrict -< feedItemId item O..=== unreadFeedItemId unread
      returnA -< ((getFeedInfoId . feedItemFeedId) item, O.pgInt8 1)
-  where
-    idCol = O.pgInt4 userid
 
 getAllUserFeedInfo :: UserId Int -> O.Query ReactFeedInfoR
 getAllUserFeedInfo uid =

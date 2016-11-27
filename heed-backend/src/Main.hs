@@ -6,8 +6,8 @@ import Control.Monad (forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
 import Database.PostgreSQL.Simple as PG
-import Heed.Server
-import Heed.Types (BackendConf(..))
+import Heed.Server (genAuthMain)
+import Heed.Types
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Environment (setEnv)
