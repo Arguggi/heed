@@ -16,6 +16,7 @@ import JSDOM.Types
 import Language.Javascript.JSaddle (js)
 import React.Flux hiding (KeyboardEvent)
 
+-- | Initialize global keybindings
 initKeybindings :: IO ()
 initKeybindings =
     runJ $
@@ -26,6 +27,7 @@ initKeybindings =
                Just window -> E.on window keyPress handleKeypress
        return ()
 
+-- | Global keybindings
 keybindings :: Map T.Text [SomeStoreAction]
 keybindings =
     Map.fromList
@@ -36,6 +38,7 @@ keybindings =
         , ("o", dispatchHeed openItem)
         ]
 
+-- | onKeyPress handler
 handleKeypress :: ReaderT KeyboardEvent DOM ()
 handleKeypress =
     ReaderT $
@@ -46,10 +49,14 @@ handleKeypress =
             Nothing -> return ()
             Just action -> liftIO $ mapM_ executeAction action
 
+-- | GHCJS-dom doesn't have a binding to the
+--   <https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/key key>
+--   property for some reason
 getKey
     :: (MonadDOM m, FromJSString result)
     => KeyboardEvent -> m result
 getKey self = liftDOM ((self ^. js keyS) >>= fromJSValUnchecked)
 
+-- | "key" as String to avoid OverloadedStrings problems
 keyS :: String
 keyS = "key"

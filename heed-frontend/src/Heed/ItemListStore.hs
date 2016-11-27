@@ -24,31 +24,35 @@ import Heed.Utils
 import React.Flux
 import Safe (headMay, lastMay)
 
+-- | ItemList state
 data ItemListStore = ItemListStore
-    { _itemList :: [ReactItemStatus]
-    , _selectedItem :: Maybe ReactItemStatus
+    { _itemList :: [ReactItemStatus] -- ^ List of Items
+    , _selectedItem :: Maybe ReactItemStatus -- ^ Currently selected item
     } deriving (Show, Generic, Typeable, NFData, Eq)
 
+-- | Is the item still unread?
 data ReadStatus
-    = Unread
-    | Read
+    = Unread -- ^ Item is unread (default status)
+    | Read -- ^ Item was either skipped or opened
     deriving (Show, Generic, Typeable, NFData, Eq)
 
+-- | Item status
 data ReactItemStatus = ReactItemStatus
-    { _readStatus :: ReadStatus
-    , _itemInfo :: ReactItemInfo
+    { _readStatus :: ReadStatus -- ^ Already Read
+    , _itemInfo :: ReactItemInfo -- ^ Item info
     } deriving (Show, Generic, Typeable, NFData, Eq)
 
 makeLenses ''ItemListStore
 
 makeLenses ''ReactItemStatus
 
+-- | Possibile Item store actions
 data ItemListAction
-    = SetItemList [ReactItemInfo]
-    | SelectItem ReactItemStatus
-    | NextItem
-    | PrevItem
-    | OpenItem
+    = SetItemList [ReactItemInfo] -- ^ Set the item list
+    | SelectItem ReactItemStatus -- ^ Select an item
+    | NextItem -- ^ Go to next item in list, wraps around
+    | PrevItem -- ^ Go to previous item in list, wraps around
+    | OpenItem -- ^ Open the items url in a new tab
     deriving (Show, Typeable, Generic, NFData)
 
 instance StoreData ItemListStore where
@@ -93,25 +97,34 @@ instance StoreData ItemListStore where
                 void . forkIO $ mapM_ executeAction (dispatchItemList NextItem)
                 return oldStore
 
-selectFirstItem :: ReactItemStatus -> IO ()
+-- | Send a 'SelectItem' action
+selectFirstItem
+    :: ReactItemStatus -- ^ Item to select
+    -> IO ()
 selectFirstItem ffeed = forkIO_ $ mapM_ executeAction (dispatchItemList . SelectItem $ ffeed)
 
+-- | Send 'ItemRead' to server
 sendItemRead :: Maybe ReactItemStatus -> IO ()
 sendItemRead Nothing = return () -- Should never happen?
 sendItemRead (Just info) = sendCommand $ ItemRead (info ^. itemInfo . itemInfoId)
 
+-- | Send Update Unread count in this items feed
 updateUnreadCount :: IO ()
 updateUnreadCount = executeAction (SomeStoreAction feedListStore FeedRead)
 
+-- | Open link in a new tab
 openLink :: Maybe ReactItemStatus -> IO ()
 openLink Nothing = return ()
 openLink (Just info) = openInNewTab $ info ^. itemInfo . itemInfoLink
 
+-- | Dispatcher for 'ItemListStore'
 dispatchItemList :: ItemListAction -> [SomeStoreAction]
 dispatchItemList action = [SomeStoreAction itemListStore action]
 
+-- | Create the store
 itemListStore :: ReactStore ItemListStore
 itemListStore = mkStore $ ItemListStore [] Nothing
 
+-- | Set all 'ReactItemInfo' to 'Unread'
 allUnread :: [ReactItemInfo] -> [ReactItemStatus]
 allUnread = fmap (ReactItemStatus Unread)

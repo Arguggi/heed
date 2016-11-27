@@ -21,30 +21,25 @@ import Heed.DbTypes
 import qualified Opaleye as O
 import qualified Opaleye.Trans as OT
 
+-- | Print a sql query, for debugging only
 printSql
     :: Default O.Unpackspec a a
     => O.Query a -> IO ()
 printSql = putStrLn . fromMaybe "Empty query" . O.showSqlForPostgres
 
+-- | Run all queries in a transaction
 runTransaction
     :: (MonadIO m)
     => PG.Connection -> OT.Transaction a -> m a
 runTransaction conn trans = OT.runOpaleyeT conn $ OT.transaction trans
 
+-- | Run all queries without starting a transaction
 runQueryNoT
     :: (MonadIO m)
     => PG.Connection -> OT.Transaction a -> m a
 runQueryNoT conn trans = OT.runOpaleyeT conn $ OT.run trans
 
-getUsers :: O.Query (O.Column O.PGText) -> OT.Transaction [T.Text]
-getUsers = OT.query
-
-getUsersQuery :: O.Query (O.Column O.PGText)
-getUsersQuery =
-    proc () ->
-  do users <- O.queryTable userTable -< ()
-     returnA -< userName users
-
+-- | Query used in 'getRecentItems'
 getItemsFromQuery :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
 getItemsFromQuery (FeedInfoId feedId) from =
     proc () ->
@@ -54,30 +49,47 @@ getItemsFromQuery (FeedInfoId feedId) from =
          O..&& (feedItemDate items O..>= O.pgUTCTime from)
      returnA -< items
 
-getRecentItems :: FeedInfoId Int -> UTCTime -> OT.Transaction [FeedItemHR]
+-- | Get items after a certain 'UTCTime'
+getRecentItems
+    :: FeedInfoId Int -- ^ Feed Id
+    -> UTCTime -- ^ Start time
+    -> OT.Transaction [FeedItemHR]
 getRecentItems feedId time = OT.query $ getItemsFromQuery feedId time
 
-insertFeed :: FeedInfoHW -> OT.Transaction [FeedInfoHR]
+-- | Insert new feed
+insertFeed
+    :: FeedInfoHW -- ^ Feed information
+    -> OT.Transaction [FeedInfoHR]
 insertFeed newFeed = OT.insertManyReturning feedInfoTable [O.constant newFeed] id
 
-insertItems :: [FeedItemHW] -> FeedInfoId Int -> OT.Transaction [FeedItemHR]
+-- | Insert new items
+insertItems
+    :: [FeedItemHW] -- ^ List of items
+    -> FeedInfoId Int -- ^ Feed id
+    -> OT.Transaction [FeedItemHR]
 insertItems newItems feedId =
     OT.insertManyReturning feedItemTable (O.constant <$> (setId feedId <$> newItems)) id
 
+-- | Set feed id of an item
 setId
-    :: forall a b c d e f b1.
-       b -> FeedItem a b1 c d e f -> FeedItem a b c d e f
+    :: b -- ^ Feed id
+    -> FeedItem a b1 c d e f -- ^ Feed item
+    -> FeedItem a b c d e f
 setId fid item =
     item
     { feedItemFeedId = fid
     }
 
-setFeedLastUpdated :: FeedInfoId Int -> UTCTime -> OT.Transaction Int64
-setFeedLastUpdated (FeedInfoId feedId) time =
+-- | Update Feed last updated field, so we can schedule updates
+setFeedLastUpdated
+    :: FeedInfoId Int -- ^ Feed id
+    -> UTCTime -- ^ Updated 'UTCTime'
+    -> OT.Transaction Int64 -- ^ Number of updated feeds, should always be 1
+setFeedLastUpdated feedId time =
     OT.update
         feedInfoTable
         (setTime time)
-        (\row -> (getFeedInfoId . feedInfoId $ row) O..== O.pgInt4 feedId)
+        (\row -> feedInfoId row O..=== O.constant feedId)
 
 thisFeed :: FeedInfoHW -> O.Query FeedInfoR
 thisFeed fresh =

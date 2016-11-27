@@ -1,7 +1,9 @@
 module Heed.Utils where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (forkIO, ThreadId)
 import Control.Monad (void)
 
-forkIO_ :: IO () -> IO ()
+-- | 'forkIO' that ignores 'ThreadId'
+forkIO_ :: IO () -- ^ Action
+        -> IO ()
 forkIO_ = void . forkIO

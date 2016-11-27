@@ -20,9 +20,11 @@ heedApp =
         heedHeader_
         container_
 
+-- | Main container for all the information
 container_ :: ReactElementM eventHandler ()
 container_ = view container () mempty
 
+-- | Main View for all the information
 container :: ReactView ()
 container =
     defineView "container" $
@@ -31,25 +33,26 @@ container =
          do heedFeeds_
             feedItems_
 
----- Header
+-- | Header container
 heedHeader_ :: ReactElementM eventHandler ()
 heedHeader_ = view heedHeader () mempty
 
+-- | Header view
 heedHeader :: ReactView ()
 heedHeader = defineView "header" $ \() -> header_ $ h1_ "Heed"
 
----- Feed List
+-- | Feed container
 heedFeeds_ :: ReactElementM eventHandler ()
 heedFeeds_ = view heedFeeds () mempty
 
+-- | Feed view
 heedFeeds :: ReactView ()
 heedFeeds = defineControllerView "feed list" feedListStore $ \feedLStore _ -> feedList_ feedLStore
 
 feedList_ :: FeedListStore -> ReactElementM ViewEventHandler ()
 feedList_ flst = div_ ["className" $= "feedList"] $ mapM_ (feed_ $ _selectedFeed flst) $ _feedList flst
 
----- Feed List item
---
+-- | Feed List item view
 feed :: Maybe ReactFeedInfo -> ReactView ReactFeedInfo
 feed selFeed =
     defineView "feed info" $
@@ -61,15 +64,19 @@ feed selFeed =
          do span_ ["className" $= "feedName"] $ elemText $ _feedListName feedInfo
             span_ ["className" $= "feedUnread"] $ elemText $ unreadText feedInfo
 
+-- | Feed List item container
 feed_ :: Maybe ReactFeedInfo -> ReactFeedInfo -> ReactElementM eventHandler ()
 feed_ selId feedInfo = viewWithIKey (feed selId) (_feedListId feedInfo) feedInfo mempty
 
+-- | Show number of unread items
 unreadText :: ReactFeedInfo -> T.Text
 unreadText = T.pack . show . _feedListUnread
 
+-- | Items container
 feedItems_ :: ReactElementM eventHandler ()
 feedItems_ = view feedItems () mempty
 
+-- | Items view
 feedItems :: ReactView ()
 feedItems =
     defineControllerView "item list" itemListStore $
@@ -78,13 +85,16 @@ feedItems =
          do rItemList_ itemLStore
             rItemDetail_ itemLStore
 
+-- | Item detail container
 rItemList_ :: ItemListStore -> ReactElementM ViewEventHandler ()
 rItemList_ itst =
     div_ ["className" $= "itemList"] $ mapM_ (item_ $ _selectedItem itst) $ _itemList itst
 
+-- | Item detail container
 rItemDetail_ :: ItemListStore -> ReactElementM ViewEventHandler ()
 rItemDetail_ itst = view itemDetail (_selectedItem itst) mempty
 
+-- | Item detail view
 itemDetail :: ReactView (Maybe ReactItemStatus)
 itemDetail =
     defineView "detail" $
@@ -99,9 +109,11 @@ itemDetail =
                  a_ ["className" $= "detailUrl", "href" &= _itemInfoLink info] $ elemText $
                      _itemInfoLink info
 
+-- | Item container
 item_ :: Maybe ReactItemStatus -> ReactItemStatus -> ReactElementM eventHandler ()
 item_ selItem info = viewWithIKey (item selItem) (info ^. itemInfo . itemInfoId) info mempty
 
+-- | Item view
 item :: Maybe ReactItemStatus -> ReactView ReactItemStatus
 item selItem =
     defineView "item info" $
@@ -118,9 +130,11 @@ item selItem =
             do span_ ["className" $= "itemName"] $ elemText $ _itemInfoTitle iinfo
                span_ ["className" $= "itemDate"] $ elemString $ showUtc (_itemInfoDate iinfo)
 
+-- | Show 'UTCTime' as %T %D
 showUtc :: UTCTime -> String
 showUtc = formatTime defaultTimeLocale "%T %D"
 
+-- | Convert 'ReadStatus' to 'Bool'
 isRead :: ReadStatus -> Bool
 isRead Unread = False
 isRead Read = True

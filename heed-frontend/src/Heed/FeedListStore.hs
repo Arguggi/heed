@@ -20,6 +20,7 @@ import Heed.GlobalWebsocket
 import React.Flux
 import Safe (headMay, lastMay)
 
+-- | FeedList state
 data FeedListStore = FeedListStore
     { _feedList :: [ReactFeedInfo]
     , _selectedFeed :: Maybe ReactFeedInfo
@@ -27,12 +28,13 @@ data FeedListStore = FeedListStore
 
 makeLenses ''FeedListStore
 
+-- | Possibile FeedList store actions
 data FeedListAction
-    = SetFeedList [ReactFeedInfo]
-    | SelectFeed ReactFeedInfo
-    | FeedRead
-    | NextFeed
-    | PrevFeed
+    = SetFeedList [ReactFeedInfo] -- ^ Set the feed list
+    | SelectFeed ReactFeedInfo -- ^ Select a feed
+    | FeedRead -- ^ An item of this feed has been read, update unread counter
+    | NextFeed -- ^ Select the next feed, wraps around
+    | PrevFeed -- ^ Select the previous feed, wraps around
     deriving (Show, Typeable, Generic, NFData)
 
 instance StoreData FeedListStore where
@@ -73,20 +75,25 @@ instance StoreData FeedListStore where
                         elemIndex (fromJust $ _selectedFeed oldStore) (_feedList oldStore)
                 return $ oldStore & feedList . ix currentPos . feedListUnread %~ subtractPositive 1
 
+-- | Dispatcher for 'FeedListStore'
 dispatchFeedList :: FeedListAction -> [SomeStoreAction]
 dispatchFeedList action = [SomeStoreAction feedListStore action]
 
+-- | Create the store
 feedListStore :: ReactStore FeedListStore
 feedListStore = mkStore $ FeedListStore [] Nothing
 
+-- | Send command to load the current feeds items
 loadFeed :: Maybe ReactFeedInfo -> IO ()
 loadFeed Nothing = return ()
 loadFeed (Just feedInfo) = sendCommand $ GetFeedItems (_feedListId feedInfo)
 
+-- | Subtract x y = y - x only if the new total is > 0
 subtractPositive
     :: (Num a, Ord a)
-    => a -> a -> a
-subtractPositive x y =
-    if y < 1
-        then 0
-        else y - x
+    => a -- ^ Number to subtract
+    -> a -- ^ Subtract from
+    -> a
+subtractPositive sub total =
+    let newTotal = total - sub in
+    if newTotal  < 1 then 0 else newTotal
