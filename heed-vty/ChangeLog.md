@@ -1,4 +1,4 @@
-# Revision history for heed-frontend
+# Revision history for heed-vty
 
 ## 0.1.0.0  -- YYYY-mm-dd
 

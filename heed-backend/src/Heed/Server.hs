@@ -182,7 +182,7 @@ wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do
     print $ unUserName uname <> " opened a websocket connection"
     -- User heed protocol
-    let ar = WS.AcceptRequest (Just "heed")
+    let ar = WS.AcceptRequest (Just "heed") []
         dbConn = dbConnection conf
         uid = UserId $ unUserId uname
     conn <- WS.acceptRequestWith pending_conn ar

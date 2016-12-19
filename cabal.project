@@ -1,1 +1,1 @@
-packages: heed-lib heed-frontend heed-backend opaleye-trans
+packages: heed-lib heed-vty heed-backend opaleye-trans

@@ -1,15 +1,13 @@
-resolver: nightly-2016-11-26
-packages:
+resolver: nightly-2016-12-19
 
 packages:
 - heed-backend
-- heed-frontend
 - heed-lib
+- heed-vty
 - location: './opaleye-trans'
   extra-dep: true
 
 extra-deps:
-- ref-tf-0.4.0.1
-- react-flux-1.2.3
-- jsaddle-0.7.0.0
-- jsaddle-dom-0.7.0.0
+- brick-0.15.2
+- text-zipper-0.9
+- vty-5.14
