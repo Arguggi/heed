@@ -5,72 +5,91 @@
 
 module Heed.Commands where
 
-import Control.DeepSeq
 import Control.Lens
 import Data.Aeson
 import Data.Int
 import qualified Data.Text as T
 import Data.Time.Clock
 import GHC.Generics
+import Web.FormUrlEncoded (FromForm(..))
 
 -- | Convenience
 type HeedUserName = T.Text
 
+data Seen = Seen | Unseen
+    deriving (Show, Generic, Eq)
+
+toBool :: Seen -> Bool
+toBool Seen = True
+toBool Unseen = False
+
+fromBool :: Bool -> Seen
+fromBool True = Seen
+fromBool False = Unseen
+
+instance Monoid Seen where
+    mempty = Seen
+    Seen `mappend` _ = Seen
+    Unseen `mappend` a = a
+
+
+instance FromJSON Seen
+
+instance ToJSON Seen
+
 -- | List of feeds sent to the client
-data ReactFeedInfo' a b c = ReactFeedInfo'
+data FeFeedInfo' a b c = FeFeedInfo'
     { _feedListId :: a -- ^ Postgresql feed id
     , _feedListName :: b -- ^ Feed name
     , _feedListUnread :: c -- ^ Number of unread items
     } deriving (Generic, Show)
 
 -- | Will be sent to client
-type ReactFeedInfo = ReactFeedInfo' Int T.Text Int64
+type FeFeedInfo = FeFeedInfo' Int T.Text Int64
 
-makeLenses ''ReactFeedInfo'
+makeLenses ''FeFeedInfo'
 
-instance Eq ReactFeedInfo where
+instance Eq FeFeedInfo where
     a == b = _feedListId a == _feedListId b
 
-instance FromJSON ReactFeedInfo
+instance FromJSON FeFeedInfo
 
-instance ToJSON ReactFeedInfo
-
-instance NFData ReactFeedInfo
+instance ToJSON FeFeedInfo
 
 -- | List of items, one for each feed
-data ReactItemInfo' a b c d e = ReactItemInfo'
+data FeItemInfo' a b c d e f = FeItemInfo'
     { _itemInfoId :: a -- ^ Postgresql item id
     , _itemInfoTitle :: b -- ^ Item Title
     , _itemInfoLink :: c -- ^ Item Link
     , _itemInfoDate :: d -- ^ Item published date
     , _itemInfoComments :: e -- ^ Item comment link if available
+    , _itemInfoRead :: f -- ^ Item is read
     } deriving (Generic, Show)
 
 -- | Will be sent to client
-type ReactItemInfo = ReactItemInfo' Int T.Text T.Text UTCTime (Maybe T.Text)
+type FeItemInfo = FeItemInfo' Int T.Text T.Text UTCTime (Maybe T.Text) Seen
 
-makeLenses ''ReactItemInfo'
+makeLenses ''FeItemInfo'
 
-instance Eq ReactItemInfo where
+instance Eq FeItemInfo where
     a == b = _itemInfoId a == _itemInfoId b
 
-instance FromJSON ReactItemInfo
+instance FromJSON FeItemInfo
 
-instance ToJSON ReactItemInfo
+instance ToJSON FeItemInfo
 
-instance NFData ReactItemInfo
 
 -- | Decide if something is selected
 class IsSelected a  where
     isSelected :: a -> Maybe a -> Bool
 
--- | Decide if 'ReactFeedInfo' is selected
-instance IsSelected ReactFeedInfo where
+-- | Decide if 'FeFeedInfo' is selected
+instance IsSelected FeFeedInfo where
     isSelected _ Nothing = False
     isSelected selId (Just feedInfo) = _feedListId selId == _feedListId feedInfo
 
--- | Decide if 'ReactItemInfo' is selected
-instance IsSelected ReactItemInfo where
+-- | Decide if 'FeItemInfo' is selected
+instance IsSelected FeItemInfo where
     isSelected _ Nothing = False
     isSelected selId (Just itemInfo) = _itemInfoId selId == _itemInfoId itemInfo
 
@@ -84,7 +103,7 @@ data Up
     | GetFeedItems Int -- ^ Get a feeds items
     | ItemRead Int -- ^ Sent when an item is considered read
     | InvalidReceived -- ^ The server can't parse the message (should never
-                      --   happen since client and server share the exact same code)
+      --   happen since client and server share the exact same code)
     deriving (Generic, Show)
 
 instance FromJSON Up
@@ -93,8 +112,8 @@ instance ToJSON Up
 
 -- | Commands sent from server to client via websocket
 data Down
-    = Feeds [ReactFeedInfo] -- ^ List of feeds
-    | FeedItems [ReactItemInfo] -- ^ Feed items
+    = Feeds [FeFeedInfo] -- ^ List of feeds
+    | FeedItems [FeItemInfo] -- ^ Feed items
     | Status HeedUserName -- ^ Username of who is logged in obtained via auth token
     | InvalidSent -- ^ The client can't parse the message
     deriving (Generic, Show)
@@ -102,3 +121,23 @@ data Down
 instance FromJSON Down
 
 instance ToJSON Down
+
+data AuthData = AuthData
+    { username :: T.Text
+    , password :: T.Text
+    } deriving (Generic)
+
+instance FromForm AuthData
+
+instance ToJSON AuthData
+
+instance FromJSON AuthData
+
+-- | A Token we generate if username and password are correct
+newtype Token = Token
+    { unToken :: T.Text
+    } deriving (Generic, Show)
+
+instance ToJSON Token
+
+instance FromJSON Token

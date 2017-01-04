@@ -17,7 +17,6 @@ import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
 import Heed.Commands
 import Heed.Database
-import Heed.DbTypes
 import qualified Opaleye as O
 import qualified Opaleye.Trans as OT
 
@@ -86,10 +85,7 @@ setFeedLastUpdated
     -> UTCTime -- ^ Updated 'UTCTime'
     -> OT.Transaction Int64 -- ^ Number of updated feeds, should always be 1
 setFeedLastUpdated feedId time =
-    OT.update
-        feedInfoTable
-        (setTime time)
-        (\row -> feedInfoId row O..=== O.constant feedId)
+    OT.update feedInfoTable (setTime time) (\row -> feedInfoId row O..=== O.constant feedId)
 
 thisFeed :: FeedInfoHW -> O.Query FeedInfoR
 thisFeed fresh =
@@ -165,7 +161,7 @@ getUserUnreadItems userid =
      O.restrict -< feedItemId item O..=== unreadFeedItemId unread
      returnA -< ((getFeedInfoId . feedItemFeedId) item, O.pgInt8 1)
 
-getAllUserFeedInfo :: UserId Int -> O.Query ReactFeedInfoR
+getAllUserFeedInfo :: UserId Int -> O.Query FeFeedInfoR
 getAllUserFeedInfo uid =
     proc () ->
   do allfeeds <- O.orderBy (O.asc feedInfoName) $ getUserFeeds uid -<
@@ -175,9 +171,9 @@ getAllUserFeedInfo uid =
          fIName = feedInfoName allfeeds
          unreadCount = snd allunread
      O.restrict -< fIId O..== (getFeedInfoId . feedInfoId) allfeeds
-     returnA -< ReactFeedInfo' fIId fIName unreadCount
+     returnA -< FeFeedInfo' fIId fIName unreadCount
 
-getUserFeedInfo :: UserId Int -> OT.Transaction [ReactFeedInfo]
+getUserFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
 getUserFeedInfo userid = OT.query $ getAllUserFeedInfo userid
 
 insertUnread :: [FeedItemHR] -> UserId Int -> OT.Transaction Int64
@@ -188,10 +184,10 @@ insertUnread newItems uid = OT.insertMany unreadItemTable $ O.constant <$> pairi
 addSubscription :: UserId Int -> FeedInfoId Int -> OT.Transaction Int64
 addSubscription uid fid = OT.insertMany subscriptionTable [O.constant $ Subscription fid uid]
 
-getUserItems :: UserId Int -> FeedInfoId Int -> OT.Transaction [ReactItemInfo]
+getUserItems :: UserId Int -> FeedInfoId Int -> OT.Transaction [FeItemInfo]
 getUserItems uid fid = OT.query (getUserItemsQ (O.constant uid) (O.constant fid))
 
-getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query ReactItemInfoR
+getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query FeItemInfoR
 getUserItemsQ uid fid =
     O.orderBy (O.asc _itemInfoDate) $
     proc () ->
@@ -206,8 +202,7 @@ getUserItemsQ uid fid =
          unreadDate = feedItemDate allItems
          unreadComments = feedItemComments allItems
      returnA -<
-       ReactItemInfo' unreadItemId unreadTitle unreadLink unreadDate
-         unreadComments
+       FeItemInfo' unreadItemId unreadTitle unreadLink unreadDate unreadComments (O.pgBool False)
 
 readFeed :: UserId Int -> FeedItemId Int -> OT.Transaction Int64
 readFeed userid itemid =

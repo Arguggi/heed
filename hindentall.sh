@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-projects=("heed-backend" "heed-frontend" "heed-lib")
+projects=("heed-backend" "heed-vty" "heed-lib")
 
 echo "Running stylish-haskell and hindent"
 for i in "${projects[@]}"; do

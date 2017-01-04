@@ -5,7 +5,10 @@ module Main where
 import Control.Monad (forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
+import qualified Data.Text.IO as TIO
 import Database.PostgreSQL.Simple as PG
+import Heed.Database
+import Heed.Extract (importOPML)
 import Heed.Server (genAuthMain)
 import Heed.Types
 import Network.HTTP.Client (newManager)
@@ -20,8 +23,11 @@ pgEnvVar = ["PGUSER", "PGDATABASE"]
 -- | Connect to PostgreSQL and start rest backend
 main :: IO ()
 main = do
+    putStrLn "Starting heed-backend"
     setupPostgresEnv
     baConf <- setupBackendConf
+    --opmlfile <- TIO.readFile "ttrss.opml"
+    --_ <- runBe baConf $ importOPML opmlfile (UserId 1) -- Hardcoded as my user
     genAuthMain baConf
 
 -- | Read ini file and setup 'pgEnvVar' variables

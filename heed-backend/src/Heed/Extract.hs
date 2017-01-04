@@ -19,7 +19,6 @@ import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
 import Heed.Database
-import Heed.DbTypes
 import Heed.Query
 import Heed.Types
 import qualified Safe
@@ -103,7 +102,7 @@ extractInfoFromFeed now url (AtomFeed feed) = Just (feedInfo, feedItems)
   where
     feedInfo =
         defFeedInfo
-        { feedInfoName = T.pack . Atom.txtToString . Atom.feedTitle $ feed
+        { feedInfoName = T.strip . T.pack . Atom.txtToString . Atom.feedTitle $ feed
         , feedInfoUrl = url
         , feedInfoUpdateEvery = 60
         , feedInfoLastUpdated = fromMaybe now (parseISO8601 . Atom.feedUpdated $ feed)
@@ -114,7 +113,7 @@ extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
     channel = RSS.rssChannel feed
     feedInfo =
         defFeedInfo
-        { feedInfoName = T.pack . RSS.rssTitle $ channel
+        { feedInfoName = T.strip . T.pack . RSS.rssTitle $ channel
         , feedInfoUrl = url
         , feedInfoUpdateEvery = 60
         , feedInfoLastUpdated =
@@ -156,7 +155,9 @@ importOPML opml userid = do
         \url -> do
             result <- runBe conf $ addFeed url userid
             case result of
-                Left _ -> stdOut $ "Failed to add: " <> url
+                Left e -> do
+                    stdOut $ "Failed to add: " <> url
+                    stdOut . T.pack . show $ e
                 Right _ -> stdOut $ "Added: " <> url
             return ()
     return ()

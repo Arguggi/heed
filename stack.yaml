@@ -1,4 +1,4 @@
-resolver: nightly-2016-12-19
+resolver: nightly-2016-12-31
 
 packages:
 - heed-backend

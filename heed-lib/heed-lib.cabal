@@ -20,8 +20,11 @@ library
                      , data-default-class
                      , deepseq
                      , exceptions
-                     , mtl
+                     , http-api-data
                      , lens
+                     , mtl
+                     , opaleye
+                     , product-profunctors
                      , safe
                      , text
                      , time
