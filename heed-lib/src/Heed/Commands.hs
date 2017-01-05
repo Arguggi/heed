@@ -16,7 +16,9 @@ import Web.FormUrlEncoded (FromForm(..))
 -- | Convenience
 type HeedUserName = T.Text
 
-data Seen = Seen | Unseen
+data Seen
+    = Seen
+    | Unseen
     deriving (Show, Generic, Eq)
 
 toBool :: Seen -> Bool
@@ -31,7 +33,6 @@ instance Monoid Seen where
     mempty = Seen
     Seen `mappend` _ = Seen
     Unseen `mappend` a = a
-
 
 instance FromJSON Seen
 
@@ -77,7 +78,6 @@ instance Eq FeItemInfo where
 instance FromJSON FeItemInfo
 
 instance ToJSON FeItemInfo
-
 
 -- | Decide if something is selected
 class IsSelected a  where

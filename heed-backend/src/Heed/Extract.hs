@@ -2,10 +2,22 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Heed.Extract where
+module Heed.Extract
+  ( startUpdateThread
+  , addFeed
+  , importOPML
+  , parseTTRssOPML
+  , ttRssTags
+  , matchAllAttr
+  , ttRssAttrNames
+  , getFeedUrl
+  , parseOpml
+  ) where
 
 import Control.Applicative ((<|>))
+import Control.Concurrent (threadDelay)
 import Control.Monad (join)
+import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BSL
@@ -29,6 +41,26 @@ import qualified Text.HTML.TagSoup as TS
 import qualified Text.HTML.TagSoup.Match as TS
 import qualified Text.RSS.Syntax as RSS
 
+startUpdateThread
+    :: (MonadIO m
+       ,MonadCatch m
+       ,MonadStdOut m
+       ,MonadDb m
+       ,MonadHttp m
+       ,MonadError HeedError m
+       ,MonadParse m
+       ,MonadTime m)
+    => FeedInfoHR -> m ()
+startUpdateThread info = do
+    stdOut $
+        feedInfoName info <> " started. Updated every " <>
+        (T.pack . show . feedInfoUpdateEvery $ info) <>
+        " minutes."
+    feed <- catchHttp DownloadFailed $ downloadUrl (feedInfoUrl info)
+    (_, feedItems) <- parseFeed feed (feedInfoUrl info)
+    updateFeedItems info feedItems
+    liftIO . threadDelay $ feedInfoUpdateEvery info * 1000000 * 60
+
 addFeed
     :: (MonadStdOut m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)
     => Url -> UserId Int -> m ()
@@ -42,9 +74,7 @@ addFeed url uid = do
           of
         Nothing -> addNewFeed feedInfo feedItems uid
         -- This feed is already present in the database, add the user to the subscription
-        Just oldFeed -> do
-            now <- getTime
-            updateFeedItems oldFeed feedItems uid now
+        Just oldFeed -> updateFeedItems oldFeed feedItems
 
 addNewFeed
     :: MonadDb m
@@ -54,27 +84,30 @@ addNewFeed feedInfo feedItems uid =
     do insertedFeed <- insertFeed feedInfo
        let newFeedId = feedInfoId . head $ insertedFeed
        insertedItems <- insertItems feedItems newFeedId
-       _ <- insertUnread insertedItems uid
+       _ <- insertUnread insertedItems [uid]
        _ <- addSubscription uid newFeedId
        return ()
 
 updateFeedItems
-    :: MonadDb m
-    => FeedInfoHR -> [FeedItemHW] -> UserId Int -> UTCTime -> m ()
-updateFeedItems oldFeed feedItems uid now =
+    :: (MonadDb m, MonadTime m)
+    => FeedInfoHR -> [FeedItemHW] -> m ()
+updateFeedItems oldFeed feedItems = do
+    now <- getTime
     execQuery $
-    do let newFeedItems = setFeedId (feedInfoId oldFeed) <$> feedItems
-           oldFeedId = feedInfoId oldFeed
-       recentItems <- getRecentItems oldFeedId (feedItemDate (minimumBy after feedItems))
-       let newItems = deleteFirstsBy (sameItem oldFeedId) newFeedItems (applyJust <$> recentItems)
-       _ <-
-           if not (null newItems)
-               then do
-                   insertedItems <- insertItems newItems oldFeedId
-                   insertUnread insertedItems uid
-               else return 0
-       _ <- setFeedLastUpdated oldFeedId now
-       return ()
+        do let newFeedItems = setFeedId oldFeedId <$> feedItems
+               oldFeedId = feedInfoId oldFeed
+           recentItems <- getRecentItems oldFeedId (feedItemDate (minimumBy after feedItems))
+           let newItems =
+                   deleteFirstsBy (sameItem oldFeedId) newFeedItems (applyJust <$> recentItems)
+           _ <-
+               if not (null newItems)
+                   then do
+                       insertedItems <- insertItems newItems oldFeedId
+                       feedSubs <- getSubs oldFeedId
+                       insertUnread insertedItems feedSubs
+                   else return 0
+           _ <- setFeedLastUpdated oldFeedId now
+           return ()
   where
     after x y = compare (feedItemDate x) (feedItemDate y)
     sameItem feedId fromHttp fromDb =

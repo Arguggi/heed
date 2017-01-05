@@ -301,4 +301,4 @@ $(makeAdaptorAndInstance "pFeItemInfo" ''FeItemInfo')
 type FeItemInfoR = FeItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText)) (O.Column O.PGBool)
 
 instance O.QueryRunnerColumnDefault O.PGBool Seen where
-  queryRunnerColumnDefault = fromBool <$> O.fieldQueryRunnerColumn
+    queryRunnerColumnDefault = fromBool <$> O.fieldQueryRunnerColumn

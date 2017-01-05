@@ -176,10 +176,13 @@ getAllUserFeedInfo uid =
 getUserFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
 getUserFeedInfo userid = OT.query $ getAllUserFeedInfo userid
 
-insertUnread :: [FeedItemHR] -> UserId Int -> OT.Transaction Int64
-insertUnread newItems uid = OT.insertMany unreadItemTable $ O.constant <$> pairings
+insertUnread :: [FeedItemHR] -> [UserId Int] -> OT.Transaction Int64
+insertUnread newItems uids = OT.insertMany unreadItemTable $ O.constant <$> pairings
   where
-    pairings = map (\x -> (\item userid -> UnreadItem (feedItemId item) userid) x uid) newItems
+    pairings = do
+        item <- newItems
+        user <- uids
+        return $ UnreadItem (feedItemId item) user
 
 addSubscription :: UserId Int -> FeedInfoId Int -> OT.Transaction Int64
 addSubscription uid fid = OT.insertMany subscriptionTable [O.constant $ Subscription fid uid]
@@ -202,7 +205,9 @@ getUserItemsQ uid fid =
          unreadDate = feedItemDate allItems
          unreadComments = feedItemComments allItems
      returnA -<
-       FeItemInfo' unreadItemId unreadTitle unreadLink unreadDate unreadComments (O.pgBool False)
+       FeItemInfo' unreadItemId unreadTitle unreadLink unreadDate
+         unreadComments
+         (O.pgBool False)
 
 readFeed :: UserId Int -> FeedItemId Int -> OT.Transaction Int64
 readFeed userid itemid =
@@ -210,3 +215,14 @@ readFeed userid itemid =
     \cols ->
          (unreadUserId cols O..=== O.constant userid) O..&&
          (unreadFeedItemId cols O..=== O.constant itemid)
+
+allFeeds :: OT.Transaction [FeedInfoHR]
+allFeeds = OT.query $ O.queryTable feedInfoTable
+
+getSubs :: FeedInfoId Int -> OT.Transaction [UserId Int]
+getSubs fid =
+    OT.query $
+    proc () ->
+  do allSubs <- O.queryTable subscriptionTable -< ()
+     O.restrict -< O.constant fid O..=== subscriptionFeedId allSubs
+     returnA -< subscriptionUserId allSubs
