@@ -3,6 +3,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Heed.Query where
 
@@ -176,6 +177,12 @@ getAllUserFeedInfo uid =
 getUserFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
 getUserFeedInfo userid = OT.query $ getAllUserFeedInfo userid
 
+getFeedItemsIds :: FeedInfoId Int -> O.Query FeedItemIdColumnR
+getFeedItemsIds fid = proc () -> do
+    allItems <- O.queryTable feedItemTable -< ()
+    O.restrict -< (O.constant <$> fid) O..=== feedItemFeedId allItems
+    returnA -< (feedItemId allItems)
+
 insertUnread :: [FeedItemHR] -> [UserId Int] -> OT.Transaction Int64
 insertUnread newItems uids = OT.insertMany unreadItemTable $ O.constant <$> pairings
   where
@@ -226,3 +233,15 @@ getSubs fid =
   do allSubs <- O.queryTable subscriptionTable -< ()
      O.restrict -< O.constant fid O..=== subscriptionFeedId allSubs
      returnA -< subscriptionUserId allSubs
+
+allItemsRead :: FeedInfoId Int -> UserId Int -> OT.Transaction Int64
+allItemsRead fid uid = do
+    itemsIds :: [FeedItemIdH] <- OT.query $ getFeedItemsIds fid
+    let feedUnreadFilter (UnreadItem unreadIid unreadUid) =
+              unreadUid O..=== O.constant uid
+              O..&&
+              O.in_ (fmap (O.constant . getFeedItemId) itemsIds) (getFeedItemId unreadIid)
+              ----((O.constant <$> itemsIds) `O.in_` unreadIid)
+              --(_ `O.in_` unreadIid)
+              --((O.constant <$> itemsIds) `O.in_` unreadIid)
+    OT.delete unreadItemTable feedUnreadFilter

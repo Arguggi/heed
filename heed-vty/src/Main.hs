@@ -116,6 +116,16 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = do
             Just (_, e) -> openTab e
     s' <- updateUnreadCount $ setItemAsRead s
     M.continue $ s' & items %~ BL.listMoveDown
+-- Set all items as read
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
+    s' <- liftIO $ case BL.listSelectedElement (s ^. feeds) of
+        Nothing -> return s
+        Just (i, e) -> do
+            sendAllRead s e
+            return $ s & feeds . BL.listElementsL . ix i . feedListUnread .~ 0
+    let s'' = s' & feeds %~ BL.listMoveDown
+    getSelFeedItems s''
+    M.continue s''
 appEvent s (BT.AppEvent (WsReceive e)) = handleMess s e
 appEvent s _ = M.continue s
 
@@ -129,6 +139,10 @@ sendRead s =
            Nothing -> return ()
            Just (_, e) ->
                void . liftIO . forkIO $ WS.sendBinaryData conn (encode (ItemRead (e ^. itemInfoId)))
+
+sendAllRead :: (MonadIO m) => AppState -> FeFeedInfo -> m ()
+sendAllRead s f = void . liftIO . forkIO $ WS.sendBinaryData conn (encode (FeedRead (f ^. feedListId)))
+    where conn = s ^. wsConn
 
 updateUnreadCount
     :: MonadIO m
@@ -150,9 +164,7 @@ openTab e =
         , Process.std_out = Process.NoStream
         , Process.std_err = Process.NoStream
         }
---where browserProc = Process.proc "chromium" [ (Text.unpack $ e ^. itemInfoLink) ]
-  where
-    browserProc = undefined
+  where browserProc = Process.proc "chromium" [Text.unpack $ e ^. itemInfoLink]
 
 --setItemAsRead :: AppState -> AppState
 setItemAsRead :: AppState -> (Seen, AppState)

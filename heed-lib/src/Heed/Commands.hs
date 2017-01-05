@@ -102,6 +102,7 @@ data Up
     = Initialized -- ^ Sent when the client is ready to receive data
     | GetFeedItems Int -- ^ Get a feeds items
     | ItemRead Int -- ^ Sent when an item is considered read
+    | FeedRead Int -- ^ Sent when all items of a fead are read
     | InvalidReceived -- ^ The server can't parse the message (should never
       --   happen since client and server share the exact same code)
     deriving (Generic, Show)
