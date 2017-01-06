@@ -18,6 +18,7 @@ import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
 import Heed.Commands
 import Heed.Database
+import Heed.DbEnums (ItemsDate(..))
 import qualified Opaleye as O
 import qualified Opaleye.Trans as OT
 
@@ -40,21 +41,35 @@ runQueryNoT
 runQueryNoT conn trans = OT.runOpaleyeT conn $ OT.run trans
 
 -- | Query used in 'getRecentItems'
-getItemsFromQuery :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
-getItemsFromQuery (FeedInfoId feedId) from =
+getItemsFromQ :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
+getItemsFromQ feedId from =
     proc () ->
   do items <- O.queryTable feedItemTable -< ()
      O.restrict -<
-       ((getFeedInfoId . feedItemFeedId $ items) O..== O.pgInt4 feedId)
-         O..&& (feedItemDate items O..>= O.pgUTCTime from)
+       feedItemFeedId items O..=== O.constant feedId O..&&
+         (feedItemDate items O..>= O.pgUTCTime from)
+     returnA -< items
+
+-- | Query used in 'getRecentItems' when items don't have dates
+-- We sort by descending time inserted and only return the last x rows
+getLastItemsQ :: FeedInfoId Int -> Int -> O.Query FeedItemR
+getLastItemsQ feedId number =
+    O.limit number . O.orderBy (O.descNullsLast feedItemDate) $
+    proc () ->
+  do items <- O.queryTable feedItemTable -< ()
+     O.restrict -< feedItemFeedId items O..=== O.constant feedId
      returnA -< items
 
 -- | Get items after a certain 'UTCTime'
 getRecentItems
-    :: FeedInfoId Int -- ^ Feed Id
-    -> UTCTime -- ^ Start time
+    :: FeedInfoHR -- ^ Feed information, we need to know if the feed has dates and if not
+       -- how many items to fetch from the db
+    -> UTCTime -- ^ Start time if the feed has dates
     -> OT.Transaction [FeedItemHR]
-getRecentItems feedId time = OT.query $ getItemsFromQuery feedId time
+getRecentItems feed time =
+    case feedHasItemDate feed of
+        Present -> OT.query $ getItemsFromQ (feedInfoId feed) time
+        Missing -> reverse <$> OT.query (getLastItemsQ (feedInfoId feed) (feedNumberItems feed))
 
 -- | Insert new feed
 insertFeed
@@ -178,10 +193,11 @@ getUserFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
 getUserFeedInfo userid = OT.query $ getAllUserFeedInfo userid
 
 getFeedItemsIds :: FeedInfoId Int -> O.Query FeedItemIdColumnR
-getFeedItemsIds fid = proc () -> do
-    allItems <- O.queryTable feedItemTable -< ()
-    O.restrict -< (O.constant <$> fid) O..=== feedItemFeedId allItems
-    returnA -< (feedItemId allItems)
+getFeedItemsIds fid =
+    proc () ->
+  do allItems <- O.queryTable feedItemTable -< ()
+     O.restrict -< (O.constant <$> fid) O..=== feedItemFeedId allItems
+     returnA -< (feedItemId allItems)
 
 insertUnread :: [FeedItemHR] -> [UserId Int] -> OT.Transaction Int64
 insertUnread newItems uids = OT.insertMany unreadItemTable $ O.constant <$> pairings
@@ -238,10 +254,6 @@ allItemsRead :: FeedInfoId Int -> UserId Int -> OT.Transaction Int64
 allItemsRead fid uid = do
     itemsIds :: [FeedItemIdH] <- OT.query $ getFeedItemsIds fid
     let feedUnreadFilter (UnreadItem unreadIid unreadUid) =
-              unreadUid O..=== O.constant uid
-              O..&&
-              O.in_ (fmap (O.constant . getFeedItemId) itemsIds) (getFeedItemId unreadIid)
-              ----((O.constant <$> itemsIds) `O.in_` unreadIid)
-              --(_ `O.in_` unreadIid)
-              --((O.constant <$> itemsIds) `O.in_` unreadIid)
+            unreadUid O..=== O.constant uid O..&&
+            O.in_ (fmap (O.constant . getFeedItemId) itemsIds) (getFeedItemId unreadIid)
     OT.delete unreadItemTable feedUnreadFilter

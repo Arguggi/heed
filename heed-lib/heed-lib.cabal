@@ -1,4 +1,4 @@
-name:                heed-lib
+Name:                heed-lib
 version:             0.1.0.0
 synopsis:            Common library for the heed rss reader
 license:             BSD3
@@ -13,6 +13,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Heed.Commands
                      , Heed.Database
+                     , Heed.DbEnums
                      , Heed.Utils
   build-depends:       base >=4.9 && <4.10
                      , aeson
@@ -25,6 +26,8 @@ library
                      , mtl
                      , opaleye
                      , product-profunctors
+                     , profunctors
+                     , postgresql-simple
                      , safe
                      , text
                      , time

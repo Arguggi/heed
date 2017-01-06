@@ -31,6 +31,7 @@ import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
 import Heed.Database
+import Heed.DbEnums (ItemsDate(..))
 import Heed.Query
 import Heed.Types
 import qualified Safe
@@ -53,7 +54,7 @@ startUpdateThread
     => FeedInfoHR -> m ()
 startUpdateThread info = do
     stdOut $
-        feedInfoName info <> " started. Updated every " <>
+        feedInfoName info <> " started. Updating every " <>
         (T.pack . show . feedInfoUpdateEvery $ info) <>
         " minutes."
     feed <- catchHttp DownloadFailed $ downloadUrl (feedInfoUrl info)
@@ -91,22 +92,21 @@ addNewFeed feedInfo feedItems uid =
 updateFeedItems
     :: (MonadDb m, MonadTime m)
     => FeedInfoHR -> [FeedItemHW] -> m ()
-updateFeedItems oldFeed feedItems = do
+updateFeedItems feed feedItems = do
     now <- getTime
     execQuery $
-        do let newFeedItems = setFeedId oldFeedId <$> feedItems
-               oldFeedId = feedInfoId oldFeed
-           recentItems <- getRecentItems oldFeedId (feedItemDate (minimumBy after feedItems))
-           let newItems =
-                   deleteFirstsBy (sameItem oldFeedId) newFeedItems (applyJust <$> recentItems)
+        do let newFeedItems = setFeedId feedId <$> feedItems
+               feedId = feedInfoId feed
+           recentItems <- getRecentItems feed (feedItemDate (minimumBy after feedItems))
+           let newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
            _ <-
                if not (null newItems)
                    then do
-                       insertedItems <- insertItems newItems oldFeedId
-                       feedSubs <- getSubs oldFeedId
+                       insertedItems <- insertItems newItems feedId
+                       feedSubs <- getSubs feedId
                        insertUnread insertedItems feedSubs
                    else return 0
-           _ <- setFeedLastUpdated oldFeedId now
+           _ <- setFeedLastUpdated feedId now
            return ()
   where
     after x y = compare (feedItemDate x) (feedItemDate y)
@@ -218,6 +218,22 @@ ttRssAttrNames = ["type", "text", "xmlUrl"]
 getFeedUrl :: TS.Tag T.Text -> T.Text
 getFeedUrl = TS.fromAttrib "xmlUrl"
 
+updateDateInfo :: UTCTime -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
+updateDateInfo now (info, items) = (newInfo, items)
+  where
+    newInfo =
+        info
+        { feedHasItemDate = anyItemHasDateNow now items
+        -- On next update download this number of items if dates are 'Missing'
+        , feedNumberItems = length items
+        }
+    -- If any of the items don't have a publication date we have to download
+    -- a fixed number of the last feeds so we can check which one is new on updates
+    anyItemHasDateNow time xs =
+        if any (\x -> time == feedItemDate x) xs
+            then Missing
+            else Present
+
 class Monad m =>
       MonadParse m  where
     parseFeed :: BSL.ByteString -> Url -> m (FeedInfoHW, [FeedItemHW])
@@ -226,7 +242,7 @@ instance MonadParse Backend where
     parseFeed feed url = do
         validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
         now <- liftIO getCurrentTime
-        liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
+        liftJust InvalidFeedData $ updateDateInfo now <$> extractInfoFromFeed now url validFeed
 
 class Monad m =>
       MonadOpml m  where

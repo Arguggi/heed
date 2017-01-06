@@ -1,3 +1,5 @@
+CREATE TYPE itemdates AS ENUM ('missing', 'present');
+
 CREATE TABLE heed_user (
     id serial PRIMARY KEY,
     username varchar (128) NOT NULL,
@@ -11,7 +13,10 @@ CREATE TABLE feed_info (
     url text NOT NULL,
     update_every integer NOT NULL,
     last_updated timestamp with time zone NOT NULL,
-    CONSTRAINT in_future CHECK (update_every > 0)
+    has_item_date itemdates NOT NULL,
+    number_items int NOT NULL,
+    CONSTRAINT in_future CHECK (update_every > 0),
+    CONSTRAINT positive_number_items CHECK (number_items > 0)
 );
 
 CREATE TABLE subscription (
@@ -40,6 +45,7 @@ CREATE TABLE auth_token (
     token text NOT NULL,
     PRIMARY KEY (user_id)
 );
+
 
 CREATE OR REPLACE FUNCTION add_id_token() RETURNS TRIGGER AS
 $BODY$

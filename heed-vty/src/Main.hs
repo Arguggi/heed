@@ -118,11 +118,13 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = do
     M.continue $ s' & items %~ BL.listMoveDown
 -- Set all items as read
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
-    s' <- liftIO $ case BL.listSelectedElement (s ^. feeds) of
-        Nothing -> return s
-        Just (i, e) -> do
-            sendAllRead s e
-            return $ s & feeds . BL.listElementsL . ix i . feedListUnread .~ 0
+    s' <-
+        liftIO $
+        case BL.listSelectedElement (s ^. feeds) of
+            Nothing -> return s
+            Just (i, e) -> do
+                sendAllRead s e
+                return $ s & feeds . BL.listElementsL . ix i . feedListUnread .~ 0
     let s'' = s' & feeds %~ BL.listMoveDown
     getSelFeedItems s''
     M.continue s''
@@ -140,9 +142,13 @@ sendRead s =
            Just (_, e) ->
                void . liftIO . forkIO $ WS.sendBinaryData conn (encode (ItemRead (e ^. itemInfoId)))
 
-sendAllRead :: (MonadIO m) => AppState -> FeFeedInfo -> m ()
-sendAllRead s f = void . liftIO . forkIO $ WS.sendBinaryData conn (encode (FeedRead (f ^. feedListId)))
-    where conn = s ^. wsConn
+sendAllRead
+    :: (MonadIO m)
+    => AppState -> FeFeedInfo -> m ()
+sendAllRead s f =
+    void . liftIO . forkIO $ WS.sendBinaryData conn (encode (FeedRead (f ^. feedListId)))
+  where
+    conn = s ^. wsConn
 
 updateUnreadCount
     :: MonadIO m
@@ -166,7 +172,6 @@ openTab e =
         }
   where browserProc = Process.proc "chromium" [Text.unpack $ e ^. itemInfoLink]
 
---setItemAsRead :: AppState -> AppState
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
     let ind = s ^. items . BL.listSelectedL
@@ -240,12 +245,6 @@ main = do
                         startApp
                     putStrLn "Closing"
 
---putStrLn "Username"
---un <- BS.getLine
---putStrLn "Password"
---pw <- BS.getLine
---authData = I
---let creds = AuthData <$> decodeUtf8' un <*> decodeUtf8' pw
 startApp :: WS.Connection -> IO ()
 startApp wsconn = do
     eventChan <- newChan
