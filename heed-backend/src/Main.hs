@@ -32,7 +32,7 @@ main = do
     putStrLn "Starting heed-backend"
     port <- setupEnvGetPort
     baConf <- setupBackendConf
-    opmlfile <- TIO.readFile "ttrss.opml"
+    opmlfile <- TIO.readFile "/etc/heed/ttrss.opml"
     _ <- runBe baConf $ importOPML opmlfile (UserId 1) -- Hardcoded as my user
     feedsE <- runBe baConf $ execQuery allFeeds
     case feedsE of
