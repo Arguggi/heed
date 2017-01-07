@@ -24,7 +24,6 @@ cp ./confs/backend.ini /etc/heed/
 # Become postgres to create heed user and import table structure
 
 echo "Setting up postgres"
-su - postgres
 sudo -u postgres psql -h localhost -f ./confs/db/user.sql
 sudo -u postgres psql -h localhost -f ./confs/db/tables.sql
 # Add my user, hardcode everything for now
