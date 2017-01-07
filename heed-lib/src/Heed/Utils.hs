@@ -1,6 +1,8 @@
 module Heed.Utils
   ( forkIO_
   , progName
+  , Port
+  , defPort
   ) where
 
 import Control.Concurrent (forkIO)
@@ -14,3 +16,8 @@ forkIO_ = void . forkIO
 
 progName :: String
 progName = "heed"
+
+type Port = Int
+
+defPort :: Port
+defPort = 443

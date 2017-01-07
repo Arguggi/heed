@@ -15,10 +15,12 @@ import Heed.Extract (importOPML, startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
 import Heed.Types
+import Heed.Utils (defPort, Port)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Environment (setEnv)
 import System.Exit (die)
+import Text.Read (readEither)
 
 -- | List of Environment variables to setup for PostgreSQL
 pgEnvVar :: [String]
@@ -28,7 +30,7 @@ pgEnvVar = ["PGUSER", "PGDATABASE"]
 main :: IO ()
 main = do
     putStrLn "Starting heed-backend"
-    setupPostgresEnv
+    port <- setupEnvGetPort
     baConf <- setupBackendConf
     opmlfile <- TIO.readFile "ttrss.opml"
     _ <- runBe baConf $ importOPML opmlfile (UserId 1) -- Hardcoded as my user
@@ -37,19 +39,24 @@ main = do
         Left _ -> die "Can't get feed list from db"
         Right feeds ->
             void $ forM_ feeds (forkIO . forever . void . runBe baConf . startUpdateThread)
-    genAuthMain baConf
+    genAuthMain baConf port
 
 -- | Read ini file and setup 'pgEnvVar' variables
-setupPostgresEnv :: IO ()
-setupPostgresEnv = do
-    iniFile <- Ini.readIniFile "./heed-backend/config/devel.ini"
+setupEnvGetPort :: IO Port
+setupEnvGetPort = do
+    iniFile <- Ini.readIniFile "/etc/heed/backend.ini"
     case iniFile of
         Left e -> die $ "Invalid ini file: " ++ e
-        Right ini ->
-            forM_ pgEnvVar $
-            \var ->
+        Right ini -> do
+            forM_ pgEnvVar $ \var ->
                  setEnv var . T.unpack $
-                 either (const "") id (Ini.lookupValue "PostgreSQL" (T.pack var) ini)
+                 either (const "") id (Ini.lookupValue "postgresql" (T.pack var) ini)
+            return $ getPort ini
+
+getPort :: Ini.Ini -> Port
+getPort ini = either (const defPort) id $ do
+    port <- Ini.lookupValue "websocket" "port" ini
+    readEither . T.unpack $ port
 
 -- | Create 'BackendConf' for the server
 setupBackendConf :: IO BackendConf

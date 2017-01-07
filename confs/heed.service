@@ -1,0 +1,11 @@
+[Unit]
+Description=Heed rss reader backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=heed
+WorkingDirectory=/etc/heed
+ExecStart=/usr/bin/heed-backend
+Restart=always
+Type=simple

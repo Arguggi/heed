@@ -25,6 +25,7 @@ import Heed.Crypto
 import Heed.Database
 import Heed.Query
 import Heed.Types
+import Heed.Utils (Port)
 import Network.Wai (Application, Request, requestHeaders)
 import Network.Wai.Application.Static
        (defaultFileServerSettings, staticApp)
@@ -42,9 +43,9 @@ import Servant.Server.Experimental.Auth
        (AuthHandler, AuthServerData, mkAuthHandler)
 
 -- | run our server
-genAuthMain :: BackendConf -> IO ()
-genAuthMain conf =
-    run 8080 (serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
+genAuthMain :: BackendConf -> Port -> IO ()
+genAuthMain conf port =
+    run port (serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
 
 data UserName = UserName
     { unUserName :: Text

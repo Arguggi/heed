@@ -283,7 +283,7 @@ authRequest
     :: (MonadIO m)
     => FilePath -> m (Either String (Request, Host, Port))
 authRequest configFolder = do
-    iniFile <- liftIO . readIniFile $ configFolder <> "/" <> progName <> ".conf"
+    iniFile <- liftIO . readIniFile $ configFolder <> "/" <> progName <> ".ini"
     case iniFile of
         Left e -> liftIO . die $ "Invalid config file: " <> e
         Right ini ->
