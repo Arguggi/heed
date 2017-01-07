@@ -1,4 +1,7 @@
-module Heed.Utils where
+module Heed.Utils
+  ( forkIO_
+  , progName
+  ) where
 
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
@@ -8,3 +11,6 @@ forkIO_
     :: IO () -- ^ Action
     -> IO ()
 forkIO_ = void . forkIO
+
+progName :: String
+progName = "heed"

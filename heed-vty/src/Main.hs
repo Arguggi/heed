@@ -22,19 +22,26 @@ import Data.Aeson (decodeStrict', encode)
 import qualified Data.ByteString as BS
 import Data.Default
 import Data.Function ((&))
+import Data.Ini (lookupValue, readIniFile)
 import Data.Monoid ((<>))
 import Data.Text (Text)
-import qualified Data.Text as Text
-import Data.Text.Encoding (decodeUtf8', encodeUtf8)
+import qualified Data.Text as T
+import Data.Text.Encoding (encodeUtf8)
 import qualified Data.Time.Format as Time
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import Heed.Commands
+import Heed.Utils (progName)
 import Network.HTTP.Simple
-       (getResponseBody, httpJSONEither, parseRequest_,
-        setRequestBodyJSON)
+       (Request, defaultRequest, getResponseBody, httpJSONEither,
+        setRequestBodyJSON, setRequestHost, setRequestMethod,
+        setRequestPath, setRequestPort)
 import qualified Network.WebSockets as WS
+import System.Directory
+       (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory)
+import System.Exit (die)
 import qualified System.Process as Process
+import Text.Read (readEither)
 
 data Name
     = StatusBar
@@ -170,7 +177,7 @@ openTab e =
         , Process.std_out = Process.NoStream
         , Process.std_err = Process.NoStream
         }
-  where browserProc = Process.proc "chromium" [Text.unpack $ e ^. itemInfoLink]
+  where browserProc = Process.proc "chromium" [T.unpack $ e ^. itemInfoLink]
 
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
@@ -224,21 +231,21 @@ myAttrs = [("selected", BU.fg V.white), ("read", BU.fg V.red)]
 
 main :: IO ()
 main = do
-    let creds =
-            AuthData <$> decodeUtf8' "Arguggi" <*> decodeUtf8' "MsiKyde8bWdXjkEfuq2VhsmIYReNxrhN"
+    configFolder <- getXdgDirectory XdgConfig progName
+    createDirectoryIfMissing True configFolder
+    creds <- authRequest configFolder
     case creds of
-        Left _ -> putStrLn "Invalid UTF-8 in Username or Password"
-        Right auth -> do
-            let credRequest = parseRequest_ "POST http://localhost:8080/auth" & setRequestBodyJSON auth
+        Left e -> putStrLn $ "Invalid config file: " <> e
+        Right (req, host, port) -> do
             putStrLn "Authenticating"
-            authCheck <- httpJSONEither credRequest
+            authCheck <- httpJSONEither req
             case getResponseBody authCheck of
                 Left _ -> putStrLn "Invalid auth"
                 Right (Token t) -> do
                     putStrLn "Starting heed"
                     WS.runClientWith
-                        "localhost"
-                        8080
+                        (T.unpack host)
+                        port
                         ""
                         WS.defaultConnectionOptions
                         [("auth-token", encodeUtf8 t)]
@@ -267,3 +274,31 @@ euTimeLocale =
     Time.defaultTimeLocale
     { Time.dateFmt = "%d/%m/%y"
     }
+
+type Host = T.Text
+
+type Port = Int
+
+authRequest
+    :: (MonadIO m)
+    => FilePath -> m (Either String (Request, Host, Port))
+authRequest configFolder = do
+    iniFile <- liftIO . readIniFile $ configFolder <> "/" <> progName <> ".conf"
+    case iniFile of
+        Left e -> liftIO . die $ "Invalid config file: " <> e
+        Right ini ->
+            return $
+            do host <- lookupValue "server" "host" ini
+               portT <- lookupValue "server" "port" ini
+               -- Assume tls by default
+               port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
+               user <- lookupValue "auth" "username" ini
+               pass <- lookupValue "auth" "password" ini
+               return
+                   ( defaultRequest & setRequestBodyJSON (AuthData user pass) &
+                     setRequestHost (encodeUtf8 host) &
+                     setRequestPort port &
+                     setRequestPath "auth" &
+                     setRequestMethod "POST"
+                   , host
+                   , port)

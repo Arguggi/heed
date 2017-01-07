@@ -22,9 +22,11 @@ executable heed-vty
                      , brick
                      , bytestring
                      , data-default
+                     , directory
                      , heed-lib
                      , http-client-tls
                      , http-conduit
+                     , ini
                      , lens
                      , process
                      , text
