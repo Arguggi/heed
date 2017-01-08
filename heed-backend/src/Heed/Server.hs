@@ -26,9 +26,9 @@ import Heed.Database
 import Heed.Query
 import Heed.Types
 import Heed.Utils (Port)
-import Network.Wai (Application, Request, requestHeaders)
-import Network.Wai.Application.Static
-       (defaultFileServerSettings, staticApp)
+import Network.HTTP.Types (badRequest400)
+import Network.Wai
+       (Application, Request, requestHeaders, responseLBS)
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import qualified Network.WebSockets as WS
@@ -157,4 +157,4 @@ sendDown
 sendDown conn info = WS.sendTextData conn $ encode info
 
 backupApp :: Application
-backupApp = staticApp $ defaultFileServerSettings "./heed-frontend/output/"
+backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"
