@@ -15,7 +15,7 @@ import Heed.Extract (importOPML, startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
 import Heed.Types
-import Heed.Utils (defPort, Port)
+import Heed.Utils (Port, defPort)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Environment (setEnv)
@@ -48,15 +48,17 @@ setupEnvGetPort = do
     case iniFile of
         Left e -> die $ "Invalid ini file: " ++ e
         Right ini -> do
-            forM_ pgEnvVar $ \var ->
-                 setEnv var . T.unpack $
-                 either (const "") id (Ini.lookupValue "postgresql" (T.pack var) ini)
+            forM_ pgEnvVar $
+                \var ->
+                     setEnv var . T.unpack $
+                     either (const "") id (Ini.lookupValue "postgresql" (T.pack var) ini)
             return $ getPort ini
 
 getPort :: Ini.Ini -> Port
-getPort ini = either (const defPort) id $ do
-    port <- Ini.lookupValue "websocket" "port" ini
-    readEither . T.unpack $ port
+getPort ini =
+    either (const defPort) id $
+    do port <- Ini.lookupValue "websocket" "port" ini
+       readEither . T.unpack $ port
 
 -- | Create 'BackendConf' for the server
 setupBackendConf :: IO BackendConf

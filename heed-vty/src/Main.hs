@@ -32,16 +32,18 @@ import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import Heed.Commands
 import Heed.Utils (progName)
+import Network (PortNumber)
 import Network.HTTP.Simple
        (Request, defaultRequest, getResponseBody, httpJSONEither,
         setRequestBodyJSON, setRequestHost, setRequestMethod,
-        setRequestPath, setRequestPort)
+        setRequestPath, setRequestPort, setRequestSecure)
 import qualified Network.WebSockets as WS
 import System.Directory
        (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory)
 import System.Exit (die)
 import qualified System.Process as Process
 import Text.Read (readEither)
+import Wuss (runSecureClientWith)
 
 data Name
     = StatusBar
@@ -240,13 +242,13 @@ main = do
             putStrLn "Authenticating"
             authCheck <- httpJSONEither req
             case getResponseBody authCheck of
-                Left _ -> putStrLn "Invalid auth"
+                Left e -> print e
                 Right (Token t) -> do
                     putStrLn "Starting heed"
-                    WS.runClientWith
+                    runSecureClientWith
                         (T.unpack host)
-                        port
-                        ""
+                        ((read . show $ port) :: PortNumber)
+                        "/"
                         WS.defaultConnectionOptions
                         [("auth-token", encodeUtf8 t)]
                         startApp
@@ -291,6 +293,7 @@ authRequest configFolder = do
             do host <- lookupValue "server" "host" ini
                portT <- lookupValue "server" "port" ini
                -- Assume tls by default
+               secure <- return . either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
                port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
                user <- lookupValue "auth" "username" ini
                pass <- lookupValue "auth" "password" ini
@@ -299,6 +302,9 @@ authRequest configFolder = do
                      setRequestHost (encodeUtf8 host) &
                      setRequestPort port &
                      setRequestPath "auth" &
-                     setRequestMethod "POST"
+                     setRequestMethod "POST" &
+                     setRequestSecure secure
                    , host
                    , port)
+  where
+    isSecure x = T.toLower x == "on"
