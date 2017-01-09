@@ -182,22 +182,16 @@ updateUnreadCount (Unseen, s) = do
 
 openTab :: FeItemInfo -> IO ()
 openTab e = do
-    void . forkIO . void $ Process.createProcess
-        browserProc
-        { Process.std_in = Process.NoStream
-        , Process.std_out = Process.NoStream
-        , Process.std_err = Process.NoStream
-        }
-    case e ^. itemInfoComments of
-        Nothing -> return ()
-        Just linkComment -> void . forkIO . void $ Process.createProcess
-            (commentProc linkComment)
+    forM_ (e ^. itemInfoComments) callBrowser
+    callBrowser $ e ^. itemInfoLink
+  where
+    callBrowser link =  void . forkIO . void $ Process.createProcess
+            (browserProc link)
             { Process.std_in = Process.NoStream
             , Process.std_out = Process.NoStream
             , Process.std_err = Process.NoStream
             }
-  where browserProc = Process.proc "chromium" [T.unpack $ e ^. itemInfoLink]
-        commentProc x = Process.proc "chromium" [T.unpack x]
+    browserProc link = Process.proc "chromium" [T.unpack link]
 
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
