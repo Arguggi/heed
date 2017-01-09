@@ -16,13 +16,14 @@ import Brick.Widgets.Core
 import qualified Brick.Widgets.List as BL
 import Control.Concurrent (forkIO)
 import Control.Lens
-import Control.Monad (forever, void)
+import Control.Monad (forever, void, forM_)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (decodeStrict', encode)
 import qualified Data.ByteString as BS
 import Data.Default
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
+import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import Data.Text (Text)
 import qualified Data.Text as T
@@ -72,9 +73,11 @@ drawUi s = [ui]
   where
     ui = C.center $ vBox [statusBar, B.hBorder, mainInfo]
     statusBar = txt ("Connected as " <> (s ^. userName)) <+> (padLeft BT.Max . txt $ s ^. status)
-    mainInfo = hBox [feedListVty, B.vBorder, itemListVty]
+    mainInfo = hBox [feedListVty, B.vBorder, itemInfoVty]
     feedListVty = hLimit 50 $ BL.renderList feedDrawElement True (s ^. feeds)
+    itemInfoVty = vBox [itemListVty, B.hBorder, itemDetailVty]
     itemListVty = BL.renderList itemDrawElement True (s ^. items)
+    itemDetailVty = vLimit 4 $ itemDrawDetail (BL.listSelectedElement $ s ^. items)
 
 feedDrawElement :: Bool -> FeFeedInfo -> Widget Name
 feedDrawElement sel a =
@@ -94,6 +97,13 @@ itemDrawElement sel a =
         | a ^. itemInfoRead == Seen = withAttr "read"
         | otherwise = id
     showTime s = Time.formatTime euTimeLocale "%T %x" $ s ^. itemInfoDate
+
+itemDrawDetail :: Maybe (Int, FeItemInfo) -> Widget Name
+itemDrawDetail Nothing = txt "No item selected"
+itemDrawDetail (Just (_,info)) =
+    txt (info ^. itemInfoTitle)
+    <=> txt (info ^. itemInfoLink)
+    <=> txt (fromMaybe "no comments" $ info ^. itemInfoComments)
 
 appEvent :: AppState -> BT.BrickEvent Name MyEvent -> BT.EventM Name (BT.Next AppState)
 -- Close app
