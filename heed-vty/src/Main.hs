@@ -171,15 +171,23 @@ updateUnreadCount (Unseen, s) = do
             Just i -> s & feeds . BL.listElementsL . ix i . feedListUnread -~ 1
 
 openTab :: FeItemInfo -> IO ()
-openTab e =
-    void . forkIO . void $
-    Process.createProcess
+openTab e = do
+    void . forkIO . void $ Process.createProcess
         browserProc
         { Process.std_in = Process.NoStream
         , Process.std_out = Process.NoStream
         , Process.std_err = Process.NoStream
         }
+    case e ^. itemInfoComments of
+        Nothing -> return ()
+        Just linkComment -> void . forkIO . void $ Process.createProcess
+            (commentProc linkComment)
+            { Process.std_in = Process.NoStream
+            , Process.std_out = Process.NoStream
+            , Process.std_err = Process.NoStream
+            }
   where browserProc = Process.proc "chromium" [T.unpack $ e ^. itemInfoLink]
+        commentProc x = Process.proc "chromium" [T.unpack x]
 
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
