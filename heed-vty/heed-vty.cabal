@@ -19,7 +19,7 @@ executable heed-vty
   main-is:             Main.hs
   build-depends:       base ==4.9.*
                      , aeson >=1.0.2.1
-                     , brick >=0.15.2
+                     , brick >=0.16
                      , bytestring >=0.10.8.1
                      , data-default >=0.7.1.1
                      , directory >=1.2.6.2

@@ -4,6 +4,7 @@
 module Main where
 
 import qualified Brick.AttrMap as BA
+import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
 import Brick.Types (Widget)
 import qualified Brick.Types as BT
@@ -11,10 +12,9 @@ import qualified Brick.Util as BU
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core
-       (hBox, hLimit, padLeft, str, txt, vBox, withAttr, (<+>))
+       (hBox, hLimit, padLeft, str, txt, vBox, withAttr, (<+>), (<=>), vLimit)
 import qualified Brick.Widgets.List as BL
 import Control.Concurrent (forkIO)
-import Control.Concurrent.Chan (newChan, writeChan)
 import Control.Lens
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -264,13 +264,13 @@ main = do
 
 startApp :: WS.Connection -> IO ()
 startApp wsconn = do
-    eventChan <- newChan
+    eventChan <- BChan.newBChan 200
     _ <-
         forkIO . forever $
         do wsdata <- WS.receiveData wsconn :: IO BS.ByteString
            case decodeStrict' wsdata of
                Nothing -> return ()
-               Just mess -> writeChan eventChan (WsReceive mess)
+               Just mess -> BChan.writeBChan eventChan (WsReceive mess)
     _ <-
         M.customMain
             (V.mkVty Data.Default.def)
