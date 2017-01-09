@@ -6,11 +6,11 @@
 
 module Heed.DbEnums where
 
-import Data.Aeson
 import qualified Data.ByteString.Char8 as B8
 import Data.Monoid ((<>))
 import qualified Data.Profunctor as Pro
 import qualified Data.Profunctor.Product.Default as ProDef
+import Data.Store (Store)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Typeable
@@ -23,9 +23,7 @@ data ItemsDate
     | Present
     deriving (Typeable, Show, Generic)
 
-instance FromJSON ItemsDate
-
-instance ToJSON ItemsDate
+instance Store ItemsDate
 
 data PGItemsDate
 

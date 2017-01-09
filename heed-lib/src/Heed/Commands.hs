@@ -1,16 +1,21 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 module Heed.Commands where
 
 import Control.Lens
-import Data.Aeson
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int
+import Data.Monoid ((<>))
+import Data.Store (Store, decode, encode)
 import qualified Data.Text as T
 import Data.Time.Clock
 import GHC.Generics
+import Servant.API.ContentTypes
+       (MimeRender(..), MimeUnrender(..), OctetStream)
 import Web.FormUrlEncoded (FromForm(..))
 
 -- | Convenience
@@ -34,9 +39,7 @@ instance Monoid Seen where
     Seen `mappend` _ = Seen
     Unseen `mappend` a = a
 
-instance FromJSON Seen
-
-instance ToJSON Seen
+instance Store Seen
 
 -- | List of feeds sent to the client
 data FeFeedInfo' a b c = FeFeedInfo'
@@ -53,9 +56,7 @@ makeLenses ''FeFeedInfo'
 instance Eq FeFeedInfo where
     a == b = _feedListId a == _feedListId b
 
-instance FromJSON FeFeedInfo
-
-instance ToJSON FeFeedInfo
+instance Store FeFeedInfo
 
 -- | List of items, one for each feed
 data FeItemInfo' a b c d e f = FeItemInfo'
@@ -75,9 +76,7 @@ makeLenses ''FeItemInfo'
 instance Eq FeItemInfo where
     a == b = _itemInfoId a == _itemInfoId b
 
-instance FromJSON FeItemInfo
-
-instance ToJSON FeItemInfo
+instance Store FeItemInfo
 
 -- | Decide if something is selected
 class IsSelected a  where
@@ -107,9 +106,7 @@ data Up
       --   happen since client and server share the exact same code)
     deriving (Generic, Show)
 
-instance FromJSON Up
-
-instance ToJSON Up
+instance Store Up
 
 -- | Commands sent from server to client via websocket
 data Down
@@ -119,9 +116,7 @@ data Down
     | InvalidSent -- ^ The client can't parse the message
     deriving (Generic, Show)
 
-instance FromJSON Down
-
-instance ToJSON Down
+instance Store Down
 
 data AuthData = AuthData
     { username :: T.Text
@@ -130,15 +125,22 @@ data AuthData = AuthData
 
 instance FromForm AuthData
 
-instance ToJSON AuthData
+instance Store AuthData
 
-instance FromJSON AuthData
+--instance MimeRender OctetStream AuthData where
+--mimeRender _ = fromStrict . encode
+instance MimeUnrender OctetStream AuthData where
+    mimeUnrender _ a =
+        case decode . toStrict $ a of
+            Left e -> Left ("Invalid OctetStream: " <> show e)
+            Right ad -> Right ad
 
 -- | A Token we generate if username and password are correct
 newtype Token = Token
     { unToken :: T.Text
     } deriving (Generic, Show)
 
-instance ToJSON Token
+instance Store Token
 
-instance FromJSON Token
+instance MimeRender OctetStream Token where
+    mimeRender _ = fromStrict . encode

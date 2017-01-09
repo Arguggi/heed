@@ -12,19 +12,21 @@ import qualified Brick.Util as BU
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core
-       (hBox, hLimit, padLeft, str, txt, vBox, withAttr, (<+>), (<=>), vLimit)
+       (hBox, hLimit, padLeft, str, txt, vBox, vLimit, withAttr, (<+>),
+        (<=>))
 import qualified Brick.Widgets.List as BL
 import Control.Concurrent (forkIO)
 import Control.Lens
-import Control.Monad (forever, void, forM_)
+import Control.Monad (forM_, forever, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Aeson (decodeStrict', encode)
 import qualified Data.ByteString as BS
+import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Default
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
+import Data.Store (decode, encode)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -35,8 +37,8 @@ import Heed.Commands
 import Heed.Utils (progName)
 import Network (PortNumber)
 import Network.HTTP.Simple
-       (Request, defaultRequest, getResponseBody, httpJSONEither,
-        setRequestBodyJSON, setRequestHost, setRequestMethod,
+       (Request, defaultRequest, getResponseBody, httpLBS,
+        setRequestBodyLBS, setRequestHost, setRequestMethod,
         setRequestPath, setRequestPort, setRequestSecure)
 import qualified Network.WebSockets as WS
 import System.Directory
@@ -100,10 +102,9 @@ itemDrawElement sel a =
 
 itemDrawDetail :: Maybe (Int, FeItemInfo) -> Widget Name
 itemDrawDetail Nothing = txt "No item selected"
-itemDrawDetail (Just (_,info)) =
-    txt (info ^. itemInfoTitle)
-    <=> txt (info ^. itemInfoLink)
-    <=> txt (fromMaybe "no comments" $ info ^. itemInfoComments)
+itemDrawDetail (Just (_, info)) =
+    txt (info ^. itemInfoTitle) <=> txt (info ^. itemInfoLink) <=>
+    txt (fromMaybe "no comments" $ info ^. itemInfoComments)
 
 appEvent :: AppState -> BT.BrickEvent Name MyEvent -> BT.EventM Name (BT.Next AppState)
 -- Close app
@@ -185,7 +186,9 @@ openTab e = do
     forM_ (e ^. itemInfoComments) callBrowser
     callBrowser $ e ^. itemInfoLink
   where
-    callBrowser link =  void . forkIO . void $ Process.createProcess
+    callBrowser link =
+        void . forkIO . void $
+        Process.createProcess
             (browserProc link)
             { Process.std_in = Process.NoStream
             , Process.std_out = Process.NoStream
@@ -250,21 +253,45 @@ main = do
     creds <- authRequest configFolder
     case creds of
         Left e -> putStrLn $ "Invalid config file: " <> e
-        Right (req, host, port) -> do
+        Right (req, host, port, secure) -> do
             putStrLn "Authenticating"
-            authCheck <- httpJSONEither req
-            case getResponseBody authCheck of
+            authCheck <- httpLBS req
+            case decode . toStrict . getResponseBody $ authCheck of
                 Left e -> print e
                 Right (Token t) -> do
                     putStrLn "Starting heed"
-                    runSecureClientWith
-                        (T.unpack host)
-                        ((read . show $ port) :: PortNumber)
-                        "/"
-                        WS.defaultConnectionOptions
-                        [("auth-token", encodeUtf8 t)]
-                        startApp
+                    let websocketClient =
+                            if secure
+                                then secureWebsocket host port t
+                                else insecureWebsocket host port t
+                    websocketClient startApp
                     putStrLn "Closing"
+
+insecureWebsocket
+    :: T.Text -- | Host
+    -> Int -- | Port
+    -> T.Text -- | Token value
+    -> (WS.ClientApp () -> IO ())
+insecureWebsocket host port token =
+    WS.runClientWith
+        (T.unpack host)
+        port
+        "/"
+        WS.defaultConnectionOptions
+        [("auth-token", encodeUtf8 token)]
+
+secureWebsocket
+    :: T.Text -- | Host
+    -> Int -- | Port
+    -> T.Text -- | Token value
+    -> (WS.ClientApp () -> IO ())
+secureWebsocket host port token =
+    runSecureClientWith
+        (T.unpack host)
+        ((read . show $ port) :: PortNumber)
+        "/"
+        WS.defaultConnectionOptions
+        [("auth-token", encodeUtf8 token)]
 
 startApp :: WS.Connection -> IO ()
 startApp wsconn = do
@@ -272,9 +299,9 @@ startApp wsconn = do
     _ <-
         forkIO . forever $
         do wsdata <- WS.receiveData wsconn :: IO BS.ByteString
-           case decodeStrict' wsdata of
-               Nothing -> return ()
-               Just mess -> BChan.writeBChan eventChan (WsReceive mess)
+           case decode wsdata of
+               Left _ -> return ()
+               Right mess -> BChan.writeBChan eventChan (WsReceive mess)
     _ <-
         M.customMain
             (V.mkVty Data.Default.def)
@@ -295,7 +322,7 @@ type Port = Int
 
 authRequest
     :: (MonadIO m)
-    => FilePath -> m (Either String (Request, Host, Port))
+    => FilePath -> m (Either String (Request, Host, Port, Bool))
 authRequest configFolder = do
     iniFile <- liftIO . readIniFile $ configFolder <> "/" <> progName <> ".ini"
     case iniFile of
@@ -310,13 +337,14 @@ authRequest configFolder = do
                user <- lookupValue "auth" "username" ini
                pass <- lookupValue "auth" "password" ini
                return
-                   ( defaultRequest & setRequestBodyJSON (AuthData user pass) &
+                   ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
                      setRequestHost (encodeUtf8 host) &
                      setRequestPort port &
                      setRequestPath "auth" &
                      setRequestMethod "POST" &
                      setRequestSecure secure
                    , host
-                   , port)
+                   , port
+                   , secure)
   where
     isSecure x = T.toLower x == "on"

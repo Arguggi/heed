@@ -12,8 +12,8 @@
 
 module Heed.Database where
 
-import Data.Aeson
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
+import Data.Store (Store)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
@@ -64,9 +64,7 @@ newtype FeedInfoId a = FeedInfoId
     { getFeedInfoId :: a
     } deriving (Functor, Show, Generic)
 
-instance FromJSON FeedInfoIdH
-
-instance ToJSON FeedInfoIdH
+instance Store FeedInfoIdH
 
 -- | 'FeedInfoId' Haskell
 type FeedInfoIdH = FeedInfoId Int
@@ -77,9 +75,7 @@ type FeedInfoHR = FeedInfo (FeedInfoId Int) Text Text Int UTCTime ItemsDate Int
 -- | 'FeedInfo' Haskell write to DB (Id is missing)
 type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime ItemsDate Int
 
-instance FromJSON FeedInfoHR
-
-instance ToJSON FeedInfoHR
+instance Store FeedInfoHR
 
 -- | PostgreSQL Feeds <-> Users (Subscriptions) Table
 data Subscription a b = Subscription
@@ -105,9 +101,7 @@ newtype FeedItemId a = FeedItemId
 -- | FeedItemId Haskell
 type FeedItemIdH = FeedItemId Int
 
-instance ToJSON FeedItemIdH
-
-instance FromJSON FeedItemIdH
+instance Store FeedItemIdH
 
 -- | 'FeedItem' Haskell read from DB
 type FeedItemHR = FeedItem (FeedItemId Int) (FeedInfoId Int) Text Url UTCTime (Maybe Url)

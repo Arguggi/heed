@@ -13,11 +13,10 @@ module Heed.Server where
 import Control.Monad (forever)
 import Control.Monad.IO.Class
 import Crypto.KDF.BCrypt
-import Data.Aeson (ToJSON, decode, encode)
 import Data.ByteString (ByteString)
-import Data.Maybe (fromMaybe)
 import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
+import Data.Store (Store, decode, encode)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Heed.Commands
@@ -33,7 +32,8 @@ import Network.Wai.Handler.Warp (run)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import qualified Network.WebSockets as WS
 import Servant (throwError)
-import Servant.API ((:<|>)((:<|>)), (:>), JSON, Post, ReqBody)
+import Servant.API
+       ((:<|>)((:<|>)), (:>), OctetStream, Post, ReqBody)
 import Servant.API.Experimental.Auth (AuthProtect)
 import Servant.API.Raw (Raw)
 import Servant.Server
@@ -53,7 +53,7 @@ data UserName = UserName
     }
 
 -- | Our API, with auth-protection
-type AuthGenAPI = "auth" :> (ReqBody '[JSON] AuthData :> Post '[JSON] Token) :<|> AuthProtect "cookie-auth" :> Raw
+type AuthGenAPI = "auth" :> (ReqBody '[OctetStream] AuthData :> Post '[OctetStream] Token) :<|> AuthProtect "cookie-auth" :> Raw
 
 -- | A value holding our type-level API
 genAuthAPI :: Proxy AuthGenAPI
@@ -133,7 +133,7 @@ wsApp conf uname pending_conn = do
     feeds <- runQueryNoT dbConn $ getUserFeedInfo uid
     forever $
         do commandM <- decode <$> WS.receiveData conn
-           let command = fromMaybe InvalidReceived commandM
+           let command = either (const InvalidReceived) id commandM
            putStr "Received: "
            print command
            case command of
@@ -152,7 +152,7 @@ wsApp conf uname pending_conn = do
                _ -> putStrLn "TODO"
 
 sendDown
-    :: (ToJSON a)
+    :: (Store a)
     => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendTextData conn $ encode info
 
