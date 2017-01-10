@@ -39,6 +39,7 @@ executable heed-backend
                      , opaleye >=0.5.2.2
                      , opaleye-trans >=0.3.3
                      , postgresql-simple >=0.5.2.1
+                     , primitive == 0.6.1.0
                      , product-profunctors >=0.7.1.0
                      , safe >=0.3.10
                      , servant >=0.9.1.1
@@ -48,7 +49,7 @@ executable heed-backend
                      , text >=1.2.2.1
                      , time >=1.6.0.1
                      , transformers >=0.5.2.0
-                     , vector >=0.11.0.0
+                     , vector >=0.12
                      , wai >=3.2.1.1
                      , wai-app-static >=3.1.6.1
                      , wai-websockets >=3.0.1.1
