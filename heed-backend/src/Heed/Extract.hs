@@ -239,7 +239,11 @@ updateDateInfo now (info, items) = (newInfo, items)
 
 updateUpdateEvery :: Int -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
 updateUpdateEvery every (info, items) = (newInfo, items)
-    where newInfo = info { feedInfoUpdateEvery = every}
+  where
+    newInfo =
+        info
+        { feedInfoUpdateEvery = every
+        }
 
 class Monad m =>
       MonadParse m  where

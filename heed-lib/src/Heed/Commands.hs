@@ -103,7 +103,8 @@ data Up
     | ItemRead Int -- ^ Sent when an item is considered read
     | FeedRead Int -- ^ Sent when all items of a fead are read
     | InvalidReceived -- ^ The server can't parse the message (should never
-    | NewFeed T.Text Int -- ^ Sent when adding a new feed (url + update every x minutes)
+    | NewFeed T.Text
+              Int -- ^ Sent when adding a new feed (url + update every x minutes)
       --   happen since client and server share the exact same code)
     deriving (Generic, Show)
 
