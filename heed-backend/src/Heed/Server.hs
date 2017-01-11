@@ -22,6 +22,7 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Heed.Commands
 import Heed.Crypto
 import Heed.Database
+import Heed.Extract (addFeed)
 import Heed.Query
 import Heed.Types
 import Heed.Utils (Port)
@@ -149,6 +150,11 @@ wsApp conf uname pending_conn = do
                FeedRead feedId -> do
                    deleted <- runQueryNoT dbConn $ allItemsRead (FeedInfoId feedId) uid
                    putStrLn $ "Deleted " <> show deleted <> " unread items"
+               NewFeed url updateEvery -> do
+                   newFeed <- runBe conf $ addFeed url updateEvery uid
+                   case newFeed of
+                       Left e -> sendDown conn (BackendError (showUserHeedError e))
+                       Right _ -> sendDown conn (FeedAdded url)
                _ -> putStrLn "TODO"
 
 sendDown

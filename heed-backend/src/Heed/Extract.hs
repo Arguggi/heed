@@ -58,17 +58,20 @@ startUpdateThread info = do
         (T.pack . show . feedInfoUpdateEvery $ info) <>
         " minutes."
     feed <- catchHttp DownloadFailed $ downloadUrl (feedInfoUrl info)
-    (_, feedItems) <- parseFeed feed (feedInfoUrl info)
+    (_, feedItems) <- parseFeed feed (feedInfoUrl info) (feedInfoUpdateEvery info)
     updateFeedItems info feedItems
     liftIO . threadDelay $ feedInfoUpdateEvery info * 1000000 * 60
 
 addFeed
     :: (MonadStdOut m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)
-    => Url -> UserId Int -> m ()
-addFeed url uid = do
+    => Url -- ^ Feed URL
+    -> Int -- ^ Update Every
+    -> UserId Int
+    -> m ()
+addFeed url every uid = do
     stdOut $ "Adding: " <> url
     feed <- downloadUrl url
-    (feedInfo, feedItems) <- parseFeed feed url
+    (feedInfo, feedItems) <- parseFeed feed url every
     oldFeeds <- execQuery $ runFeedInfoQuery (thisFeed feedInfo)
     case listToMaybe oldFeeds
          -- We don't have this feed in the common database, insert it
@@ -186,7 +189,7 @@ importOPML opml userid = do
     conf <- ask
     forM_ feeds $
         \url -> do
-            result <- runBe conf $ addFeed url userid
+            result <- runBe conf $ addFeed url defUpdateEvery userid
             case result of
                 Left e -> do
                     stdOut $ "Failed to add: " <> url
@@ -234,15 +237,22 @@ updateDateInfo now (info, items) = (newInfo, items)
             then Missing
             else Present
 
+updateUpdateEvery :: Int -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
+updateUpdateEvery every (info, items) = (newInfo, items)
+    where newInfo = info { feedInfoUpdateEvery = every}
+
 class Monad m =>
       MonadParse m  where
-    parseFeed :: BSL.ByteString -> Url -> m (FeedInfoHW, [FeedItemHW])
+    parseFeed :: BSL.ByteString -> Url -> Int -> m (FeedInfoHW, [FeedItemHW])
 
 instance MonadParse Backend where
-    parseFeed feed url = do
+    parseFeed feed url every = do
         validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
         now <- liftIO getCurrentTime
-        liftJust InvalidFeedData $ updateDateInfo now <$> extractInfoFromFeed now url validFeed
+        validInfo <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
+        let withValidDates = updateDateInfo now validInfo
+            withValidUpdateEvery = updateUpdateEvery every withValidDates
+        return withValidUpdateEvery
 
 class Monad m =>
       MonadOpml m  where

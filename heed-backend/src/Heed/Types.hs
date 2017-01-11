@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Heed.Types where
 
@@ -28,6 +29,15 @@ data HeedError where
         DownloadFailed :: HttpException -> HeedError
         HSqlException :: PG.SqlError -> HeedError
     deriving (Show)
+
+showUserHeedError :: HeedError -> T.Text
+showUserHeedError InvalidXML = "Invalid feed format"
+showUserHeedError InvalidFeedData = "Invalid feed data"
+showUserHeedError InvalidOPMLData = "Invalid opml data"
+showUserHeedError MultipleFeedsSameUrl = "Feed is already present in the database"
+showUserHeedError (InvalidUrl _) = "Invalid URL"
+showUserHeedError (DownloadFailed _) = "Download failed"
+showUserHeedError (HSqlException _) = "Database error"
 
 instance Exception HeedError
 

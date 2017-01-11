@@ -176,7 +176,7 @@ defFeedInfo =
     { feedInfoId = FeedInfoId Nothing
     , feedInfoName = ""
     , feedInfoUrl = ""
-    , feedInfoUpdateEvery = 60
+    , feedInfoUpdateEvery = defUpdateEvery
     , feedInfoLastUpdated = defTime
     , feedHasItemDate = Missing
     , feedNumberItems = 20
@@ -184,6 +184,9 @@ defFeedInfo =
 
 defTime :: UTCTime
 defTime = UTCTime (fromGregorian 0 0 0) (secondsToDiffTime 0)
+
+defUpdateEvery :: Int
+defUpdateEvery = 60
 
 feedInfoTable :: O.Table FeedInfoW FeedInfoR
 feedInfoTable =
