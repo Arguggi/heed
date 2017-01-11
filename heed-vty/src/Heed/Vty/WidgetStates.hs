@@ -37,8 +37,11 @@ data AddName
 
 data AddState = AddState
     { _focusRing :: F.FocusRing AddName
-    , _urlEdit :: E.Editor String AddName
-    , _updateEdit :: E.Editor String AddName
+    , _urlEdit :: E.Editor T.Text AddName
+    , _updateEdit :: E.Editor T.Text AddName
+    , _urlMessage :: T.Text
+    , _updateMessage :: T.Text
+    , _adding :: Bool
     , _wsConnA :: WS.Connection
     }
 

@@ -18,6 +18,7 @@ import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.Store (Store, decode, encode)
 import Data.Text (Text)
+import qualified Data.Text.IO as TIO
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Heed.Commands
 import Heed.Crypto
