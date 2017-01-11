@@ -159,8 +159,8 @@ openTab e = do
             , Process.std_out = Process.NoStream
             , Process.std_err = Process.NoStream
             }
-    browserProc link = Process.proc "chromium" [T.unpack link]
 
+    browserProc link = Process.proc "chromium" [T.unpack link]
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
     let ind = s ^. items . BL.listSelectedL

@@ -18,8 +18,8 @@ import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.Store (Store, decode, encode)
 import Data.Text (Text)
-import qualified Data.Text.IO as TIO
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO as TIO
 import Heed.Commands
 import Heed.Crypto
 import Heed.Database
@@ -123,7 +123,7 @@ app conf uname = websocketsOr WS.defaultConnectionOptions (wsApp conf uname) bac
 
 wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do
-    print $ unUserName uname <> " opened a websocket connection"
+    TIO.putStrLn $ unUserName uname <> " opened a websocket connection"
     -- User heed protocol
     let ar = WS.AcceptRequest (Just "heed") []
         dbConn = dbConnection conf

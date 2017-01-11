@@ -108,7 +108,7 @@ thisFeed fresh =
     proc () ->
   do feeds <- O.queryTable feedInfoTable -< ()
      O.restrict -<
-       feedInfoUrl feeds O..== O.pgStrictText (feedInfoUrl fresh)
+       feedInfoUrl feeds O..== O.constant (feedInfoUrl fresh)
      returnA -< feeds
 
 runFeedInfoQuery :: O.Query FeedInfoR -> OT.Transaction [FeedInfoHR]
@@ -118,7 +118,7 @@ getUser :: T.Text -> O.Query UserR
 getUser un =
     proc () ->
   do user <- O.queryTable userTable -< ()
-     O.restrict -< (userName user O..== O.pgStrictText un)
+     O.restrict -< userName user O..=== O.constant un
      returnA -< user
 
 getUserDb :: T.Text -> OT.Transaction (Maybe UserH)
@@ -134,7 +134,7 @@ setToken token auth =
     }
 
 filterUser :: UserId Int -> AuthTokenR -> O.Column O.PGBool
-filterUser (UserId userid) auth = (getUserId . authTokenHeedUserId $ auth) O..== O.pgInt4 userid
+filterUser userid auth = authTokenHeedUserId auth O..=== O.constant userid
 
 verifyToken :: T.Text -> OT.Transaction (Maybe UserH)
 verifyToken token =
@@ -148,24 +148,18 @@ tokenToUser token =
   do users <- O.queryTable userTable -< ()
      tokens <- O.queryTable authTokenTable -< ()
      O.restrict -<
-       ((getUserId . userId $ users) O..==
-          (getUserId . authTokenHeedUserId $ tokens))
-         O..&& (authTokenToken tokens O..== O.pgStrictText token)
+       userId users O..=== authTokenHeedUserId tokens O..&&
+         (authTokenToken tokens O..=== O.constant token)
      returnA -< users
 
 getUserFeeds :: UserId Int -> O.Query FeedInfoR
-getUserFeeds (UserId userid) =
-    O.orderBy (O.asc feedInfoName) $
+getUserFeeds userid =
     proc () ->
   do subs <- O.queryTable subscriptionTable -< ()
      feeds <- O.queryTable feedInfoTable -< ()
-     O.restrict -< ((getUserId . subscriptionUserId) subs O..== idCol)
-     O.restrict -<
-       ((getFeedInfoId . feedInfoId) feeds O..==
-          (getFeedInfoId . subscriptionFeedId) subs)
+     O.restrict -< subscriptionUserId subs O..=== O.constant userid
+     O.restrict -< feedInfoId feeds O..=== subscriptionFeedId subs
      returnA -< feeds
-  where
-    idCol = O.pgInt4 userid
 
 getUserUnreadItems :: UserId Int -> O.Query (O.Column O.PGInt4, O.Column O.PGInt8)
 getUserUnreadItems userid =
@@ -179,14 +173,12 @@ getUserUnreadItems userid =
 
 getAllUserFeedInfo :: UserId Int -> O.Query FeFeedInfoR
 getAllUserFeedInfo uid =
+    O.orderBy (O.asc _feedListName) $
     proc () ->
-  do allfeeds <- O.orderBy (O.asc feedInfoName) $ getUserFeeds uid -<
-                   ()
-     allunread <- getUserUnreadItems uid -< ()
-     let fIId = fst allunread
-         fIName = feedInfoName allfeeds
-         unreadCount = snd allunread
-     O.restrict -< fIId O..== (getFeedInfoId . feedInfoId) allfeeds
+  do allfeeds <- getUserFeeds uid -< ()
+     (fIId, unreadCount) <- getUserUnreadItems uid -< ()
+     let fIName = feedInfoName allfeeds
+     O.restrict -< fIId O..=== (getFeedInfoId . feedInfoId $ allfeeds)
      returnA -< FeFeedInfo' fIId fIName unreadCount
 
 getUserFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
@@ -196,7 +188,7 @@ getFeedItemsIds :: FeedInfoId Int -> O.Query FeedItemIdColumnR
 getFeedItemsIds fid =
     proc () ->
   do allItems <- O.queryTable feedItemTable -< ()
-     O.restrict -< (O.constant <$> fid) O..=== feedItemFeedId allItems
+     O.restrict -< O.constant fid O..=== feedItemFeedId allItems
      returnA -< (feedItemId allItems)
 
 insertUnread :: [FeedItemHR] -> [UserId Int] -> OT.Transaction Int64
