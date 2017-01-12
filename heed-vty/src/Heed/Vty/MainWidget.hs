@@ -29,6 +29,7 @@ import Heed.Commands
 import Heed.Vty.AddFeedWidget (addVty)
 import Heed.Vty.WidgetStates
 import qualified Network.WebSockets as WS
+import Text.URI (parseURI, uriRegName)
 import qualified System.Process as Process
 
 newtype MyEvent =
@@ -148,19 +149,28 @@ updateUnreadCount (Unseen, s) = do
 
 openTab :: FeItemInfo -> IO ()
 openTab e = do
-    forM_ (e ^. itemInfoComments) callBrowser
-    callBrowser $ e ^. itemInfoLink
+    forM_ (sameDomain link (e ^. itemInfoComments)) callBrowser
+    callBrowser link
   where
-    callBrowser link =
+    link = e ^. itemInfoLink
+    callBrowser l =
         void . forkIO . void $
         Process.createProcess
-            (browserProc link)
+            (browserProc l)
             { Process.std_in = Process.NoStream
             , Process.std_out = Process.NoStream
             , Process.std_err = Process.NoStream
             }
+    browserProc l = Process.proc "chromium" [T.unpack l]
+    -- If the comments are on the same domain we shouldn't bother opening them
+    sameDomain l commentsM = do
+        comments <- commentsM
+        linkUri <- parseURI (T.unpack l)
+        commentUri <- parseURI (T.unpack comments)
+        linkDomain <- uriRegName linkUri
+        commentDomain <- uriRegName commentUri
+        if linkDomain == commentDomain then Nothing else Just link
 
-    browserProc link = Process.proc "chromium" [T.unpack link]
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
     let ind = s ^. items . BL.listSelectedL
