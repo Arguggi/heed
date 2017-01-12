@@ -25,19 +25,12 @@ library
                      , Heed.Extract
                      , Heed.Query
                      , Heed.Server
-                     , Heed.Types
   build-depends:       base == 4.9.*
-                     , async >=2.1.1
-                     , binary >=0.8.3.0
                      , bytestring >=0.10.8.1
-                     , containers >=0.5.7.1
-                     , cookie >=0.4.2.1
                      , cryptonite >=0.21
-                     , data-default >=0.7.1.1
                      , feed >=0.3.12.0
                      , exceptions >=0.8.3
                      , heed-lib >=0.1.0.0
-                     , http-api-data >=0.3.3
                      , http-client >=0.5.5
                      , http-client-tls >=0.3.3
                      , http-types >=0.9.1
@@ -57,10 +50,8 @@ library
                      , tagsoup >=0.14
                      , text >=1.2.2.1
                      , time >=1.6.0.1
-                     , transformers >=0.5.2.0
                      , vector >=0.12
                      , wai >=3.2.1.1
-                     , wai-app-static >=3.1.6.1
                      , wai-websockets >=3.0.1.1
                      , warp >=3.2.9
                      , websockets >=0.10.0.0

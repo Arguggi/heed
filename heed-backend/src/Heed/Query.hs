@@ -8,15 +8,13 @@
 module Heed.Query where
 
 import Control.Arrow (returnA)
-import Control.Monad.IO.Class
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Profunctor.Product (p2)
 import Data.Profunctor.Product.Default (Default)
 import qualified Data.Text as T
-import Data.Time
-import qualified Database.PostgreSQL.Simple as PG
-import Heed.Commands
+import Data.Time (UTCTime)
+import Heed.Commands (FeFeedInfo'(..), FeItemInfo'(..), FeFeedInfo, FeItemInfo)
 import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import qualified Opaleye as O
@@ -27,18 +25,6 @@ printSql
     :: Default O.Unpackspec a a
     => O.Query a -> IO ()
 printSql = putStrLn . fromMaybe "Empty query" . O.showSqlForPostgres
-
--- | Run all queries in a transaction
-runTransaction
-    :: (MonadIO m)
-    => PG.Connection -> OT.Transaction a -> m a
-runTransaction conn trans = OT.runOpaleyeT conn $ OT.transaction trans
-
--- | Run all queries without starting a transaction
-runQueryNoT
-    :: (MonadIO m)
-    => PG.Connection -> OT.Transaction a -> m a
-runQueryNoT conn trans = OT.runOpaleyeT conn $ OT.run trans
 
 -- | Query used in 'getRecentItems'
 getItemsFromQ :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR

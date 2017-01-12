@@ -30,7 +30,6 @@ library
                      , data-default >=0.7.1.1
                      , directory >=1.2.6.2
                      , heed-lib >=0.1.0.0
-                     , http-client-tls >=0.3.3
                      , http-conduit >=2.2.3
                      , ini >=0.3.5
                      , lens >=4.15.1

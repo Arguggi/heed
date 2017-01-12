@@ -16,7 +16,6 @@ import Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
-import Heed.Query
 import Network.HTTP.Client hiding (Proxy)
 import qualified Opaleye.Trans as OT
 
@@ -94,7 +93,7 @@ catchHttp
 catchHttp = catchExcep (Proxy :: Proxy HttpException)
 
 class (Monad m) =>
-      MonadStdOut m  where
+      MonadStdOut m where
     stdOut :: T.Text -> m ()
 
 instance MonadStdOut Backend where
@@ -112,3 +111,15 @@ liftJust
     => HeedError -> Maybe a -> m a
 liftJust e Nothing = throwError e
 liftJust _ (Just a) = return a
+
+-- | Run all queries in a transaction
+runTransaction
+    :: (MonadIO m)
+    => PG.Connection -> OT.Transaction a -> m a
+runTransaction conn trans = OT.runOpaleyeT conn $ OT.transaction trans
+
+-- | Run all queries without starting a transaction
+runQueryNoT
+    :: (MonadIO m)
+    => PG.Connection -> OT.Transaction a -> m a
+runQueryNoT conn trans = OT.runOpaleyeT conn $ OT.run trans
