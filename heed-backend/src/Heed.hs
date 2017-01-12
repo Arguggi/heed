@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Heed where
 
 import Control.Concurrent (forkIO)
 import Control.Monad (forM_, forever, void)

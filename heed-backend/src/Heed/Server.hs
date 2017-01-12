@@ -161,7 +161,7 @@ wsApp conf uname pending_conn = do
 sendDown
     :: (Store a)
     => WS.Connection -> a -> IO ()
-sendDown conn info = WS.sendTextData conn $ encode info
+sendDown conn info = WS.sendBinaryData conn $ encode info
 
 backupApp :: Application
 backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"
