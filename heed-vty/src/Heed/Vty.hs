@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+module Heed.Vty where
 
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M

@@ -169,7 +169,7 @@ openTab e = do
         commentUri <- parseURI (T.unpack comments)
         linkDomain <- uriRegName linkUri
         commentDomain <- uriRegName commentUri
-        if linkDomain == commentDomain then Nothing else Just link
+        if linkDomain == commentDomain then Nothing else Just comments
 
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
