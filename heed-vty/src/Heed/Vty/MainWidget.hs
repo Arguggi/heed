@@ -29,8 +29,8 @@ import Heed.Commands
 import Heed.Vty.AddFeedWidget (addVty)
 import Heed.Vty.WidgetStates
 import qualified Network.WebSockets as WS
-import Text.URI (parseURI, uriRegName)
 import qualified System.Process as Process
+import Text.URI (parseURI, uriRegName)
 
 newtype MyEvent =
     WsReceive Down
@@ -169,7 +169,9 @@ openTab e = do
         commentUri <- parseURI (T.unpack comments)
         linkDomain <- uriRegName linkUri
         commentDomain <- uriRegName commentUri
-        if linkDomain == commentDomain then Nothing else Just comments
+        if linkDomain == commentDomain
+            then Nothing
+            else Just comments
 
 setItemAsRead :: AppState -> (Seen, AppState)
 setItemAsRead s =
