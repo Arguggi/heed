@@ -2,16 +2,11 @@
 
 module Heed where
 
-import Control.Concurrent (forkIO)
-import Control.Monad (forM_, forever, void)
+import Control.Monad (forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
-
-import qualified Data.Text.IO as TIO
 import Database.PostgreSQL.Simple as PG
-
-import Heed.Database (UserId(..))
-import Heed.Extract (importOPML, startUpdateThread)
+import Heed.Extract (startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
 import Heed.Types
@@ -32,13 +27,10 @@ main = do
     putStrLn "Starting heed-backend"
     port <- setupEnvGetPort
     baConf <- setupBackendConf
-    --Opmlfile <- TIO.readFile "/etc/heed/ttrss.opml"
-    --_ <- runBe baConf $ importOPML opmlfile (UserId 1) -- Hardcoded as my user
     feedsE <- runBe baConf $ execQuery allFeeds
     case feedsE of
         Left _ -> die "Can't get feed list from db"
-        Right feeds ->
-            void $ forM_ feeds (forkIO . forever . void . runBe baConf . startUpdateThread)
+        Right feeds -> forM_ feeds (startUpdateThread baConf)
     genAuthMain baConf port
 
 -- | Read ini file and setup 'pgEnvVar' variables

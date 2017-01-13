@@ -15,7 +15,7 @@ module Heed.Extract
   ) where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (ThreadId, forkIO, threadDelay)
 import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
@@ -27,6 +27,7 @@ import Data.Monoid ((<>))
 import Data.Ord (compare)
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
+import qualified Data.Text.IO as TIO
 import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
@@ -42,25 +43,25 @@ import qualified Text.HTML.TagSoup as TS
 import qualified Text.HTML.TagSoup.Match as TS
 import qualified Text.RSS.Syntax as RSS
 
-startUpdateThread
-    :: (MonadIO m
-       ,MonadCatch m
-       ,MonadStdOut m
-       ,MonadDb m
-       ,MonadHttp m
-       ,MonadError HeedError m
-       ,MonadParse m
-       ,MonadTime m)
+startUpdateThread :: BackendConf -> FeedInfoHR -> IO ThreadId
+startUpdateThread baConf info =
+    forkIO . forever $
+    do res <- runBe baConf $ startUpdateThreadBe info
+       case res of
+           Left e -> do
+               getTime >>= print
+               TIO.putStrLn $ "Failed to update " <> feedInfoName info
+               print e
+           Right _ -> return ()
+       liftIO . threadDelay $ feedInfoUpdateEvery info * 1000000 * 60
+
+startUpdateThreadBe
+    :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
     => FeedInfoHR -> m ()
-startUpdateThread info = do
-    stdOut $
-        feedInfoName info <> " started. Updating every " <>
-        (T.pack . show . feedInfoUpdateEvery $ info) <>
-        " minutes."
+startUpdateThreadBe info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (feedInfoUrl info)
     (_, feedItems) <- parseFeed feed (feedInfoUrl info) (feedInfoUpdateEvery info)
     updateFeedItems info feedItems
-    liftIO . threadDelay $ feedInfoUpdateEvery info * 1000000 * 60
 
 addFeed
     :: (MonadStdOut m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)

@@ -110,6 +110,9 @@ class (Monad m) =>
       MonadTime m  where
     getTime :: m UTCTime
 
+instance MonadTime IO where
+    getTime = getCurrentTime
+
 instance MonadTime Backend where
     getTime = liftIO getCurrentTime
 
