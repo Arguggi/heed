@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Heed.Vty where
 
@@ -6,7 +7,9 @@ import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
 import Control.Concurrent (forkIO)
 import Control.Monad (forever)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Except
+       (ExceptT(..), runExceptT, withExceptT)
 import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Default
@@ -14,6 +17,7 @@ import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
 import Data.Monoid ((<>))
 import Data.Store (decode, encode)
+import Data.Store.Core (PeekException)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import qualified Graphics.Vty as V
@@ -29,7 +33,6 @@ import Network.HTTP.Simple
 import qualified Network.WebSockets as WS
 import System.Directory
        (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory)
-import System.Exit (die)
 import Text.Read (readEither)
 import Wuss (runSecureClientWith)
 
@@ -37,48 +40,52 @@ main :: IO ()
 main = do
     configFolder <- getXdgDirectory XdgConfig progName
     createDirectoryIfMissing True configFolder
-    creds <- authRequest configFolder
-    case creds of
-        Left e -> putStrLn $ "Invalid config file: " <> e
-        Right (req, host, port, secure) -> do
-            putStrLn "Authenticating"
-            authCheck <- httpLBS req
-            case decode . toStrict . getResponseBody $ authCheck of
-                Left e -> print e
-                Right (Token t) -> do
-                    putStrLn "Starting heed"
-                    let websocketClient =
-                            if secure
-                                then secureWebsocket host port t
-                                else insecureWebsocket host port t
-                    websocketClient startApp
-                    putStrLn "Closing"
+    final <-
+        runExceptT $
+        do (req, host, port, secure) <- authRequest configFolder
+           liftIO $ putStrLn "Authenticating"
+           authCheck <- liftIO $ httpLBS req
+           let respToken :: Either PeekException Token
+               respToken = decode . toStrict . getResponseBody $ authCheck
+           -- Lift Either PeekException to ExceptT String
+           token <- withExceptT show . ExceptT . return $ respToken
+           liftIO $ putStrLn "Starting heed"
+           let websocketClient =
+                   if secure
+                       then secureWebsocket host port token
+                       else insecureWebsocket host port token
+           liftIO $ websocketClient startApp
+           liftIO $ putStrLn "Closing"
+    case final of
+        Left e -> putStrLn e
+        Right _ -> putStrLn "finish"
+    return ()
 
 insecureWebsocket
-    :: T.Text -- | Host
-    -> Int -- | Port
-    -> T.Text -- | Token value
+    :: T.Text -- ^ Host
+    -> Int -- ^ Port
+    -> Token -- ^ Token value
     -> (WS.ClientApp () -> IO ())
-insecureWebsocket host port token =
+insecureWebsocket host port (Token t) =
     WS.runClientWith
         (T.unpack host)
         port
         "/"
         WS.defaultConnectionOptions
-        [("auth-token", encodeUtf8 token)]
+        [("auth-token", encodeUtf8 t)]
 
 secureWebsocket
-    :: T.Text -- | Host
-    -> Int -- | Port
-    -> T.Text -- | Token value
+    :: T.Text -- ^ Host
+    -> Int -- ^ Port
+    -> Token -- ^ Token value
     -> (WS.ClientApp () -> IO ())
-secureWebsocket host port token =
+secureWebsocket host port (Token t) =
     runSecureClientWith
         (T.unpack host)
         ((read . show $ port) :: PortNumber)
         "/"
         WS.defaultConnectionOptions
-        [("auth-token", encodeUtf8 token)]
+        [("auth-token", encodeUtf8 t)]
 
 startApp :: WS.Connection -> IO ()
 startApp wsconn = do
@@ -102,30 +109,27 @@ type Host = T.Text
 type Port = Int
 
 authRequest
-    :: (MonadIO m)
-    => FilePath -> m (Either String (Request, Host, Port, Bool))
+    :: FilePath -- ^ Configuration Folder
+    -> ExceptT String IO (Request, Host, Port, Bool)
 authRequest configFolder = do
-    iniFile <- liftIO . readIniFile $ configFolder <> "/" <> progName <> ".ini"
-    case iniFile of
-        Left e -> liftIO . die $ "Invalid config file: " <> e
-        Right ini ->
-            return $
-            do host <- lookupValue "server" "host" ini
-               portT <- lookupValue "server" "port" ini
-               -- Assume tls by default
-               secure <- return . either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
-               port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
-               user <- lookupValue "auth" "username" ini
-               pass <- lookupValue "auth" "password" ini
-               return
-                   ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
-                     setRequestHost (encodeUtf8 host) &
-                     setRequestPort port &
-                     setRequestPath "auth" &
-                     setRequestMethod "POST" &
-                     setRequestSecure secure
-                   , host
-                   , port
-                   , secure)
+    ini <- ExceptT . readIniFile $ configFolder <> "/" <> progName <> ".ini"
+    ExceptT . return $
+        do host <- lookupValue "server" "host" ini
+           portT <- lookupValue "server" "port" ini
+           -- Assume tls by default
+           secure <- return . either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
+           port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
+           user <- lookupValue "auth" "username" ini
+           pass <- lookupValue "auth" "password" ini
+           return
+               ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
+                 setRequestHost (encodeUtf8 host) &
+                 setRequestPort port &
+                 setRequestPath "auth" &
+                 setRequestMethod "POST" &
+                 setRequestSecure secure
+               , host
+               , port
+               , secure)
   where
     isSecure x = T.toLower x == "on"

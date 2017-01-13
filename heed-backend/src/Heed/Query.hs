@@ -14,7 +14,8 @@ import Data.Profunctor.Product (p2)
 import Data.Profunctor.Product.Default (Default)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
-import Heed.Commands (FeFeedInfo'(..), FeItemInfo'(..), FeFeedInfo, FeItemInfo)
+import Heed.Commands
+       (FeFeedInfo, FeFeedInfo'(..), FeItemInfo, FeItemInfo'(..))
 import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import qualified Opaleye as O
