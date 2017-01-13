@@ -11,6 +11,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.ByteString.Lazy as BSL
+import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text as T
 import qualified Data.Text.IO as TIO
@@ -62,10 +63,16 @@ class Monad m =>
       MonadHttp m  where
     downloadUrl :: T.Text -> m BSL.ByteString
 
+instance MonadHttp IO where
+    downloadUrl url = do
+        manager <- newManager defaultManagerSettings
+        request <- parseRequest $ "GET " <> T.unpack url
+        responseBody <$> httpLbs request manager
+
 instance MonadHttp Backend where
     downloadUrl url = do
         manager <- asks httpManager
-        request <- catchHttp InvalidUrl . parseRequest $ "GET " ++ T.unpack url
+        request <- catchHttp InvalidUrl . parseRequest $ "GET " <> T.unpack url
         catchHttp DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
 
 class Monad m =>
@@ -93,7 +100,7 @@ catchHttp
 catchHttp = catchExcep (Proxy :: Proxy HttpException)
 
 class (Monad m) =>
-      MonadStdOut m where
+      MonadStdOut m  where
     stdOut :: T.Text -> m ()
 
 instance MonadStdOut Backend where
