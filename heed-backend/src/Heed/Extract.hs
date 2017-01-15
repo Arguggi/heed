@@ -12,10 +12,12 @@ module Heed.Extract
   , ttRssAttrNames
   , getFeedUrl
   , parseOpml
+  , extractInfoFromFeed
   ) where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent (ThreadId, forkIO, threadDelay)
+import Control.Lens
 import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
@@ -28,6 +30,8 @@ import Data.Ord (compare)
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Text.IO as TIO
+import qualified Data.Text.Lazy as TL
+import Data.Text.Lazy.Builder (toLazyText)
 import Data.Text.Lazy.Encoding (decodeUtf8With)
 import Data.Time
 import Data.Time.ISO8601
@@ -35,6 +39,7 @@ import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import Heed.Query
 import Heed.Types
+import qualified HTMLEntities.Decoder as EntDec
 import qualified Safe
 import qualified Text.Atom.Feed as Atom
 import Text.Feed.Import (parseFeedSource)
@@ -50,17 +55,17 @@ startUpdateThread baConf info =
        case res of
            Left e -> do
                getTime >>= print
-               TIO.putStrLn $ "Failed to update " <> feedInfoName info
+               TIO.putStrLn $ "Failed to update " <> _feedInfoName info
                print e
            Right _ -> return ()
-       liftIO . threadDelay $ feedInfoUpdateEvery info * 1000000 * 60
+       liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
 startUpdateThreadBe
     :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
     => FeedInfoHR -> m ()
 startUpdateThreadBe info = do
-    feed <- catchHttp DownloadFailed $ downloadUrl (feedInfoUrl info)
-    (_, feedItems) <- parseFeed feed (feedInfoUrl info) (feedInfoUpdateEvery info)
+    feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
+    (_, feedItems) <- parseFeed feed (_feedInfoUrl info) (_feedInfoUpdateEvery info)
     updateFeedItems info feedItems
 
 addFeed
@@ -87,7 +92,7 @@ addNewFeed
 addNewFeed feedInfo feedItems uid =
     execQuery $
     do insertedFeed <- insertFeed feedInfo
-       let newFeedId = feedInfoId . head $ insertedFeed
+       let newFeedId = _feedInfoId . head $ insertedFeed
        insertedItems <- insertItems feedItems newFeedId
        _ <- insertUnread insertedItems [uid]
        _ <- addSubscription uid newFeedId
@@ -99,10 +104,12 @@ updateFeedItems
 updateFeedItems feed feedItems = do
     now <- getTime
     execQuery $
-        do let newFeedItems = setFeedId feedId <$> feedItems
-               feedId = feedInfoId feed
-           recentItems <- getRecentItems feed (feedItemDate (minimumBy after feedItems))
-           let newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
+        do let feedId = feed ^. feedInfoId
+               newFeedItems :: [FeedItemHW]
+               newFeedItems = feedItems & traverse . feedItemFeedId .~ (Just <$> feedId)
+           recentItems <- getRecentItems feed (_feedItemDate (minimumBy after feedItems))
+           let newItems :: [FeedItemHW]
+               newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
            _ <-
                if not (null newItems)
                    then do
@@ -113,36 +120,25 @@ updateFeedItems feed feedItems = do
            _ <- setFeedLastUpdated feedId now
            return ()
   where
-    after x y = compare (feedItemDate x) (feedItemDate y)
+    after x y = compare (_feedItemDate x) (_feedItemDate y)
+    sameItem :: FeedInfoId Int -> FeedItemHW -> FeedItemHW -> Bool
     sameItem feedId fromHttp fromDb =
-        (getFeedInfoId . feedItemFeedId $ fromDb) == getFeedInfoId (Just <$> feedId) &&
-        (feedItemTitle fromDb == feedItemTitle fromHttp) &&
-        (feedItemUrl fromDb == feedItemUrl fromHttp)
+        (fromDb ^. feedItemFeedId) == (Just <$> feedId) &&
+        (_feedItemTitle fromDb == _feedItemTitle fromHttp) &&
+        (_feedItemUrl fromDb == _feedItemUrl fromHttp)
 
 applyJust :: FeedItemHR -> FeedItemHW
-applyJust hr =
-    hr
-    { feedItemId = Just <$> feedItemId hr
-    , feedItemFeedId = Just <$> feedItemFeedId hr
-    }
-
-setFeedId
-    :: Functor f1
-    => f1 a1 -> FeedItem a b c d e f -> FeedItem a (f1 (Maybe a1)) c d e f
-setFeedId fid hw =
-    hw
-    { feedItemFeedId = Just <$> fid
-    }
+applyJust hrs = hrs & feedItemId . getFeedItemId %~ Just & feedItemFeedId . getFeedInfoId %~ Just
 
 extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoHW, [FeedItemHW])
 extractInfoFromFeed now url (AtomFeed feed) = Just (feedInfo, feedItems)
   where
     feedInfo =
         defFeedInfo
-        { feedInfoName = T.strip . T.pack . Atom.txtToString . Atom.feedTitle $ feed
-        , feedInfoUrl = url
-        , feedInfoUpdateEvery = 60
-        , feedInfoLastUpdated = fromMaybe now (parseISO8601 . Atom.feedUpdated $ feed)
+        { _feedInfoName = T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed
+        , _feedInfoUrl = url
+        , _feedInfoUpdateEvery = 60
+        , _feedInfoLastUpdated = fromMaybe now (parseISO8601 . Atom.feedUpdated $ feed)
         }
     feedItems = atomEntryToItem now <$> Atom.feedEntries feed
 extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
@@ -150,10 +146,10 @@ extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
     channel = RSS.rssChannel feed
     feedInfo =
         defFeedInfo
-        { feedInfoName = T.strip . T.pack . RSS.rssTitle $ channel
-        , feedInfoUrl = url
-        , feedInfoUpdateEvery = 60
-        , feedInfoLastUpdated =
+        { _feedInfoName = T.strip . decodeHtmlEnt . T.pack . RSS.rssTitle $ channel
+        , _feedInfoUrl = url
+        , _feedInfoUpdateEvery = 60
+        , _feedInfoLastUpdated =
             fromMaybe now $
             join (parseRfc822 <$> (RSS.rssPubDate channel <|> RSS.rssLastUpdate channel))
         }
@@ -165,18 +161,18 @@ extractInfoFromFeed _ _ (XMLFeed _) = Nothing
 atomEntryToItem :: UTCTime -> Atom.Entry -> FeedItemHW
 atomEntryToItem now entry =
     defFeedItem
-    { feedItemTitle = T.pack . Atom.txtToString . Atom.entryTitle $ entry
-    , feedItemUrl = T.pack . Safe.headDef "" $ (Atom.linkHref <$> Atom.entryLinks entry)
-    , feedItemDate = fromMaybe now $ parseISO8601 (Atom.entryUpdated entry)
+    { _feedItemTitle = decodeHtmlEnt . T.pack . Atom.txtToString . Atom.entryTitle $ entry
+    , _feedItemUrl = T.pack . Safe.headDef "" $ (Atom.linkHref <$> Atom.entryLinks entry)
+    , _feedItemDate = fromMaybe now $ parseISO8601 (Atom.entryUpdated entry)
     }
 
 rssEntryToItem :: UTCTime -> RSS.RSSItem -> FeedItemHW
 rssEntryToItem now entry =
     defFeedItem
-    { feedItemTitle = T.pack . fromMaybe "No Title" . RSS.rssItemTitle $ entry
-    , feedItemUrl = T.pack . fromMaybe "No Url" . RSS.rssItemLink $ entry
-    , feedItemDate = fromMaybe now $ join (parseRfc822 <$> RSS.rssItemPubDate entry)
-    , feedItemComments = T.pack <$> RSS.rssItemComments entry
+    { _feedItemTitle = T.pack . fromMaybe "No Title" . RSS.rssItemTitle $ entry
+    , _feedItemUrl = T.pack . fromMaybe "No Url" . RSS.rssItemLink $ entry
+    , _feedItemDate = fromMaybe now $ join (parseRfc822 <$> RSS.rssItemPubDate entry)
+    , _feedItemComments = T.pack <$> RSS.rssItemComments entry
     }
 
 parseRfc822 :: String -> Maybe UTCTime
@@ -225,26 +221,17 @@ getFeedUrl = TS.fromAttrib "xmlUrl"
 updateDateInfo :: UTCTime -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
 updateDateInfo now (info, items) = (newInfo, items)
   where
-    newInfo =
-        info
-        { feedHasItemDate = anyItemHasDateNow now items
-        -- On next update download this number of items if dates are 'Missing'
-        , feedNumberItems = length items
-        }
+    newInfo = info & feedHasItemDate .~ anyItemHasDateNow now items & feedNumberItems .~ length items
+    -- On next update download this number of items if dates are 'Missing'
     -- If any of the items don't have a publication date we have to download
     -- a fixed number of the last feeds so we can check which one is new on updates
     anyItemHasDateNow time xs =
-        if any (\x -> time == feedItemDate x) xs
+        if any (\x -> time == _feedItemDate x) xs
             then Missing
             else Present
 
-updateUpdateEvery :: Int -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
-updateUpdateEvery every (info, items) = (newInfo, items)
-  where
-    newInfo =
-        info
-        { feedInfoUpdateEvery = every
-        }
+decodeHtmlEnt :: T.Text -> T.Text
+decodeHtmlEnt = TL.toStrict . toLazyText . EntDec.htmlEncodedText
 
 class Monad m =>
       MonadParse m  where
@@ -255,9 +242,7 @@ instance MonadParse Backend where
         validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
         now <- liftIO getCurrentTime
         validInfo <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
-        let withValidDates = updateDateInfo now validInfo
-            withValidUpdateEvery = updateUpdateEvery every withValidDates
-        return withValidUpdateEvery
+        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every
 
 class Monad m =>
       MonadOpml m  where

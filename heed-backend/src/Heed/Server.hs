@@ -69,7 +69,7 @@ lookupTok conf authToken = do
     tokenInfo <- runTransaction dbConn $ verifyToken (decodeUtf8 authToken)
     case tokenInfo of
         Nothing -> throwError err401
-        Just user -> return $ UserName (userName user) (getUserId . userId $ user)
+        Just user -> return $ UserName (_userName user) (_getUserId . _userId $ user)
 
 -- | The auth handler wraps a function from Request -> Handler Tok
 -- we look for a Cookie and pass the value of the cookie to `lookupTok`.
@@ -105,12 +105,12 @@ checkCreds conf (AuthData un pw) = do
     case userDbM of
         Just userDb -> do
             liftIO $ putStrLn "got pw hash"
-            let validPass = validatePassword (encodeUtf8 pw) (encodeUtf8 . userPassword $ userDb)
+            let validPass = validatePassword (encodeUtf8 pw) (encodeUtf8 . _userPassword $ userDb)
             if validPass
                 then do
                     liftIO $ putStrLn "Verified"
                     newToken <- generateToken
-                    _ <- runQueryNoT dbConn $ saveTokenDb newToken (userId userDb)
+                    _ <- runQueryNoT dbConn $ saveTokenDb newToken (_userId userDb)
                     return $ Token newToken
                 else (do liftIO $ putStrLn "Invalid password"
                          throwError err401)

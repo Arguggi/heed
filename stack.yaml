@@ -18,3 +18,4 @@ extra-deps:
 - scientific-0.3.4.10
 - integer-logarithms-1
 - uri-0.1.6.4
+- html-entities-1.1.2
