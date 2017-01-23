@@ -6,6 +6,7 @@ module Heed.Vty where
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
 import Control.Concurrent (forkIO)
+import Control.Exception (finally)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except
@@ -55,10 +56,9 @@ main = do
                        then secureWebsocket host port token
                        else insecureWebsocket host port token
            liftIO $ websocketClient startApp
-           liftIO $ putStrLn "Closing"
     case final of
         Left e -> putStrLn e
-        Right _ -> putStrLn "finish"
+        _ -> return ()
     return ()
 
 insecureWebsocket
@@ -88,21 +88,22 @@ secureWebsocket host port (Token t) =
         [("auth-token", encodeUtf8 t)]
 
 startApp :: WS.Connection -> IO ()
-startApp wsconn = do
-    eventChan <- BChan.newBChan 200
-    _ <-
-        forkIO . forever $
-        do wsdata <- WS.receiveData wsconn :: IO BS.ByteString
-           case decode wsdata of
-               Left _ -> return ()
-               Right mess -> BChan.writeBChan eventChan (WsReceive mess)
-    _ <-
-        M.customMain
-            (V.mkVty Data.Default.def)
-            (Just eventChan)
-            app
-            (defState "" wsconn "Connecting")
-    return ()
+startApp wsconn =
+    flip finally (WS.sendClose wsconn BS.empty) $
+    do eventChan <- BChan.newBChan 200
+       _ <-
+           forkIO . forever $
+           do wsdata <- WS.receiveData wsconn :: IO BS.ByteString
+              case decode wsdata of
+                  Left _ -> return ()
+                  Right mess -> BChan.writeBChan eventChan (WsReceive mess)
+       _ <-
+           M.customMain
+               (V.mkVty Data.Default.def)
+               (Just eventChan)
+               app
+               (defState "" wsconn "Connecting")
+       return ()
 
 type Host = T.Text
 
