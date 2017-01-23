@@ -187,7 +187,10 @@ handleMess s (Feeds fi) = do
     let s' = s & feeds .~ BL.list FeedList (Vec.fromList fi) 1
     getSelFeedItems s'
     M.continue s'
-handleMess s (FeedItems fi) = M.continue $ s & items .~ BL.list ItemList (Vec.fromList fi) 1
+handleMess s (FeedItems fi) =
+    M.continue $ s & items .~ BL.list ItemList (Vec.fromList fi) 1 & feeds .~ newCount
+  where
+    newCount = BL.listModify (feedListUnread .~ (fromIntegral . length) fi) (s ^. feeds)
 handleMess s (Status name) = M.continue $ s & userName .~ name
 handleMess s (FeedAdded url) = M.continue $ s & status .~ (url <> " added")
 handleMess s (BackendError text) = M.continue $ s & status .~ ("Error: " <> text)
