@@ -24,6 +24,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BSL
+import Data.Int (Int64)
 import Data.List (deleteFirstsBy, minimumBy)
 import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Monoid ((<>))
@@ -66,7 +67,7 @@ startUpdateThread baConf info =
 
 startUpdateThreadBe
     :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
-    => FeedInfoHR -> m Int
+    => FeedInfoHR -> m Int64
 startUpdateThreadBe info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
     (_, feedItems) <- parseFeed feed (_feedInfoUrl info) (_feedInfoUpdateEvery info)
@@ -77,7 +78,7 @@ addFeed
     => Url -- ^ Feed URL
     -> Int -- ^ Update Every
     -> UserId Int
-    -> m (FeedInfoHR, Int)
+    -> m (FeedInfoHR, Int64)
 addFeed url every uid = do
     stdOut $ "Adding: " <> url
     feed <- downloadUrl url
@@ -86,9 +87,7 @@ addFeed url every uid = do
     case listToMaybe oldFeeds
          -- We don't have this feed in the common database, insert it
           of
-        Nothing -> do
-            newFeed <- addNewFeed feedInfo feedItems uid
-            return (newFeed, length feedItems)
+        Nothing -> addNewFeed feedInfo feedItems uid
         -- This feed is already present in the database, add the user to the subscription
         Just oldFeed -> do
             newItems <- updateFeedItems oldFeed feedItems
@@ -96,19 +95,19 @@ addFeed url every uid = do
 
 addNewFeed
     :: MonadDb m
-    => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m FeedInfoHR
+    => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m (FeedInfoHR, Int64)
 addNewFeed feedInfo feedItems uid =
     execQuery $
     do insertedFeed <- insertFeed feedInfo
        let newFeedId = _feedInfoId . head $ insertedFeed
        insertedItems <- insertItems feedItems newFeedId
-       _ <- insertUnread insertedItems [uid]
+       num <- insertUnread insertedItems [uid]
        _ <- addSubscription uid newFeedId
-       return (head insertedFeed)
+       return (head insertedFeed, num)
 
 updateFeedItems
     :: (MonadDb m, MonadTime m)
-    => FeedInfoHR -> [FeedItemHW] -> m Int
+    => FeedInfoHR -> [FeedItemHW] -> m Int64
 updateFeedItems feed feedItems = do
     now <- getTime
     execQuery $
@@ -118,7 +117,7 @@ updateFeedItems feed feedItems = do
            recentItems <- getRecentItems feed (_feedItemDate (minimumBy after feedItems))
            let newItems :: [FeedItemHW]
                newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
-           _ <-
+           inserted <-
                if not (null newItems)
                    then do
                        insertedItems <- insertItems newItems feedId
@@ -126,7 +125,7 @@ updateFeedItems feed feedItems = do
                        insertUnread insertedItems feedSubs
                    else return 0
            _ <- setFeedLastUpdated feedId now
-           return $ length newItems
+           return inserted
   where
     after x y = compare (_feedItemDate x) (_feedItemDate y)
     sameItem :: FeedInfoId Int -> FeedItemHW -> FeedItemHW -> Bool

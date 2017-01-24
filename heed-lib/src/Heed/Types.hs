@@ -14,6 +14,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.ByteString.Lazy as BSL
+import Data.Int (Int64)
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text as T
@@ -45,7 +46,7 @@ showUserHeedError (HSqlException _) = "Database error"
 
 instance Exception HeedError
 
-type Count = Int
+type Count = Int64
 
 data BackendConf = BackendConf
     { _dbConnection :: PG.Connection

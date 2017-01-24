@@ -168,7 +168,7 @@ sendDown
     => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendBinaryData conn $ encode info
 
-sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int)
+sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int64)
             -> WS.Connection
             -> [FeFeedInfo]
             -> IO ()
@@ -178,7 +178,7 @@ sendUpdates bchan wsconn userfeeds =
        when ((feed ^. feedInfoId . getFeedInfoId) `elem` (userfeeds ^.. traverse . feedListId)) $
            sendDown wsconn .
            NewItems $
-           toFrontEndFeedInfo feed (fromIntegral numItems)
+           toFrontEndFeedInfo feed numItems
 
 toFrontEndFeedInfo :: FeedInfoHR -> Int64 -> FeFeedInfo
 toFrontEndFeedInfo beInfo =
