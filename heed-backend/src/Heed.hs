@@ -16,6 +16,8 @@ import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import System.Environment (setEnv)
 import System.Exit (die)
+import qualified System.Log.FastLogger as Log
+import qualified System.Log.FastLogger.Date as LogDate
 import Text.Read (readEither)
 
 -- | List of Environment variables to setup for PostgreSQL
@@ -25,14 +27,17 @@ pgEnvVar = ["PGUSER", "PGDATABASE"]
 -- | Connect to PostgreSQL and start rest backend
 main :: IO ()
 main = do
-    putStrLn "Starting heed-backend"
-    port <- setupEnvGetPort
-    baConf <- setupBackendConf
-    feedsE <- runBe baConf $ execQuery allFeeds
-    case feedsE of
-        Left _ -> die "Can't get feed list from db"
-        Right feeds -> forM_ feeds (startUpdateThread baConf)
-    genAuthMain baConf port
+    timeCache <- LogDate.newTimeCache LogDate.simpleTimeFormat
+    Log.withTimedFastLogger timeCache (Log.LogStdout Log.defaultBufSize) $
+        \logger -> do
+            putStrLn "Starting heed-backend"
+            port <- setupEnvGetPort
+            baConf <- setupBackendConf logger
+            feedsE <- runBe baConf $ execQuery allFeeds
+            case feedsE of
+                Left _ -> die "Can't get feed list from db"
+                Right feeds -> forM_ feeds (startUpdateThread baConf)
+            genAuthMain baConf port
 
 -- | Read ini file and setup 'pgEnvVar' variables
 setupEnvGetPort :: IO Port
@@ -54,6 +59,7 @@ getPort ini =
        readEither . T.unpack $ port
 
 -- | Create 'BackendConf' for the server
-setupBackendConf :: IO BackendConf
-setupBackendConf =
-    BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings <*> BChan.newBroadcastChan
+setupBackendConf :: Log.TimedFastLogger -> IO BackendConf
+setupBackendConf logger =
+    BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings <*> BChan.newBroadcastChan <*>
+    pure logger

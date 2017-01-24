@@ -18,12 +18,12 @@ import Data.Int (Int64)
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text as T
-import qualified Data.Text.IO as TIO
 import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
 import Heed.Database (FeedInfoHR)
 import Network.HTTP.Client hiding (Proxy)
 import qualified Opaleye.Trans as OT
+import qualified System.Log.FastLogger as Log
 
 data HeedError where
         InvalidFeedQuery :: HeedError
@@ -54,6 +54,7 @@ data BackendConf = BackendConf
     { _dbConnection :: PG.Connection
     , _httpManager :: Manager
     , _updateChan :: BChan.BroadcastChan BChan.In (FeedInfoHR, Count)
+    , _timedLogger :: Log.TimedFastLogger
     }
 
 makeLenses ''BackendConf
@@ -112,11 +113,13 @@ catchHttp
 catchHttp = catchExcep (Proxy :: Proxy HttpException)
 
 class (Monad m) =>
-      MonadStdOut m  where
-    stdOut :: T.Text -> m ()
+      MonadLog m  where
+    logMsg :: T.Text -> m ()
 
-instance MonadStdOut Backend where
-    stdOut = liftIO . TIO.putStrLn
+instance MonadLog Backend where
+    logMsg msg = do
+        l <- asks _timedLogger
+        liftIO . l $ \time -> Log.toLogStr time <> Log.toLogStr msg
 
 class (Monad m) =>
       MonadTime m  where

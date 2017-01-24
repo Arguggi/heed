@@ -67,7 +67,13 @@ startUpdateThread baConf info =
        liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
 forceUpdate
-    :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
+    :: (MonadCatch m
+       ,MonadDb m
+       ,MonadLog m
+       ,MonadHttp m
+       ,MonadError HeedError m
+       ,MonadParse m
+       ,MonadTime m)
     => FeedInfoIdH -> m (FeedInfoHR, Int64)
 forceUpdate fid = do
     feedInfoList <- execQuery $ allFeedInfo fid
@@ -83,21 +89,29 @@ broadcastUpdate update@(_, new) bchan
     | otherwise = return ()
 
 updateFeed
-    :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
+    :: (MonadCatch m
+       ,MonadDb m
+       ,MonadLog m
+       ,MonadHttp m
+       ,MonadError HeedError m
+       ,MonadParse m
+       ,MonadTime m)
     => FeedInfoHR -> m Int64
 updateFeed info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
     (_, feedItems) <- parseFeed feed (_feedInfoUrl info) (_feedInfoUpdateEvery info)
-    updateFeedItems info feedItems
+    num <- updateFeedItems info feedItems
+    logMsg $ info ^. feedInfoName <> ": " <> (T.pack . show $ num) <> " new items"
+    return num
 
 addFeed
-    :: (MonadStdOut m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)
+    :: (MonadLog m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)
     => Url -- ^ Feed URL
     -> Int -- ^ Update Every
     -> UserId Int
     -> m (FeedInfoHR, Int64)
 addFeed url every uid = do
-    stdOut $ "Adding: " <> url
+    logMsg $ "Adding: " <> url
     feed <- downloadUrl url
     (feedInfo, feedItems) <- parseFeed feed url every
     oldFeeds <- execQuery $ runFeedInfoQuery (thisFeed feedInfo)
@@ -203,7 +217,7 @@ parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
 
 importOPML
-    :: (MonadOpml m, MonadStdOut m, MonadReader BackendConf m, MonadIO m)
+    :: (MonadOpml m, MonadLog m, MonadReader BackendConf m, MonadIO m)
     => T.Text -> UserId Int -> m ()
 importOPML opml userid = do
     feeds <- parseOpml opml parseTTRssOPML
@@ -213,9 +227,9 @@ importOPML opml userid = do
             result <- runBe conf $ addFeed url defUpdateEvery userid
             case result of
                 Left e -> do
-                    stdOut $ "Failed to add: " <> url
-                    stdOut . T.pack . show $ e
-                Right _ -> stdOut $ "Added: " <> url
+                    logMsg $ "Failed to add: " <> url
+                    logMsg . T.pack . show $ e
+                Right _ -> logMsg $ "Added: " <> url
             return ()
     return ()
 
