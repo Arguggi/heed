@@ -13,13 +13,15 @@ module Heed.Extract
   , getFeedUrl
   , parseOpml
   , extractInfoFromFeed
+  , forceUpdate
+  , broadcastUpdate
   ) where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent (ThreadId, forkIO, threadDelay)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens
-import Control.Monad (join, when)
+import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -53,7 +55,7 @@ import qualified Text.RSS.Syntax as RSS
 startUpdateThread :: BackendConf -> FeedInfoHR -> IO ThreadId
 startUpdateThread baConf info =
     forkIO . forever $
-    do res <- runBe baConf $ startUpdateThreadBe info
+    do res <- runBe baConf $ updateFeed info
        case res of
            Left e -> do
                getTime >>= print
@@ -61,14 +63,29 @@ startUpdateThread baConf info =
                print e
            -- When feeds have new items send the update to the broadcast chan so
            -- then everyone that is listening will receive the update
-           Right newItems ->
-               when (newItems > 0) (BChan.writeBChan (baConf ^. updateChan) (info, newItems))
+           Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
        liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
-startUpdateThreadBe
+forceUpdate
+    :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
+    => FeedInfoIdH -> m (FeedInfoHR, Int64)
+forceUpdate fid = do
+    feedInfoList <- execQuery $ allFeedInfo fid
+    -- The list should always have a valid FeedInfo from the DB, but someone may send
+    -- an invalid id
+    feedInfo <- liftJust InvalidFeedQuery $ Safe.headMay feedInfoList
+    new <- updateFeed feedInfo
+    return (feedInfo, new)
+
+broadcastUpdate :: (FeedInfoHR, Int64) -> BChan.BroadcastChan BChan.In (FeedInfoHR, Int64) -> IO ()
+broadcastUpdate update@(_, new) bchan
+    | new > 0 = BChan.writeBChan bchan update
+    | otherwise = return ()
+
+updateFeed
     :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
     => FeedInfoHR -> m Int64
-startUpdateThreadBe info = do
+updateFeed info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
     (_, feedItems) <- parseFeed feed (_feedInfoUrl info) (_feedInfoUpdateEvery info)
     updateFeedItems info feedItems

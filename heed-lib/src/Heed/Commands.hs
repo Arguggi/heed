@@ -92,6 +92,7 @@ data Up
       --   happen since client and server share the exact same code)
     | NewFeed T.Text
               Int -- ^ Sent when adding a new feed (url + update every x minutes)
+    | ForceRefresh Int -- ^ Force the server to download an rss feed
     deriving (Generic, Show)
 
 instance Store Up

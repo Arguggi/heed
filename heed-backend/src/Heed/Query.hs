@@ -233,3 +233,11 @@ allItemsRead fid uid = do
             unreadUid O..=== O.constant uid O..&&
             O.in_ (fmap (O.constant . _getFeedItemId) itemsIds) (_getFeedItemId unreadIid)
     OT.delete unreadItemTable feedUnreadFilter
+
+allFeedInfo :: FeedInfoIdH -> OT.Transaction [FeedInfoHR]
+allFeedInfo fid =
+    OT.query $
+    proc () ->
+  do feed <- O.queryTable feedInfoTable -< ()
+     O.restrict -< (feed ^. feedInfoId) O..=== O.constant fid
+     returnA -< feed

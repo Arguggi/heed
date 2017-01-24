@@ -114,6 +114,16 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
     getSelFeedItems s''
     M.continue s''
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'n') [])) = M.suspendAndResume $ addVty s
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
+    let selectedFeedId = s ^. feeds . to BL.listSelectedElement ^? _Just . _2 . feedListId
+        conn = s ^. wsConn
+    s' <-
+        case selectedFeedId of
+            Nothing -> return s
+            Just fid -> do
+                void . liftIO . forkIO $ WS.sendBinaryData conn (encode (ForceRefresh fid))
+                return $ s & status .~ "Refreshing selected feed"
+    M.continue s'
 appEvent s (BT.AppEvent (WsReceive e)) = handleMess s e
 appEvent s _ = M.continue s
 

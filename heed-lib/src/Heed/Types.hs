@@ -26,6 +26,7 @@ import Network.HTTP.Client hiding (Proxy)
 import qualified Opaleye.Trans as OT
 
 data HeedError where
+        InvalidFeedQuery :: HeedError
         InvalidXML :: HeedError
         InvalidFeedData :: HeedError
         InvalidOPMLData :: HeedError
@@ -36,6 +37,7 @@ data HeedError where
     deriving (Show)
 
 showUserHeedError :: HeedError -> T.Text
+showUserHeedError InvalidFeedQuery = "Invalid feed information sent"
 showUserHeedError InvalidXML = "Invalid feed format"
 showUserHeedError InvalidFeedData = "Invalid feed data"
 showUserHeedError InvalidOPMLData = "Invalid opml data"

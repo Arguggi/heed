@@ -27,7 +27,8 @@ import qualified Data.Text.IO as TIO
 import Heed.Commands
 import Heed.Crypto
 import Heed.Database
-import Heed.Extract (addFeed, startUpdateThread)
+import Heed.Extract
+       (addFeed, broadcastUpdate, forceUpdate, startUpdateThread)
 import Heed.Query
 import Heed.Types
 import Heed.Utils (Port)
@@ -161,7 +162,12 @@ wsApp conf uname pending_conn = do
                        Right (feed, _) -> do
                            _ <- startUpdateThread conf feed
                            sendDown conn (FeedAdded url)
-               _ -> putStrLn "TODO"
+               ForceRefresh fid -> do
+                   updateE <- runBe conf $ forceUpdate (FeedInfoId fid)
+                   case updateE of
+                       Left e -> sendDown conn (BackendError (showUserHeedError e))
+                       Right update -> broadcastUpdate update (conf ^. updateChan)
+               InvalidReceived -> putStrLn "Invalid command received"
 
 sendDown
     :: (Store a)
@@ -175,10 +181,13 @@ sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int64)
 sendUpdates bchan wsconn userfeeds =
     void . forkIO . forever $
     do (feed, numItems) <- BChan.readBChan bchan
-       when ((feed ^. feedInfoId . getFeedInfoId) `elem` (userfeeds ^.. traverse . feedListId)) $
-           sendDown wsconn .
-           NewItems $
-           toFrontEndFeedInfo feed numItems
+       when ((feed ^. feedInfoId . getFeedInfoId) `elem` subIds) $
+           sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
+  where
+    subIds = userfeeds ^.. traverse . feedListId
+
+sendNewItems :: WS.Connection -> FeFeedInfo -> IO ()
+sendNewItems wsconn finfo = sendDown wsconn (NewItems finfo)
 
 toFrontEndFeedInfo :: FeedInfoHR -> Int64 -> FeFeedInfo
 toFrontEndFeedInfo beInfo =
