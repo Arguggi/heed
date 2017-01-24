@@ -10,7 +10,7 @@
 
 module Heed.Server where
 
-import Control.Monad (forever)
+import Control.Monad (forever, void)
 import Control.Monad.IO.Class
 import Crypto.KDF.BCrypt
 import Data.ByteString (ByteString)
@@ -23,7 +23,7 @@ import qualified Data.Text.IO as TIO
 import Heed.Commands
 import Heed.Crypto
 import Heed.Database
-import Heed.Extract (addFeed)
+import Heed.Extract (addFeed, startUpdateThread)
 import Heed.Query
 import Heed.Types
 import Heed.Utils (Port)
@@ -145,17 +145,15 @@ wsApp conf uname pending_conn = do
                GetFeedItems feedId -> do
                    items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
                    sendDown conn (FeedItems items)
-               ItemRead itemId -> do
-                   deleted <- runQueryNoT dbConn $ readFeed uid (FeedItemId itemId)
-                   putStrLn $ "Deleted " <> show deleted <> " unread items"
-               FeedRead feedId -> do
-                   deleted <- runQueryNoT dbConn $ allItemsRead (FeedInfoId feedId) uid
-                   putStrLn $ "Deleted " <> show deleted <> " unread items"
+               ItemRead itemId -> void . runQueryNoT dbConn $ readFeed uid (FeedItemId itemId)
+               FeedRead feedId -> void . runQueryNoT dbConn $ allItemsRead (FeedInfoId feedId) uid
                NewFeed url updateEvery -> do
                    newFeed <- runBe conf $ addFeed url updateEvery uid
                    case newFeed of
                        Left e -> sendDown conn (BackendError (showUserHeedError e))
-                       Right _ -> sendDown conn (FeedAdded url)
+                       Right f -> do
+                           _ <- startUpdateThread conf f
+                           sendDown conn (FeedAdded url)
                _ -> putStrLn "TODO"
 
 sendDown

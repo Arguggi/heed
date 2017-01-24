@@ -73,7 +73,7 @@ addFeed
     => Url -- ^ Feed URL
     -> Int -- ^ Update Every
     -> UserId Int
-    -> m ()
+    -> m FeedInfoHR
 addFeed url every uid = do
     stdOut $ "Adding: " <> url
     feed <- downloadUrl url
@@ -84,11 +84,13 @@ addFeed url every uid = do
           of
         Nothing -> addNewFeed feedInfo feedItems uid
         -- This feed is already present in the database, add the user to the subscription
-        Just oldFeed -> updateFeedItems oldFeed feedItems
+        Just oldFeed -> do
+            updateFeedItems oldFeed feedItems
+            return oldFeed
 
 addNewFeed
     :: MonadDb m
-    => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m ()
+    => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m FeedInfoHR
 addNewFeed feedInfo feedItems uid =
     execQuery $
     do insertedFeed <- insertFeed feedInfo
@@ -96,7 +98,7 @@ addNewFeed feedInfo feedItems uid =
        insertedItems <- insertItems feedItems newFeedId
        _ <- insertUnread insertedItems [uid]
        _ <- addSubscription uid newFeedId
-       return ()
+       return (head insertedFeed)
 
 updateFeedItems
     :: (MonadDb m, MonadTime m)
