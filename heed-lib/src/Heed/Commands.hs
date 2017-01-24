@@ -78,20 +78,6 @@ instance Eq FeItemInfo where
 
 instance Store FeItemInfo
 
--- | Decide if something is selected
-class IsSelected a  where
-    isSelected :: a -> Maybe a -> Bool
-
--- | Decide if 'FeFeedInfo' is selected
-instance IsSelected FeFeedInfo where
-    isSelected _ Nothing = False
-    isSelected selId (Just feedInfo) = _feedListId selId == _feedListId feedInfo
-
--- | Decide if 'FeItemInfo' is selected
-instance IsSelected FeItemInfo where
-    isSelected _ Nothing = False
-    isSelected selId (Just itemInfo) = _itemInfoId selId == _itemInfoId itemInfo
-
 -- | Commands sent from client to server via websocket
 --
 --   The client never has to send his id since the websocket server
