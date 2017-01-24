@@ -10,10 +10,14 @@
 
 module Heed.Server where
 
-import Control.Monad (forever, void)
+import Control.Concurrent (forkIO)
+import qualified Control.Concurrent.BroadcastChan as BChan
+import Control.Lens hiding (Context)
+import Control.Monad (forever, void, when)
 import Control.Monad.IO.Class
 import Crypto.KDF.BCrypt
 import Data.ByteString (ByteString)
+import Data.Int (Int64)
 import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.Store (Store, decode, encode)
@@ -65,7 +69,7 @@ genAuthAPI = Proxy
 -- This is our bespoke (and bad) authentication logic.
 lookupTok :: BackendConf -> ByteString -> Handler UserName
 lookupTok conf authToken = do
-    let dbConn = dbConnection conf
+    let dbConn = conf ^. dbConnection
     tokenInfo <- runTransaction dbConn $ verifyToken (decodeUtf8 authToken)
     case tokenInfo of
         Nothing -> throwError err401
@@ -98,10 +102,10 @@ genAuthServer :: BackendConf -> Server AuthGenAPI
 genAuthServer conf = checkCreds conf :<|> app conf
 
 checkCreds :: BackendConf -> AuthData -> Handler Token
-checkCreds conf (AuthData un pw) = do
+checkCreds conf (AuthData usern pw) = do
     liftIO $ putStrLn "Checking auth"
-    let dbConn = dbConnection conf
-    userDbM <- runQueryNoT dbConn $ getUserDb un
+    let dbConn = conf ^. dbConnection
+    userDbM <- runQueryNoT dbConn $ getUserDb usern
     case userDbM of
         Just userDb -> do
             liftIO $ putStrLn "got pw hash"
@@ -126,13 +130,16 @@ wsApp conf uname pending_conn = do
     TIO.putStrLn $ unUserName uname <> " opened a websocket connection"
     -- User heed protocol
     let ar = WS.AcceptRequest (Just "heed") []
-        dbConn = dbConnection conf
+        dbConn = conf ^. dbConnection
         uid = UserId $ unUserId uname
     conn <- WS.acceptRequestWith pending_conn ar
     WS.forkPingThread conn 10
     -- As soon as someone connects get the relevant feeds from the db
     -- since we will have to send them once the client tells us it's ready
     feeds <- runQueryNoT dbConn $ getUserFeedInfo uid
+    -- Create a new Broadcast channel where updates are pushed from the update threads
+    updateListener <- BChan.newBChanListener (conf ^. updateChan)
+    sendUpdates updateListener conn feeds
     forever $
         do commandM <- decode <$> WS.receiveData conn
            let command = either (const InvalidReceived) id commandM
@@ -151,8 +158,8 @@ wsApp conf uname pending_conn = do
                    newFeed <- runBe conf $ addFeed url updateEvery uid
                    case newFeed of
                        Left e -> sendDown conn (BackendError (showUserHeedError e))
-                       Right f -> do
-                           _ <- startUpdateThread conf f
+                       Right (feed, _) -> do
+                           _ <- startUpdateThread conf feed
                            sendDown conn (FeedAdded url)
                _ -> putStrLn "TODO"
 
@@ -160,6 +167,22 @@ sendDown
     :: (Store a)
     => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendBinaryData conn $ encode info
+
+sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int)
+            -> WS.Connection
+            -> [FeFeedInfo]
+            -> IO ()
+sendUpdates bchan wsconn userfeeds =
+    void . forkIO . forever $
+    do (feed, numItems) <- BChan.readBChan bchan
+       when ((feed ^. feedInfoId . getFeedInfoId) `elem` (userfeeds ^.. traverse . feedListId)) $
+           sendDown wsconn .
+           NewItems $
+           toFrontEndFeedInfo feed (fromIntegral numItems)
+
+toFrontEndFeedInfo :: FeedInfoHR -> Int64 -> FeFeedInfo
+toFrontEndFeedInfo beInfo =
+    FeFeedInfo' (beInfo ^. feedInfoId . getFeedInfoId) (beInfo ^. feedInfoName)
 
 backupApp :: Application
 backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"

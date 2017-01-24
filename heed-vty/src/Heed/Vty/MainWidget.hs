@@ -15,7 +15,7 @@ import Brick.Widgets.Core
 import qualified Brick.Widgets.List as BL
 import Control.Concurrent (forkIO)
 import Control.Lens
-import Control.Monad (forM_, void)
+import Control.Monad (forM_, void, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Function ((&))
 import Data.Maybe (fromMaybe)
@@ -192,8 +192,23 @@ handleMess s (FeedItems fi) =
   where
     newCount = BL.listModify (feedListUnread .~ (fromIntegral . length) fi) (s ^. feeds)
 handleMess s (Status name) = M.continue $ s & userName .~ name
-handleMess s (FeedAdded url) = M.continue $ s & status .~ (url <> " added")
+handleMess s (FeedAdded url) = M.continue $ s & status .~ ("Added " <> url)
 handleMess s (BackendError text) = M.continue $ s & status .~ ("Error: " <> text)
+handleMess s (NewItems feed) = do
+    when (needUpdate && sameAsSelected) (getSelFeedItems s)
+    M.continue newState
+  where
+    (newState, needUpdate) =
+        case Vec.elemIndex feed (s ^. feeds . BL.listElementsL)
+             -- Insert as first element for now, we should put this in
+             -- the correct alphabetical position
+              of
+            Nothing -> (s & feeds %~ BL.listInsert 0 feed, False)
+            -- Update the new
+            -- the correct alphabetical position
+            Just i ->
+                (s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread), True)
+    sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
 handleMess s InvalidSent = M.continue s
 
 getSelFeedItems

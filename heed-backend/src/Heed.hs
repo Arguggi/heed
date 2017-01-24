@@ -2,6 +2,7 @@
 
 module Heed where
 
+import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Monad (forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
@@ -54,4 +55,5 @@ getPort ini =
 
 -- | Create 'BackendConf' for the server
 setupBackendConf :: IO BackendConf
-setupBackendConf = BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings
+setupBackendConf =
+    BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings <*> BChan.newBroadcastChan

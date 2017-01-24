@@ -17,8 +17,9 @@ module Heed.Extract
 
 import Control.Applicative ((<|>))
 import Control.Concurrent (ThreadId, forkIO, threadDelay)
+import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens
-import Control.Monad (join)
+import Control.Monad (join, when)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -57,12 +58,15 @@ startUpdateThread baConf info =
                getTime >>= print
                TIO.putStrLn $ "Failed to update " <> _feedInfoName info
                print e
-           Right _ -> return ()
+           -- When feeds have new items send the update to the broadcast chan so
+           -- then everyone that is listening will receive the update
+           Right newItems ->
+               when (newItems > 0) (BChan.writeBChan (baConf ^. updateChan) (info, newItems))
        liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
 startUpdateThreadBe
     :: (MonadCatch m, MonadDb m, MonadHttp m, MonadError HeedError m, MonadParse m, MonadTime m)
-    => FeedInfoHR -> m ()
+    => FeedInfoHR -> m Int
 startUpdateThreadBe info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
     (_, feedItems) <- parseFeed feed (_feedInfoUrl info) (_feedInfoUpdateEvery info)
@@ -73,7 +77,7 @@ addFeed
     => Url -- ^ Feed URL
     -> Int -- ^ Update Every
     -> UserId Int
-    -> m FeedInfoHR
+    -> m (FeedInfoHR, Int)
 addFeed url every uid = do
     stdOut $ "Adding: " <> url
     feed <- downloadUrl url
@@ -82,11 +86,13 @@ addFeed url every uid = do
     case listToMaybe oldFeeds
          -- We don't have this feed in the common database, insert it
           of
-        Nothing -> addNewFeed feedInfo feedItems uid
+        Nothing -> do
+            newFeed <- addNewFeed feedInfo feedItems uid
+            return (newFeed, length feedItems)
         -- This feed is already present in the database, add the user to the subscription
         Just oldFeed -> do
-            updateFeedItems oldFeed feedItems
-            return oldFeed
+            newItems <- updateFeedItems oldFeed feedItems
+            return (oldFeed, newItems)
 
 addNewFeed
     :: MonadDb m
@@ -102,7 +108,7 @@ addNewFeed feedInfo feedItems uid =
 
 updateFeedItems
     :: (MonadDb m, MonadTime m)
-    => FeedInfoHR -> [FeedItemHW] -> m ()
+    => FeedInfoHR -> [FeedItemHW] -> m Int
 updateFeedItems feed feedItems = do
     now <- getTime
     execQuery $
@@ -120,7 +126,7 @@ updateFeedItems feed feedItems = do
                        insertUnread insertedItems feedSubs
                    else return 0
            _ <- setFeedLastUpdated feedId now
-           return ()
+           return $ length newItems
   where
     after x y = compare (_feedItemDate x) (_feedItemDate y)
     sameItem :: FeedInfoId Int -> FeedItemHW -> FeedItemHW -> Bool

@@ -4,9 +4,12 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Heed.Types where
 
+import qualified Control.Concurrent.BroadcastChan as BChan
+import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
@@ -17,6 +20,7 @@ import Data.Text as T
 import qualified Data.Text.IO as TIO
 import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
+import Heed.Database (FeedInfoHR)
 import Network.HTTP.Client hiding (Proxy)
 import qualified Opaleye.Trans as OT
 
@@ -41,10 +45,15 @@ showUserHeedError (HSqlException _) = "Database error"
 
 instance Exception HeedError
 
+type Count = Int
+
 data BackendConf = BackendConf
-    { dbConnection :: PG.Connection
-    , httpManager :: Manager
+    { _dbConnection :: PG.Connection
+    , _httpManager :: Manager
+    , _updateChan :: BChan.BroadcastChan BChan.In (FeedInfoHR, Count)
     }
+
+makeLenses ''BackendConf
 
 data CredStatus
     = Verified
@@ -71,7 +80,7 @@ instance MonadHttp IO where
 
 instance MonadHttp Backend where
     downloadUrl url = do
-        manager <- asks httpManager
+        manager <- asks _httpManager
         request <- catchHttp InvalidUrl . parseRequest $ "GET " <> T.unpack url
         catchHttp DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
 
@@ -81,7 +90,7 @@ class Monad m =>
 
 instance MonadDb Backend where
     execQuery query = do
-        db <- asks dbConnection
+        db <- asks _dbConnection
         catchSql HSqlException $ runTransaction db query
 
 catchExcep

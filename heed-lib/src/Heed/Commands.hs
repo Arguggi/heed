@@ -103,9 +103,9 @@ data Up
     | ItemRead Int -- ^ Sent when an item is considered read
     | FeedRead Int -- ^ Sent when all items of a fead are read
     | InvalidReceived -- ^ The server can't parse the message (should never
+      --   happen since client and server share the exact same code)
     | NewFeed T.Text
               Int -- ^ Sent when adding a new feed (url + update every x minutes)
-      --   happen since client and server share the exact same code)
     deriving (Generic, Show)
 
 instance Store Up
@@ -118,6 +118,7 @@ data Down
     | InvalidSent -- ^ The client can't parse the message
     | FeedAdded T.Text -- ^ Confirm the feed was added
     | BackendError T.Text -- ^ Send a generic error string
+    | NewItems FeFeedInfo -- ^ Send Feed update
     deriving (Generic, Show)
 
 instance Store Down
