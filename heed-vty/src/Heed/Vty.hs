@@ -13,7 +13,6 @@ import Control.Monad.Trans.Except
        (ExceptT(..), runExceptT, withExceptT)
 import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.Default
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
 import Data.Monoid ((<>))
@@ -99,7 +98,7 @@ startApp wsconn =
                   Right mess -> BChan.writeBChan eventChan (WsReceive mess)
        _ <-
            M.customMain
-               (V.mkVty Data.Default.def)
+               (V.mkVty mempty)
                (Just eventChan)
                app
                (defState "" wsconn "Connecting")

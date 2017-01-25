@@ -26,7 +26,7 @@ library
                      , lens >=4.15.1
                      , mtl >=2.2.1
                      , opaleye >=0.5.2.2
-                     , opaleye-trans >=0.3.3
+                     , opaleye-trans >=0.3.4
                      , product-profunctors >=0.7.1.0
                      , profunctors >=5.2
                      , postgresql-simple >=0.5.2.1

@@ -43,7 +43,7 @@ library
                      , mtl >=2.2.1
                      , mwc-random >=0.13.5.0
                      , opaleye >=0.5.2.2
-                     , opaleye-trans >=0.3.3
+                     , opaleye-trans >=0.3.4
                      , postgresql-simple >=0.5.2.1
                      , primitive == 0.6.1.0
                      , product-profunctors >=0.7.1.0
