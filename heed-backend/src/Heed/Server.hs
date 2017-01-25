@@ -138,10 +138,11 @@ wsApp conf uname pending_conn = do
     WS.forkPingThread conn 10
     -- As soon as someone connects get the relevant feeds from the db
     -- since we will have to send them once the client tells us it's ready
-    feeds <- runQueryNoT dbConn $ getUserFeedInfo uid
+    unreadFeeds <- runQueryNoT dbConn $ getUserUnreadFeedInfo uid
+    allfeeds <- runQueryNoT dbConn $ getUserFeeds uid
     -- Create a new Broadcast channel where updates are pushed from the update threads
     updateListener <- BChan.newBChanListener (conf ^. updateChan)
-    sendUpdates updateListener conn feeds
+    sendUpdates updateListener conn allfeeds
     forever $
         do commandM <- decode <$> WS.receiveData conn
            let command = either (const InvalidReceived) id commandM
@@ -150,7 +151,7 @@ wsApp conf uname pending_conn = do
            case command of
                Initialized -> do
                    sendDown conn $ Status (unUserName uname)
-                   sendDown conn $ Feeds feeds
+                   sendDown conn $ Feeds unreadFeeds
                GetFeedItems feedId -> do
                    items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
                    sendDown conn (FeedItems items)
@@ -178,15 +179,15 @@ sendDown conn info = WS.sendBinaryData conn $ encode info
 
 sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int64)
             -> WS.Connection
-            -> [FeFeedInfo]
+            -> [FeedInfoHR]
             -> IO ()
 sendUpdates bchan wsconn userfeeds =
     void . forkIO . forever $
     do (feed, numItems) <- BChan.readBChan bchan
-       when ((feed ^. feedInfoId . getFeedInfoId) `elem` subIds) $
+       when ((feed ^. feedInfoId) `elem` subIds) $
            sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
   where
-    subIds = userfeeds ^.. traverse . feedListId
+    subIds = userfeeds ^.. traverse . feedInfoId
 
 sendNewItems :: WS.Connection -> FeFeedInfo -> IO ()
 sendNewItems wsconn finfo = sendDown wsconn (NewItems finfo)

@@ -131,8 +131,8 @@ tokenToUser token =
          (_authTokenToken tokens O..=== O.constant token)
      returnA -< users
 
-getUserFeeds :: UserId Int -> O.Query FeedInfoR
-getUserFeeds userid =
+getUserFeedsQ :: UserId Int -> O.Query FeedInfoR
+getUserFeedsQ userid =
     proc () ->
   do subs <- O.queryTable subscriptionTable -< ()
      feeds <- O.queryTable feedInfoTable -< ()
@@ -158,14 +158,17 @@ getAllUserFeedInfo :: UserId Int -> O.Query FeFeedInfoR
 getAllUserFeedInfo uid =
     O.orderBy (O.asc _feedListName) $
     proc () ->
-  do allfeeds <- getUserFeeds uid -< ()
+  do allfeeds <- getUserFeedsQ uid -< ()
      (fIId, unreadCount) <- getUserUnreadItems uid -< ()
      let fIName = _feedInfoName allfeeds
      O.restrict -< fIId O..=== (_getFeedInfoId . _feedInfoId $ allfeeds)
      returnA -< FeFeedInfo' fIId fIName unreadCount
 
-getUserFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
-getUserFeedInfo userid = OT.query $ getAllUserFeedInfo userid
+getUserUnreadFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
+getUserUnreadFeedInfo userid = OT.query $ getAllUserFeedInfo userid
+
+getUserFeeds :: UserId Int -> OT.Transaction [FeedInfoHR]
+getUserFeeds uid = OT.query $ getUserFeedsQ uid
 
 getFeedItemsIds :: FeedInfoId Int -> O.Query FeedItemIdColumnR
 getFeedItemsIds fid =

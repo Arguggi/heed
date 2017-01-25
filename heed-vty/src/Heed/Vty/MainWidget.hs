@@ -215,7 +215,6 @@ handleMess s (NewItems feed) = do
               of
             Nothing -> (s & feeds %~ BL.listInsert 0 feed, False)
             -- Update the new
-            -- the correct alphabetical position
             Just i ->
                 (s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread), True)
     sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
