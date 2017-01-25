@@ -53,27 +53,27 @@ import qualified Text.HTML.TagSoup as TS
 import qualified Text.HTML.TagSoup.Match as TS
 import qualified Text.RSS.Syntax as RSS
 
-startUpdateThread :: BackendConf -> FeedInfoHR -> IO ThreadId
-startUpdateThread baConf info = do
-    now <- getTime
-    let nextUpdateAt =
-            addUTCTime
-                (fromIntegral $ (info ^. feedInfoUpdateEvery) * 60)
-                (info ^. feedInfoLastUpdated)
-    when (nextUpdateAt > now) $
-        do logMsgIO (baConf ^. timedLogger) $ info ^. feedInfoName <> ": next update at " <>
-               (T.pack . show $ nextUpdateAt)
-           threadDelay $ ceiling (toRational (diffUTCTime nextUpdateAt now) * 1000000)
-    forkIO . forever $
-        do res <- runBe baConf $ updateFeed info
-           case res of
-               Left e -> do
-                   logMsgIO (baConf ^. timedLogger) $ "Failed to update " <> _feedInfoName info
-                   logMsgIO (baConf ^. timedLogger) . T.pack . show $ e
-               -- When feeds have new items send the update to the broadcast chan so
-               -- then everyone that is listening will receive the update
-               Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
-           liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
+startUpdateThread :: UTCTime -> BackendConf -> FeedInfoHR -> IO ThreadId
+startUpdateThread now baConf info =
+    forkIO $
+    do let nextUpdateAt =
+               addUTCTime
+                   (fromIntegral $ (info ^. feedInfoUpdateEvery) * 60)
+                   (info ^. feedInfoLastUpdated)
+       when (nextUpdateAt > now) $
+           do logMsgIO (baConf ^. timedLogger) $ info ^. feedInfoName <> ": next update at " <>
+                  (T.pack . show $ nextUpdateAt)
+              threadDelay $ ceiling (toRational (diffUTCTime nextUpdateAt now) * 1000000)
+       forever $
+           do res <- runBe baConf $ updateFeed info
+              case res of
+                  Left e -> do
+                      logMsgIO (baConf ^. timedLogger) $ "Failed to update " <> _feedInfoName info
+                      logMsgIO (baConf ^. timedLogger) . T.pack . show $ e
+                  -- When feeds have new items send the update to the broadcast chan so
+                  -- then everyone that is listening will receive the update
+                  Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
+              liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
 forceUpdate
     :: (MonadCatch m

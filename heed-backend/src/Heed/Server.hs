@@ -24,6 +24,7 @@ import Data.Store (Store, decode, encode)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as TIO
+import Data.Time.Clock (getCurrentTime)
 import Heed.Commands
 import Heed.Crypto
 import Heed.Database
@@ -160,7 +161,8 @@ wsApp conf uname pending_conn = do
                    case newFeed of
                        Left e -> sendDown conn (BackendError (showUserHeedError e))
                        Right (feed, _) -> do
-                           _ <- startUpdateThread conf feed
+                           now <- getCurrentTime
+                           _ <- startUpdateThread now conf feed
                            sendDown conn (FeedAdded url)
                ForceRefresh fid -> do
                    updateE <- runBe conf $ forceUpdate (FeedInfoId fid)

@@ -6,6 +6,7 @@ import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Monad (forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Text as T
+import Data.Time.Clock (getCurrentTime)
 import Database.PostgreSQL.Simple as PG
 import Heed.Extract (startUpdateThread)
 import Heed.Query (allFeeds)
@@ -34,9 +35,10 @@ main = do
             port <- setupEnvGetPort
             baConf <- setupBackendConf logger
             feedsE <- runBe baConf $ execQuery allFeeds
+            now <- getCurrentTime
             case feedsE of
                 Left _ -> die "Can't get feed list from db"
-                Right feeds -> forM_ feeds (startUpdateThread baConf)
+                Right feeds -> forM_ feeds (startUpdateThread now baConf)
             genAuthMain baConf port
 
 -- | Read ini file and setup 'pgEnvVar' variables
