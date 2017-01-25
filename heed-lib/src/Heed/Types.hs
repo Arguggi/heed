@@ -119,7 +119,11 @@ class (Monad m) =>
 instance MonadLog Backend where
     logMsg msg = do
         l <- asks _timedLogger
-        liftIO . l $ \time -> Log.toLogStr time <> Log.toLogStr msg
+        liftIO $ logMsgIO l msg
+
+logMsgIO :: Log.TimedFastLogger -> T.Text -> IO ()
+logMsgIO l msg =
+    l $ \time -> Log.toLogStr time <> " - " <> Log.toLogStr msg <> Log.toLogStr ("\n" :: T.Text)
 
 class (Monad m) =>
       MonadTime m  where
