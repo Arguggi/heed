@@ -86,16 +86,15 @@ secureWebsocket host port (Token t) =
         [("auth-token", encodeUtf8 t)]
 
 startApp :: WS.Connection -> IO ()
-startApp wsconn =
-    flip finally (WS.sendClose wsconn BS.empty) $ do
-        eventChan <- BChan.newBChan 200
-        fork_ . forever $ do
-            wsdata <- WS.receiveData wsconn :: IO BS.ByteString
-            case decode wsdata of
-                Left _ -> return ()
-                Right mess -> BChan.writeBChan eventChan (WsReceive mess)
-        _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
-        return ()
+startApp wsconn = do
+    eventChan <- BChan.newBChan 200
+    fork_ . forever $ do
+        wsdata <- WS.receiveData wsconn :: IO BS.ByteString
+        case decode wsdata of
+            Left _ -> return ()
+            Right mess -> BChan.writeBChan eventChan (WsReceive mess)
+    _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
+    return ()
 
 type Host = T.Text
 
