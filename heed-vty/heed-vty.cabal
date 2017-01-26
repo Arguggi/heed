@@ -40,6 +40,7 @@ library
                      , time >=1.6.0.1
                      , transformers >=0.5.2.0
                      , safe >=0.3.10
+                     , slave-thread >=1.0
                      , store >=0.3
                      , store-core >=0.3
                      , uri >=0.1.6.4

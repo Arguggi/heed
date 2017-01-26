@@ -13,15 +13,14 @@ import Brick.Util (fg, on)
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core (hLimit, txt, withAttr, (<+>), (<=>))
 import qualified Brick.Widgets.Edit as E
-import Control.Concurrent (forkIO)
 import Control.Lens
-import Control.Monad (void)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Data.Monoid ((<>))
 import Data.Store (encode)
 import Data.Text as T
 import qualified Graphics.Vty as V
 import Heed.Commands (Up(NewFeed))
+import Heed.Utils (fork_)
 import Heed.Vty.WidgetStates as S
 import qualified Network.WebSockets as WS
 import Safe (headDef)
@@ -82,8 +81,7 @@ appEvent st _ = M.continue st
 sendNewFeedData
     :: (MonadIO m)
     => WS.Connection -> T.Text -> Int -> m ()
-sendNewFeedData conn url every =
-    void . liftIO . forkIO $ WS.sendBinaryData conn (encode (NewFeed url every))
+sendNewFeedData conn url every = fork_ $ WS.sendBinaryData conn (encode (NewFeed url every))
 
 isValidUrl :: T.Text -> Maybe T.Text
 isValidUrl url =

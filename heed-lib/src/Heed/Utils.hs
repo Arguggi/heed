@@ -1,18 +1,27 @@
 module Heed.Utils
-    ( forkIO_
+    ( fork
+    , fork_
     , progName
     , Port
     , defPort
     ) where
 
-import Control.Concurrent (forkIO)
+import Control.Concurrent (ThreadId)
 import Control.Monad (void)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import qualified SlaveThread as ST
 
--- | 'forkIO' that ignores 'ThreadId'
-forkIO_
-    :: IO () -- ^ Action
-    -> IO ()
-forkIO_ = void . forkIO
+fork
+    :: (MonadIO m)
+    => IO a -> m ThreadId
+fork = liftIO . ST.fork
+
+-- | 'ST.fork' that ignores 'ThreadId'
+fork_
+    :: (MonadIO m)
+    => IO a -- ^ Action
+    -> m ()
+fork_ = void . fork
 
 progName :: String
 progName = "heed"

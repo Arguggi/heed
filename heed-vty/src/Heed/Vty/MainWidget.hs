@@ -13,9 +13,8 @@ import Brick.Widgets.Core
        (hBox, hLimit, padLeft, str, txt, vBox, vLimit, withAttr, (<+>),
         (<=>))
 import qualified Brick.Widgets.List as BL
-import Control.Concurrent (forkIO)
 import Control.Lens
-import Control.Monad (forM_, void, when)
+import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Function ((&))
 import Data.Maybe (fromMaybe)
@@ -27,6 +26,7 @@ import qualified Data.Time.Format as Time
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import Heed.Commands
+import Heed.Utils (fork_)
 import Heed.Vty.AddFeedWidget (addVty)
 import Heed.Vty.WidgetStates
 import qualified Network.WebSockets as WS
@@ -122,7 +122,7 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
         case selectedFeedId of
             Nothing -> return s
             Just fid -> do
-                void . liftIO . forkIO $ WS.sendBinaryData conn (encode (ForceRefresh fid))
+                fork_ $ WS.sendBinaryData conn (encode (ForceRefresh fid))
                 return $ s & status .~ "Refreshing selected feed"
     M.continue s'
 appEvent s (BT.AppEvent (WsReceive e)) = handleMess s e
@@ -136,14 +136,12 @@ sendRead s =
         sel = BL.listSelectedElement (s ^. items)
     in case sel of
            Nothing -> return ()
-           Just (_, e) ->
-               void . liftIO . forkIO $ WS.sendBinaryData conn (encode (ItemRead (e ^. itemInfoId)))
+           Just (_, e) -> fork_ $ WS.sendBinaryData conn (encode (ItemRead (e ^. itemInfoId)))
 
 sendAllRead
     :: (MonadIO m)
     => AppState -> FeFeedInfo -> m ()
-sendAllRead s f =
-    void . liftIO . forkIO $ WS.sendBinaryData conn (encode (FeedRead (f ^. feedListId)))
+sendAllRead s f = fork_ $ WS.sendBinaryData conn (encode (FeedRead (f ^. feedListId)))
   where
     conn = s ^. wsConn
 
@@ -165,7 +163,7 @@ openTab e = do
   where
     link = e ^. itemInfoLink
     callBrowser l =
-        void . forkIO . void $
+        fork_ $
         Process.createProcess
             (browserProc l)
             { Process.std_in = Process.NoStream
@@ -234,15 +232,13 @@ getSelFeedItems s = do
         sel = BL.listSelectedElement (s ^. feeds)
     case sel of
         Nothing -> return ()
-        Just (_, e) ->
-            void . liftIO . forkIO $
-            WS.sendBinaryData conn (encode (GetFeedItems (e ^. feedListId)))
+        Just (_, e) -> fork_ $ WS.sendBinaryData conn (encode (GetFeedItems (e ^. feedListId)))
     return ()
 
 getInfo :: AppState -> BT.EventM Name AppState
 getInfo s = do
     let conn = _wsConn s
-    _ <- liftIO . forkIO $ WS.sendBinaryData conn (encode Initialized)
+    fork_ $ WS.sendBinaryData conn (encode Initialized)
     return $ s & status .~ "Connected to server"
 
 app :: M.App AppState MyEvent Name

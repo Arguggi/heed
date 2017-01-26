@@ -10,7 +10,6 @@
 
 module Heed.Server where
 
-import Control.Concurrent (forkIO)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens hiding (Context)
 import Control.Monad (forever, void, when)
@@ -32,7 +31,7 @@ import Heed.Extract
        (addFeed, broadcastUpdate, forceUpdate, startUpdateThread)
 import Heed.Query
 import Heed.Types
-import Heed.Utils (Port)
+import Heed.Utils (Port, fork_)
 import Network.HTTP.Types (badRequest400)
 import Network.Wai
        (Application, Request, requestHeaders, responseLBS)
@@ -182,7 +181,7 @@ sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int64)
             -> [FeedInfoHR]
             -> IO ()
 sendUpdates bchan wsconn userfeeds =
-    void . forkIO . forever $ do
+    fork_ . forever $ do
         (feed, numItems) <- BChan.readBChan bchan
         when ((feed ^. feedInfoId) `elem` subIds) $
             sendNewItems wsconn (toFrontEndFeedInfo feed numItems)

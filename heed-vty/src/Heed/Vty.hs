@@ -5,7 +5,6 @@ module Heed.Vty where
 
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
-import Control.Concurrent (forkIO)
 import Control.Exception (finally)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
@@ -22,7 +21,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import qualified Graphics.Vty as V
 import Heed.Commands
-import Heed.Utils (progName)
+import Heed.Utils (fork_, progName)
 import Heed.Vty.MainWidget
 import Heed.Vty.WidgetStates
 import Network (PortNumber)
@@ -90,12 +89,11 @@ startApp :: WS.Connection -> IO ()
 startApp wsconn =
     flip finally (WS.sendClose wsconn BS.empty) $ do
         eventChan <- BChan.newBChan 200
-        _ <-
-            forkIO . forever $ do
-                wsdata <- WS.receiveData wsconn :: IO BS.ByteString
-                case decode wsdata of
-                    Left _ -> return ()
-                    Right mess -> BChan.writeBChan eventChan (WsReceive mess)
+        fork_ . forever $ do
+            wsdata <- WS.receiveData wsconn :: IO BS.ByteString
+            case decode wsdata of
+                Left _ -> return ()
+                Right mess -> BChan.writeBChan eventChan (WsReceive mess)
         _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
         return ()
 

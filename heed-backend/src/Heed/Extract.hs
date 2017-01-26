@@ -18,7 +18,7 @@ module Heed.Extract
     ) where
 
 import Control.Applicative ((<|>))
-import Control.Concurrent (ThreadId, forkIO, threadDelay)
+import Control.Concurrent (ThreadId, threadDelay)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens
 import Control.Monad (join)
@@ -45,6 +45,7 @@ import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import Heed.Query
 import Heed.Types
+import Heed.Utils (fork)
 import qualified Safe
 import qualified Text.Atom.Feed as Atom
 import Text.Feed.Import (parseFeedSource)
@@ -55,7 +56,7 @@ import qualified Text.RSS.Syntax as RSS
 
 startUpdateThread :: UTCTime -> BackendConf -> FeedInfoHR -> IO ThreadId
 startUpdateThread now baConf info =
-    forkIO $ do
+    fork $ do
         let nextUpdateAt =
                 addUTCTime
                     (fromIntegral $ (info ^. feedInfoUpdateEvery) * 60)
@@ -70,8 +71,8 @@ startUpdateThread now baConf info =
                 Left e -> do
                     logMsgIO (baConf ^. timedLogger) $ "Failed to update " <> _feedInfoName info
                     logMsgIO (baConf ^. timedLogger) . T.pack . show $ e
-                  -- When feeds have new items send the update to the broadcast chan so
-                  -- then everyone that is listening will receive the update
+              -- When feeds have new items send the update to the broadcast chan so
+              -- then everyone that is listening will receive the update
                 Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
             liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
