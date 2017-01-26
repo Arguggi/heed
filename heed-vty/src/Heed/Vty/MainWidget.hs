@@ -217,12 +217,14 @@ handleMess s (NewItems feed) = do
             Nothing -> (s & feeds . BL.listElementsL %~ insertInOrder feed, False)
             -- Update the new
             Just i ->
-                (s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread), True)
+                ( s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread)
+                , True)
     sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
 handleMess s InvalidSent = M.continue s
 
 insertInOrder :: FeFeedInfo -> Vec.Vector FeFeedInfo -> Vec.Vector FeFeedInfo
-insertInOrder newFeed = Vec.fromList . Set.toAscList . Set.insert newFeed . Set.fromList . Vec.toList
+insertInOrder newFeed =
+    Vec.fromList . Set.toAscList . Set.insert newFeed . Set.fromList . Vec.toList
 
 getSelFeedItems
     :: (MonadIO m)
@@ -257,7 +259,4 @@ myAttrs :: [(BA.AttrName, V.Attr)]
 myAttrs = [("selected", BU.fg V.white), ("read", BU.fg V.red)]
 
 euTimeLocale :: Time.TimeLocale
-euTimeLocale =
-    Time.defaultTimeLocale
-    { Time.dateFmt = "%d/%m/%y"
-    }
+euTimeLocale = Time.defaultTimeLocale {Time.dateFmt = "%d/%m/%y"}

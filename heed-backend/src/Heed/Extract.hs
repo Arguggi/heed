@@ -3,19 +3,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Heed.Extract
-  ( startUpdateThread
-  , addFeed
-  , importOPML
-  , parseTTRssOPML
-  , ttRssTags
-  , matchAllAttr
-  , ttRssAttrNames
-  , getFeedUrl
-  , parseOpml
-  , extractInfoFromFeed
-  , forceUpdate
-  , broadcastUpdate
-  ) where
+    ( startUpdateThread
+    , addFeed
+    , importOPML
+    , parseTTRssOPML
+    , ttRssTags
+    , matchAllAttr
+    , ttRssAttrNames
+    , getFeedUrl
+    , parseOpml
+    , extractInfoFromFeed
+    , forceUpdate
+    , broadcastUpdate
+    ) where
 
 import Control.Applicative ((<|>))
 import Control.Concurrent (ThreadId, forkIO, threadDelay)
@@ -40,11 +40,11 @@ import Data.Time
        (defaultTimeLocale, getCurrentTime, parseTimeM, rfc822DateFormat)
 import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
 import Data.Time.ISO8601 (parseISO8601)
+import qualified HTMLEntities.Decoder as EntDec
 import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import Heed.Query
 import Heed.Types
-import qualified HTMLEntities.Decoder as EntDec
 import qualified Safe
 import qualified Text.Atom.Feed as Atom
 import Text.Feed.Import (parseFeedSource)
@@ -55,34 +55,35 @@ import qualified Text.RSS.Syntax as RSS
 
 startUpdateThread :: UTCTime -> BackendConf -> FeedInfoHR -> IO ThreadId
 startUpdateThread now baConf info =
-    forkIO $
-    do let nextUpdateAt =
-               addUTCTime
-                   (fromIntegral $ (info ^. feedInfoUpdateEvery) * 60)
-                   (info ^. feedInfoLastUpdated)
-       when (nextUpdateAt > now) $
-           do logMsgIO (baConf ^. timedLogger) $ info ^. feedInfoName <> ": next update at " <>
-                  (T.pack . show $ nextUpdateAt)
-              threadDelay $ ceiling (toRational (diffUTCTime nextUpdateAt now) * 1000000)
-       forever $
-           do res <- runBe baConf $ updateFeed info
-              case res of
-                  Left e -> do
-                      logMsgIO (baConf ^. timedLogger) $ "Failed to update " <> _feedInfoName info
-                      logMsgIO (baConf ^. timedLogger) . T.pack . show $ e
+    forkIO $ do
+        let nextUpdateAt =
+                addUTCTime
+                    (fromIntegral $ (info ^. feedInfoUpdateEvery) * 60)
+                    (info ^. feedInfoLastUpdated)
+        when (nextUpdateAt > now) $ do
+            logMsgIO (baConf ^. timedLogger) $ info ^. feedInfoName <> ": next update at " <>
+                (T.pack . show $ nextUpdateAt)
+            threadDelay $ ceiling (toRational (diffUTCTime nextUpdateAt now) * 1000000)
+        forever $ do
+            res <- runBe baConf $ updateFeed info
+            case res of
+                Left e -> do
+                    logMsgIO (baConf ^. timedLogger) $ "Failed to update " <> _feedInfoName info
+                    logMsgIO (baConf ^. timedLogger) . T.pack . show $ e
                   -- When feeds have new items send the update to the broadcast chan so
                   -- then everyone that is listening will receive the update
-                  Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
-              liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
+                Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
+            liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
 forceUpdate
-    :: (MonadCatch m
-       ,MonadDb m
-       ,MonadLog m
-       ,MonadHttp m
-       ,MonadError HeedError m
-       ,MonadParse m
-       ,MonadTime m)
+    :: ( MonadCatch m
+       , MonadDb m
+       , MonadLog m
+       , MonadHttp m
+       , MonadError HeedError m
+       , MonadParse m
+       , MonadTime m
+       )
     => FeedInfoIdH -> m (FeedInfoHR, Int64)
 forceUpdate fid = do
     feedInfoList <- execQuery $ allFeedInfo fid
@@ -98,13 +99,14 @@ broadcastUpdate update@(_, new) bchan
     | otherwise = return ()
 
 updateFeed
-    :: (MonadCatch m
-       ,MonadDb m
-       ,MonadLog m
-       ,MonadHttp m
-       ,MonadError HeedError m
-       ,MonadParse m
-       ,MonadTime m)
+    :: ( MonadCatch m
+       , MonadDb m
+       , MonadLog m
+       , MonadHttp m
+       , MonadError HeedError m
+       , MonadParse m
+       , MonadTime m
+       )
     => FeedInfoHR -> m Int64
 updateFeed info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
@@ -137,35 +139,35 @@ addNewFeed
     :: MonadDb m
     => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m (FeedInfoHR, Int64)
 addNewFeed feedInfo feedItems uid =
-    execQuery $
-    do insertedFeed <- insertFeed feedInfo
-       let newFeedId = _feedInfoId . head $ insertedFeed
-       insertedItems <- insertItems feedItems newFeedId
-       num <- insertUnread insertedItems [uid]
-       _ <- addSubscription uid newFeedId
-       return (head insertedFeed, num)
+    execQuery $ do
+        insertedFeed <- insertFeed feedInfo
+        let newFeedId = _feedInfoId . head $ insertedFeed
+        insertedItems <- insertItems feedItems newFeedId
+        num <- insertUnread insertedItems [uid]
+        _ <- addSubscription uid newFeedId
+        return (head insertedFeed, num)
 
 updateFeedItems
     :: (MonadDb m, MonadTime m)
     => FeedInfoHR -> [FeedItemHW] -> m Int64
 updateFeedItems feed feedItems = do
     now <- getTime
-    execQuery $
-        do let feedId = feed ^. feedInfoId
-               newFeedItems :: [FeedItemHW]
-               newFeedItems = feedItems & traverse . feedItemFeedId .~ (Just <$> feedId)
-           recentItems <- getRecentItems feed (_feedItemDate (minimumBy after feedItems))
-           let newItems :: [FeedItemHW]
-               newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
-           inserted <-
-               if not (null newItems)
-                   then do
-                       insertedItems <- insertItems newItems feedId
-                       feedSubs <- getSubs feedId
-                       insertUnread insertedItems feedSubs
-                   else return 0
-           _ <- setFeedLastUpdated feedId now
-           return inserted
+    execQuery $ do
+        let feedId = feed ^. feedInfoId
+            newFeedItems :: [FeedItemHW]
+            newFeedItems = feedItems & traverse . feedItemFeedId .~ (Just <$> feedId)
+        recentItems <- getRecentItems feed (_feedItemDate (minimumBy after feedItems))
+        let newItems :: [FeedItemHW]
+            newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
+        inserted <-
+            if not (null newItems)
+                then do
+                    insertedItems <- insertItems newItems feedId
+                    feedSubs <- getSubs feedId
+                    insertUnread insertedItems feedSubs
+                else return 0
+        _ <- setFeedLastUpdated feedId now
+        return inserted
   where
     after x y = compare (_feedItemDate x) (_feedItemDate y)
     sameItem :: FeedInfoId Int -> FeedItemHW -> FeedItemHW -> Bool
@@ -182,7 +184,8 @@ extractInfoFromFeed now url (AtomFeed feed) = Just (feedInfo, feedItems)
   where
     feedInfo =
         defFeedInfo
-        { _feedInfoName = T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed
+        { _feedInfoName =
+              T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed
         , _feedInfoUrl = url
         , _feedInfoUpdateEvery = 60
         , _feedInfoLastUpdated = fromMaybe now (parseISO8601 . Atom.feedUpdated $ feed)
@@ -197,8 +200,8 @@ extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
         , _feedInfoUrl = url
         , _feedInfoUpdateEvery = 60
         , _feedInfoLastUpdated =
-            fromMaybe now $
-            join (parseRfc822 <$> (RSS.rssPubDate channel <|> RSS.rssLastUpdate channel))
+              fromMaybe now $
+              join (parseRfc822 <$> (RSS.rssPubDate channel <|> RSS.rssLastUpdate channel))
         }
     feedItems = rssEntryToItem now <$> RSS.rssItems channel
 -- TODO
@@ -231,15 +234,14 @@ importOPML
 importOPML opml userid = do
     feeds <- parseOpml opml parseTTRssOPML
     conf <- ask
-    forM_ feeds $
-        \url -> do
-            result <- runBe conf $ addFeed url defUpdateEvery userid
-            case result of
-                Left e -> do
-                    logMsg $ "Failed to add: " <> url
-                    logMsg . T.pack . show $ e
-                Right _ -> logMsg $ "Added: " <> url
-            return ()
+    forM_ feeds $ \url -> do
+        result <- runBe conf $ addFeed url defUpdateEvery userid
+        case result of
+            Left e -> do
+                logMsg $ "Failed to add: " <> url
+                logMsg . T.pack . show $ e
+            Right _ -> logMsg $ "Added: " <> url
+        return ()
     return ()
 
 parseTTRssOPML :: T.Text -> Maybe [T.Text]
@@ -268,7 +270,8 @@ getFeedUrl = TS.fromAttrib "xmlUrl"
 updateDateInfo :: UTCTime -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
 updateDateInfo now (info, items) = (newInfo, items)
   where
-    newInfo = info & feedHasItemDate .~ anyItemHasDateNow now items & feedNumberItems .~ length items
+    newInfo =
+        info & feedHasItemDate .~ anyItemHasDateNow now items & feedNumberItems .~ length items
     -- On next update download this number of items if dates are 'Missing'
     -- If any of the items don't have a publication date we have to download
     -- a fixed number of the last feeds so we can check which one is new on updates
@@ -281,7 +284,7 @@ decodeHtmlEnt :: T.Text -> T.Text
 decodeHtmlEnt = TL.toStrict . toLazyText . EntDec.htmlEncodedText
 
 class Monad m =>
-      MonadParse m  where
+      MonadParse m where
     parseFeed :: BSL.ByteString -> Url -> Int -> m (FeedInfoHW, [FeedItemHW])
 
 instance MonadParse Backend where
@@ -292,7 +295,7 @@ instance MonadParse Backend where
         return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every
 
 class Monad m =>
-      MonadOpml m  where
+      MonadOpml m where
     parseOpml :: T.Text -> (T.Text -> Maybe [Url]) -> m [Url]
 
 instance MonadOpml Backend where

@@ -213,10 +213,9 @@ getUserItemsQ uid fid =
 
 readFeed :: UserId Int -> FeedItemId Int -> OT.Transaction Int64
 readFeed userid itemid =
-    OT.delete unreadItemTable $
-    \cols ->
-         (_unreadUserId cols O..=== O.constant userid) O..&&
-         (_unreadFeedItemId cols O..=== O.constant itemid)
+    OT.delete unreadItemTable $ \cols ->
+        (_unreadUserId cols O..=== O.constant userid) O..&&
+        (_unreadFeedItemId cols O..=== O.constant itemid)
 
 allFeeds :: OT.Transaction [FeedInfoHR]
 allFeeds = OT.query $ O.queryTable feedInfoTable

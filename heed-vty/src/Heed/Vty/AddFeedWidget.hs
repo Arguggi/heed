@@ -2,8 +2,8 @@
 {-# LANGUAGE RankNTypes #-}
 
 module Heed.Vty.AddFeedWidget
-  ( addVty
-  ) where
+    ( addVty
+    ) where
 
 import qualified Brick.AttrMap as A
 import qualified Brick.Focus as F

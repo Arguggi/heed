@@ -26,14 +26,14 @@ import qualified Opaleye.Trans as OT
 import qualified System.Log.FastLogger as Log
 
 data HeedError where
-        InvalidFeedQuery :: HeedError
-        InvalidXML :: HeedError
-        InvalidFeedData :: HeedError
-        InvalidOPMLData :: HeedError
-        MultipleFeedsSameUrl :: HeedError
-        InvalidUrl :: HttpException -> HeedError
-        DownloadFailed :: HttpException -> HeedError
-        HSqlException :: PG.SqlError -> HeedError
+    InvalidFeedQuery :: HeedError
+    InvalidXML :: HeedError
+    InvalidFeedData :: HeedError
+    InvalidOPMLData :: HeedError
+    MultipleFeedsSameUrl :: HeedError
+    InvalidUrl :: HttpException -> HeedError
+    DownloadFailed :: HttpException -> HeedError
+    HSqlException :: PG.SqlError -> HeedError
     deriving (Show)
 
 showUserHeedError :: HeedError -> T.Text
@@ -65,7 +65,15 @@ data CredStatus
 
 newtype Backend a = Backend
     { runBackend :: ExceptT HeedError (ReaderT BackendConf IO) a
-    } deriving (Functor, Applicative, Monad, MonadError HeedError, MonadReader BackendConf, MonadIO, MonadCatch, MonadThrow)
+    } deriving ( Functor
+               , Applicative
+               , Monad
+               , MonadError HeedError
+               , MonadReader BackendConf
+               , MonadIO
+               , MonadCatch
+               , MonadThrow
+               )
 
 runBe
     :: (MonadIO m)
@@ -73,7 +81,7 @@ runBe
 runBe conf = liftIO . flip runReaderT conf . runExceptT . runBackend
 
 class Monad m =>
-      MonadHttp m  where
+      MonadHttp m where
     downloadUrl :: T.Text -> m BSL.ByteString
 
 instance MonadHttp IO where
@@ -89,7 +97,7 @@ instance MonadHttp Backend where
         catchHttp DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
 
 class Monad m =>
-      MonadDb m  where
+      MonadDb m where
     execQuery :: OT.Transaction a -> m a
 
 instance MonadDb Backend where
@@ -113,7 +121,7 @@ catchHttp
 catchHttp = catchExcep (Proxy :: Proxy HttpException)
 
 class (Monad m) =>
-      MonadLog m  where
+      MonadLog m where
     logMsg :: T.Text -> m ()
 
 instance MonadLog Backend where
@@ -126,7 +134,7 @@ logMsgIO l msg =
     l $ \time -> Log.toLogStr time <> " - " <> Log.toLogStr msg <> Log.toLogStr ("\n" :: T.Text)
 
 class (Monad m) =>
-      MonadTime m  where
+      MonadTime m where
     getTime :: m UTCTime
 
 instance MonadTime IO where

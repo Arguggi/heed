@@ -53,7 +53,8 @@ constantColumnUsing
 constantColumnUsing oldConstant f = Pro.dimap f O.unsafeCoerceColumn oldConstant
 
 instance ProDef.Default O.Constant ItemsDate (O.Column PGItemsDate) where
-    def = constantColumnUsing (ProDef.def :: O.Constant String (O.Column O.PGText)) itemsDateToString
+    def =
+        constantColumnUsing (ProDef.def :: O.Constant String (O.Column O.PGText)) itemsDateToString
       where
         itemsDateToString :: ItemsDate -> String
         itemsDateToString Missing = "missing"

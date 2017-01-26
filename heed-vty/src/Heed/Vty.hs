@@ -41,20 +41,20 @@ main = do
     configFolder <- getXdgDirectory XdgConfig progName
     createDirectoryIfMissing True configFolder
     final <-
-        runExceptT $
-        do (req, host, port, secure) <- authRequest configFolder
-           liftIO $ putStrLn "Authenticating"
-           authCheck <- liftIO $ httpLBS req
-           let respToken :: Either PeekException Token
-               respToken = decode . toStrict . getResponseBody $ authCheck
+        runExceptT $ do
+            (req, host, port, secure) <- authRequest configFolder
+            liftIO $ putStrLn "Authenticating"
+            authCheck <- liftIO $ httpLBS req
+            let respToken :: Either PeekException Token
+                respToken = decode . toStrict . getResponseBody $ authCheck
            -- Lift Either PeekException to ExceptT String
-           token <- withExceptT show . ExceptT . return $ respToken
-           liftIO $ putStrLn "Starting heed"
-           let websocketClient =
-                   if secure
-                       then secureWebsocket host port token
-                       else insecureWebsocket host port token
-           liftIO $ websocketClient startApp
+            token <- withExceptT show . ExceptT . return $ respToken
+            liftIO $ putStrLn "Starting heed"
+            let websocketClient =
+                    if secure
+                        then secureWebsocket host port token
+                        else insecureWebsocket host port token
+            liftIO $ websocketClient startApp
     case final of
         Left e -> putStrLn e
         _ -> return ()
@@ -88,16 +88,16 @@ secureWebsocket host port (Token t) =
 
 startApp :: WS.Connection -> IO ()
 startApp wsconn =
-    flip finally (WS.sendClose wsconn BS.empty) $
-    do eventChan <- BChan.newBChan 200
-       _ <-
-           forkIO . forever $
-           do wsdata <- WS.receiveData wsconn :: IO BS.ByteString
-              case decode wsdata of
-                  Left _ -> return ()
-                  Right mess -> BChan.writeBChan eventChan (WsReceive mess)
-       _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
-       return ()
+    flip finally (WS.sendClose wsconn BS.empty) $ do
+        eventChan <- BChan.newBChan 200
+        _ <-
+            forkIO . forever $ do
+                wsdata <- WS.receiveData wsconn :: IO BS.ByteString
+                case decode wsdata of
+                    Left _ -> return ()
+                    Right mess -> BChan.writeBChan eventChan (WsReceive mess)
+        _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
+        return ()
 
 type Host = T.Text
 
@@ -108,23 +108,23 @@ authRequest
     -> ExceptT String IO (Request, Host, Port, Bool)
 authRequest configFolder = do
     ini <- ExceptT . readIniFile $ configFolder <> "/" <> progName <> ".ini"
-    ExceptT . return $
-        do host <- lookupValue "server" "host" ini
-           portT <- lookupValue "server" "port" ini
+    ExceptT . return $ do
+        host <- lookupValue "server" "host" ini
+        portT <- lookupValue "server" "port" ini
            -- Assume tls by default
-           secure <- return . either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
-           port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
-           user <- lookupValue "auth" "username" ini
-           pass <- lookupValue "auth" "password" ini
-           return
-               ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
-                 setRequestHost (encodeUtf8 host) &
-                 setRequestPort port &
-                 setRequestPath "auth" &
-                 setRequestMethod "POST" &
-                 setRequestSecure secure
-               , host
-               , port
-               , secure)
+        secure <- return . either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
+        port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
+        user <- lookupValue "auth" "username" ini
+        pass <- lookupValue "auth" "password" ini
+        return
+            ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
+              setRequestHost (encodeUtf8 host) &
+              setRequestPort port &
+              setRequestPath "auth" &
+              setRequestMethod "POST" &
+              setRequestSecure secure
+            , host
+            , port
+            , secure)
   where
     isSecure x = T.toLower x == "on"

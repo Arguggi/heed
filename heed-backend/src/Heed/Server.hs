@@ -61,7 +61,7 @@ data UserName = UserName
     }
 
 -- | Our API, with auth-protection
-type AuthGenAPI = "auth" :> (ReqBody '[OctetStream] AuthData :> Post '[OctetStream] Token) :<|> AuthProtect "cookie-auth" :> Raw
+type AuthGenAPI = "auth" :> (ReqBody '[ OctetStream] AuthData :> Post '[ OctetStream] Token) :<|> AuthProtect "cookie-auth" :> Raw
 
 -- | A value holding our type-level API
 genAuthAPI :: Proxy AuthGenAPI
@@ -143,34 +143,34 @@ wsApp conf uname pending_conn = do
     -- Create a new Broadcast channel where updates are pushed from the update threads
     updateListener <- BChan.newBChanListener (conf ^. updateChan)
     sendUpdates updateListener conn allfeeds
-    forever $
-        do commandM <- decode <$> WS.receiveData conn
-           let command = either (const InvalidReceived) id commandM
-           putStr "Received: "
-           print command
-           case command of
-               Initialized -> do
-                   sendDown conn $ Status (unUserName uname)
-                   sendDown conn $ Feeds unreadFeeds
-               GetFeedItems feedId -> do
-                   items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
-                   sendDown conn (FeedItems items)
-               ItemRead itemId -> void . runQueryNoT dbConn $ readFeed uid (FeedItemId itemId)
-               FeedRead feedId -> void . runQueryNoT dbConn $ allItemsRead (FeedInfoId feedId) uid
-               NewFeed url updateEvery -> do
-                   newFeed <- runBe conf $ addFeed url updateEvery uid
-                   case newFeed of
-                       Left e -> sendDown conn (BackendError (showUserHeedError e))
-                       Right (feed, _) -> do
-                           now <- getCurrentTime
-                           _ <- startUpdateThread now conf feed
-                           sendDown conn (FeedAdded url)
-               ForceRefresh fid -> do
-                   updateE <- runBe conf $ forceUpdate (FeedInfoId fid)
-                   case updateE of
-                       Left e -> sendDown conn (BackendError (showUserHeedError e))
-                       Right update -> broadcastUpdate update (conf ^. updateChan)
-               InvalidReceived -> putStrLn "Invalid command received"
+    forever $ do
+        commandM <- decode <$> WS.receiveData conn
+        let command = either (const InvalidReceived) id commandM
+        putStr "Received: "
+        print command
+        case command of
+            Initialized -> do
+                sendDown conn $ Status (unUserName uname)
+                sendDown conn $ Feeds unreadFeeds
+            GetFeedItems feedId -> do
+                items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
+                sendDown conn (FeedItems items)
+            ItemRead itemId -> void . runQueryNoT dbConn $ readFeed uid (FeedItemId itemId)
+            FeedRead feedId -> void . runQueryNoT dbConn $ allItemsRead (FeedInfoId feedId) uid
+            NewFeed url updateEvery -> do
+                newFeed <- runBe conf $ addFeed url updateEvery uid
+                case newFeed of
+                    Left e -> sendDown conn (BackendError (showUserHeedError e))
+                    Right (feed, _) -> do
+                        now <- getCurrentTime
+                        _ <- startUpdateThread now conf feed
+                        sendDown conn (FeedAdded url)
+            ForceRefresh fid -> do
+                updateE <- runBe conf $ forceUpdate (FeedInfoId fid)
+                case updateE of
+                    Left e -> sendDown conn (BackendError (showUserHeedError e))
+                    Right update -> broadcastUpdate update (conf ^. updateChan)
+            InvalidReceived -> putStrLn "Invalid command received"
 
 sendDown
     :: (Store a)
@@ -182,10 +182,10 @@ sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int64)
             -> [FeedInfoHR]
             -> IO ()
 sendUpdates bchan wsconn userfeeds =
-    void . forkIO . forever $
-    do (feed, numItems) <- BChan.readBChan bchan
-       when ((feed ^. feedInfoId) `elem` subIds) $
-           sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
+    void . forkIO . forever $ do
+        (feed, numItems) <- BChan.readBChan bchan
+        when ((feed ^. feedInfoId) `elem` subIds) $
+            sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
   where
     subIds = userfeeds ^.. traverse . feedInfoId
 

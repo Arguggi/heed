@@ -1,9 +1,9 @@
 module Heed.Utils
-  ( forkIO_
-  , progName
-  , Port
-  , defPort
-  ) where
+    ( forkIO_
+    , progName
+    , Port
+    , defPort
+    ) where
 
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
