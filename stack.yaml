@@ -4,13 +4,13 @@ packages:
 - heed-backend
 - heed-lib
 - heed-vty
-- location:
-    git: https://github.com/Arguggi/hspec-smallcheck
-    commit: b55ae0b507df1c7522e6057c946c6b9f36ce3192
-  extra-dep: true
 
 extra-deps:
 - brick-0.17
+- hspec-2.4.0
+- hspec-core-2.4.0
+- hspec-discover-2.4.0
+- hspec-smallcheck-0.4.2
 - html-entities-1.1.2
 - integer-logarithms-1
 - opaleye-trans-0.3.4

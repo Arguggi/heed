@@ -54,7 +54,10 @@ type FeFeedInfo = FeFeedInfo' Int T.Text Int64
 makeLenses ''FeFeedInfo'
 
 instance Eq FeFeedInfo where
-    a == b = _feedListId a == _feedListId b
+    a == b = (a ^. feedListId) == (b ^. feedListId)
+
+instance Ord FeFeedInfo where
+    a `compare` b = (a ^. feedListName) `compare` (b ^. feedListName)
 
 instance Store FeFeedInfo
 

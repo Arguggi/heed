@@ -96,12 +96,7 @@ startApp wsconn =
               case decode wsdata of
                   Left _ -> return ()
                   Right mess -> BChan.writeBChan eventChan (WsReceive mess)
-       _ <-
-           M.customMain
-               (V.mkVty mempty)
-               (Just eventChan)
-               app
-               (defState "" wsconn "Connecting")
+       _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
        return ()
 
 type Host = T.Text

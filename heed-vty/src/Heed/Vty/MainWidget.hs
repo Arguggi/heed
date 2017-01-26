@@ -20,6 +20,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Function ((&))
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
+import qualified Data.Set as Set
 import Data.Store (encode)
 import qualified Data.Text as T
 import qualified Data.Time.Format as Time
@@ -213,12 +214,15 @@ handleMess s (NewItems feed) = do
              -- Insert as first element for now, we should put this in
              -- the correct alphabetical position
               of
-            Nothing -> (s & feeds %~ BL.listInsert 0 feed, False)
+            Nothing -> (s & feeds . BL.listElementsL %~ insertInOrder feed, False)
             -- Update the new
             Just i ->
                 (s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread), True)
     sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
 handleMess s InvalidSent = M.continue s
+
+insertInOrder :: FeFeedInfo -> Vec.Vector FeFeedInfo -> Vec.Vector FeFeedInfo
+insertInOrder newFeed = Vec.fromList . Set.toAscList . Set.insert newFeed . Set.fromList . Vec.toList
 
 getSelFeedItems
     :: (MonadIO m)

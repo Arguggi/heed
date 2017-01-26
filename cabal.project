@@ -1,1 +1,4 @@
-packages: heed-lib heed-vty heed-backend hspec-smallcheck
+packages:
+    heed-lib
+    heed-vty
+    heed-backend
