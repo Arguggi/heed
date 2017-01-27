@@ -102,7 +102,8 @@ startApp :: BChan.BChan MyEvent -> MVar () -> WS.Connection -> IO ExitType
 startApp eventChan aliveMVar wsconn = do
     putStrLn "Opening websocket connection"
     -- Send pings and check if we recevied pongs after 'aliveInterval' time
-    -- has passed
+    -- has passed. Sending a different integer on every ping was copied from the
+    -- websocket library, not sure if necessary
     fork_ . flip iterateM_ (1 :: Integer) $ \i -> do
         WS.sendPing wsconn (T.pack . show $ i)
         threadDelay aliveInterval
@@ -123,9 +124,13 @@ startApp eventChan aliveMVar wsconn = do
 aliveInterval :: Int
 aliveInterval = 5 * 1000 * 1000
 
+-- We maybe don't wan't to exit on any 'WS.ConnectionException' in the future
+-- so we'll catch them
 ignoreWsExcep :: Handler ExitType
 ignoreWsExcep = Handler $ \(_ :: WS.ConnectionException) -> return WsDisconnect
 
+-- We maybe don't wan't to exit on any 'WS.ConnectionException' in the future
+-- so we'll catch them
 ignoreHandshakeExcep :: Handler ExitType
 ignoreHandshakeExcep = Handler $ \(_ :: WS.HandshakeException) -> return WsDisconnect
 
@@ -135,6 +140,8 @@ type Port = Int
 
 type IsSecure = Bool
 
+-- Build authencation request and return host,port,ssl status se we can start a
+-- websocket connection after getting the token
 authRequest
     :: FilePath -- ^ Configuration Folder
     -> ExceptT String IO (Request, Host, Port, IsSecure)
@@ -143,11 +150,11 @@ authRequest configFolder = do
     ExceptT . return $ do
         host <- lookupValue "server" "host" ini
         portT <- lookupValue "server" "port" ini
-           -- Assume tls by default
-        secure <- return . either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
-        port <- return . either (const (443 :: Int)) id $ readEither (T.unpack portT)
         user <- lookupValue "auth" "username" ini
         pass <- lookupValue "auth" "password" ini
+        -- Assume tls and port 443 by default
+        let secure = either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
+            port = either (const 443) id $ readEither (T.unpack portT)
         return
             ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
               setRequestHost (encodeUtf8 host) &
