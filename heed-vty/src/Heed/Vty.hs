@@ -5,7 +5,7 @@ module Heed.Vty where
 
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
-import Control.Exception (finally)
+import Control.Exception (Handler(..), catches)
 import Control.Monad (forever)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except
@@ -21,6 +21,7 @@ import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import qualified Graphics.Vty as V
 import Heed.Commands
+import Heed.Types (ExitType(..))
 import Heed.Utils (fork_, progName)
 import Heed.Vty.MainWidget
 import Heed.Vty.WidgetStates
@@ -46,24 +47,26 @@ main = do
             authCheck <- liftIO $ httpLBS req
             let respToken :: Either PeekException Token
                 respToken = decode . toStrict . getResponseBody $ authCheck
-           -- Lift Either PeekException to ExceptT String
+        -- Lift Either PeekException to ExceptT String
             token <- withExceptT show . ExceptT . return $ respToken
-            liftIO $ putStrLn "Starting heed"
+            eventChan <- liftIO $ BChan.newBChan 200
             let websocketClient =
                     if secure
                         then secureWebsocket host port token
                         else insecureWebsocket host port token
-            liftIO $ websocketClient startApp
+            liftIO $
+                websocketClient (startApp eventChan) `catches` [ignoreHandshakeExcep, ignoreWsExcep]
     case final of
         Left e -> putStrLn e
-        _ -> return ()
+        Right UserExit -> putStrLn "Exiting"
+        Right WsDisconnect -> putStrLn "Connection to server lost, exiting"
     return ()
 
 insecureWebsocket
     :: T.Text -- ^ Host
     -> Int -- ^ Port
     -> Token -- ^ Token value
-    -> (WS.ClientApp () -> IO ())
+    -> (WS.ClientApp a -> IO a)
 insecureWebsocket host port (Token t) =
     WS.runClientWith
         (T.unpack host)
@@ -76,7 +79,7 @@ secureWebsocket
     :: T.Text -- ^ Host
     -> Int -- ^ Port
     -> Token -- ^ Token value
-    -> (WS.ClientApp () -> IO ())
+    -> (WS.ClientApp a -> IO a)
 secureWebsocket host port (Token t) =
     runSecureClientWith
         (T.unpack host)
@@ -85,16 +88,22 @@ secureWebsocket host port (Token t) =
         WS.defaultConnectionOptions
         [("auth-token", encodeUtf8 t)]
 
-startApp :: WS.Connection -> IO ()
-startApp wsconn = do
-    eventChan <- BChan.newBChan 200
+startApp :: BChan.BChan MyEvent -> WS.Connection -> IO ExitType
+startApp eventChan wsconn = do
+    putStrLn "Opening websocket connection"
     fork_ . forever $ do
         wsdata <- WS.receiveData wsconn :: IO BS.ByteString
         case decode wsdata of
             Left _ -> return ()
             Right mess -> BChan.writeBChan eventChan (WsReceive mess)
     _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
-    return ()
+    return UserExit
+
+ignoreWsExcep :: Handler ExitType
+ignoreWsExcep = Handler $ \(_ :: WS.ConnectionException) -> return WsDisconnect
+
+ignoreHandshakeExcep :: Handler ExitType
+ignoreHandshakeExcep = Handler $ \(_ :: WS.HandshakeException) -> return WsDisconnect
 
 type Host = T.Text
 

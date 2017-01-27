@@ -59,6 +59,11 @@ data BackendConf = BackendConf
 
 makeLenses ''BackendConf
 
+data ExitType
+    = UserExit
+    | WsDisconnect
+    deriving (Eq, Show)
+
 data CredStatus
     = Verified
     | Unverified
