@@ -5,12 +5,15 @@ module Heed.Vty where
 
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
-import Control.Exception (Handler(..), catches)
-import Control.Monad (forever)
+import Control.Concurrent (threadDelay)
+import Control.Concurrent.MVar
+       (MVar, newEmptyMVar, tryPutMVar, tryTakeMVar)
+import Control.Exception (Handler(..), catches, throwIO)
+import Control.Monad (forever, void)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Loops (iterateM_)
 import Control.Monad.Trans.Except
        (ExceptT(..), runExceptT, withExceptT)
-import qualified Data.ByteString as BS
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
@@ -47,15 +50,17 @@ main = do
             authCheck <- liftIO $ httpLBS req
             let respToken :: Either PeekException Token
                 respToken = decode . toStrict . getResponseBody $ authCheck
-        -- Lift Either PeekException to ExceptT String
+            -- Lift Either PeekException to ExceptT String
             token <- withExceptT show . ExceptT . return $ respToken
             eventChan <- liftIO $ BChan.newBChan 200
+            aliveMVar <- liftIO newEmptyMVar
             let websocketClient =
                     if secure
-                        then secureWebsocket host port token
-                        else insecureWebsocket host port token
+                        then secureWebsocket host port token aliveMVar
+                        else insecureWebsocket host port token aliveMVar
             liftIO $
-                websocketClient (startApp eventChan) `catches` [ignoreHandshakeExcep, ignoreWsExcep]
+                websocketClient (startApp eventChan aliveMVar) `catches`
+                [ignoreHandshakeExcep, ignoreWsExcep]
     case final of
         Left e -> putStrLn e
         Right UserExit -> putStrLn "Exiting"
@@ -66,38 +71,57 @@ insecureWebsocket
     :: T.Text -- ^ Host
     -> Int -- ^ Port
     -> Token -- ^ Token value
+    -> MVar () -- ^ MVar to be filled on pong
     -> (WS.ClientApp a -> IO a)
-insecureWebsocket host port (Token t) =
+insecureWebsocket host port (Token t) aliveMVar =
     WS.runClientWith
         (T.unpack host)
         port
         "/"
-        WS.defaultConnectionOptions
+        (WS.ConnectionOptions $ fillMVarOnPong aliveMVar)
         [("auth-token", encodeUtf8 t)]
 
 secureWebsocket
     :: T.Text -- ^ Host
     -> Int -- ^ Port
     -> Token -- ^ Token value
+    -> MVar () -- ^ MVar to be filled on pong
     -> (WS.ClientApp a -> IO a)
-secureWebsocket host port (Token t) =
+secureWebsocket host port (Token t) aliveMVar =
     runSecureClientWith
         (T.unpack host)
         ((read . show $ port) :: PortNumber)
         "/"
-        WS.defaultConnectionOptions
+        (WS.ConnectionOptions $ fillMVarOnPong aliveMVar)
         [("auth-token", encodeUtf8 t)]
 
-startApp :: BChan.BChan MyEvent -> WS.Connection -> IO ExitType
-startApp eventChan wsconn = do
+fillMVarOnPong :: MVar () -> IO ()
+fillMVarOnPong aliveMVar = void $ tryPutMVar aliveMVar ()
+
+startApp :: BChan.BChan MyEvent -> MVar () -> WS.Connection -> IO ExitType
+startApp eventChan aliveMVar wsconn = do
     putStrLn "Opening websocket connection"
+    -- Send pings and check if we recevied pongs after 'aliveInterval' time
+    -- has passed
+    fork_ . flip iterateM_ (1 :: Integer) $ \i -> do
+        WS.sendPing wsconn (T.pack . show $ i)
+        threadDelay aliveInterval
+        isAlive <- tryTakeMVar aliveMVar
+        case isAlive of
+            Nothing -> throwIO DeadConnection
+            Just _ -> return $ i + 1
+    -- Listen for updates from the server
     fork_ . forever $ do
-        wsdata <- WS.receiveData wsconn :: IO BS.ByteString
+        wsdata <- WS.receiveData wsconn
         case decode wsdata of
-            Left _ -> return ()
+            Left _ -> throwIO InvalidDataOnWs
             Right mess -> BChan.writeBChan eventChan (WsReceive mess)
     _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
     return UserExit
+
+-- Check if connection is alive every 5 seconds
+aliveInterval :: Int
+aliveInterval = 5 * 1000 * 1000
 
 ignoreWsExcep :: Handler ExitType
 ignoreWsExcep = Handler $ \(_ :: WS.ConnectionException) -> return WsDisconnect
@@ -109,9 +133,11 @@ type Host = T.Text
 
 type Port = Int
 
+type IsSecure = Bool
+
 authRequest
     :: FilePath -- ^ Configuration Folder
-    -> ExceptT String IO (Request, Host, Port, Bool)
+    -> ExceptT String IO (Request, Host, Port, IsSecure)
 authRequest configFolder = do
     ini <- ExceptT . readIniFile $ configFolder <> "/" <> progName <> ".ini"
     ExceptT . return $ do
