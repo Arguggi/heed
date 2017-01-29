@@ -19,6 +19,7 @@ import System.Environment (setEnv)
 import System.Exit (die)
 import qualified System.Log.FastLogger as Log
 import qualified System.Log.FastLogger.Date as LogDate
+import qualified System.Remote.Monitoring as EKG
 import Text.Read (readEither)
 
 -- | List of Environment variables to setup for PostgreSQL
@@ -28,6 +29,7 @@ pgEnvVar = ["PGUSER", "PGDATABASE"]
 -- | Connect to PostgreSQL and start rest backend
 main :: IO ()
 main = do
+    _ <- EKG.forkServer "localhost" 9579
     timeCache <- LogDate.newTimeCache LogDate.simpleTimeFormat
     Log.withTimedFastLogger timeCache (Log.LogStdout Log.defaultBufSize) $ \logger -> do
         putStrLn "Starting heed-backend"
