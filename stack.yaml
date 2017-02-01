@@ -6,10 +6,5 @@ packages:
 - heed-vty
 
 extra-deps:
-- hspec-2.4.0
-- hspec-core-2.4.0
-- hspec-discover-2.4.0
-- hspec-smallcheck-0.4.2
 - html-entities-1.1.2
 - uri-0.1.6.4
-- vector-0.12.0.0

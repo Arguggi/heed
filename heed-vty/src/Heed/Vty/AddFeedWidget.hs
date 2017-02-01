@@ -16,7 +16,7 @@ import qualified Brick.Widgets.Edit as E
 import Control.Lens
 import Control.Monad.IO.Class (MonadIO)
 import Data.Monoid ((<>))
-import Data.Store (encode)
+import Data.Serialize (encode)
 import Data.Text as T
 import qualified Graphics.Vty as V
 import Heed.Commands (Up(NewFeed))

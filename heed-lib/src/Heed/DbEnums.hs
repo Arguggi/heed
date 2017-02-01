@@ -10,9 +10,9 @@ import qualified Data.ByteString.Char8 as B8
 import Data.Monoid ((<>))
 import qualified Data.Profunctor as Pro
 import qualified Data.Profunctor.Product.Default as ProDef
-import Data.Store (Store)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
+import Data.Serialize (Serialize)
 import Data.Typeable
 import qualified Database.PostgreSQL.Simple.FromField as PG
 import GHC.Generics
@@ -23,7 +23,7 @@ data ItemsDate
     | Present
     deriving (Typeable, Show, Generic)
 
-instance Store ItemsDate
+instance Serialize ItemsDate
 
 data PGItemsDate
 

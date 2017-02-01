@@ -14,10 +14,10 @@ module Heed.Database where
 
 import Control.Lens
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
-import Data.Store (Store)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
+import Data.Serialize (Serialize)
 import GHC.Generics
 import Heed.Commands
 import Heed.DbEnums
@@ -73,7 +73,7 @@ newtype FeedInfoId a = FeedInfoId
 
 makeLenses ''FeedInfoId
 
-instance Store FeedInfoIdH
+instance Serialize FeedInfoIdH
 
 -- | 'FeedInfoId' Haskell
 type FeedInfoIdH = FeedInfoId Int
@@ -84,7 +84,7 @@ type FeedInfoHR = FeedInfo (FeedInfoId Int) Text Text Int UTCTime ItemsDate Int
 -- | 'FeedInfo' Haskell write to DB (Id is missing)
 type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime ItemsDate Int
 
-instance Store FeedInfoHR
+instance Serialize FeedInfoHR
 
 -- | PostgreSQL Feeds <-> Users (Subscriptions) Table
 data Subscription a b = Subscription
@@ -116,7 +116,7 @@ makeLenses ''FeedItemId
 -- | FeedItemId Haskell
 type FeedItemIdH = FeedItemId Int
 
-instance Store FeedItemIdH
+instance Serialize FeedItemIdH
 
 -- | 'FeedItem' Haskell read from DB
 type FeedItemHR = FeedItem (FeedItemId Int) (FeedInfoId Int) Text Url UTCTime (Maybe Url)

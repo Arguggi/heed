@@ -12,14 +12,12 @@ import Control.Exception (Handler(..), catches, throwIO)
 import Control.Monad (forever, void)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Loops (iterateM_)
-import Control.Monad.Trans.Except
-       (ExceptT(..), runExceptT, withExceptT)
+import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
 import Data.Monoid ((<>))
-import Data.Store (decode, encode)
-import Data.Store.Core (PeekException)
+import Data.Serialize (decode, encode)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
 import qualified Graphics.Vty as V
@@ -48,10 +46,10 @@ main = do
             (req, host, port, secure) <- authRequest configFolder
             liftIO $ putStrLn "Authenticating"
             authCheck <- liftIO $ httpLBS req
-            let respToken :: Either PeekException Token
+            let respToken :: Either String Token
                 respToken = decode . toStrict . getResponseBody $ authCheck
             -- Lift Either PeekException to ExceptT String
-            token <- withExceptT show . ExceptT . return $ respToken
+            token <- ExceptT . return $ respToken
             eventChan <- liftIO $ BChan.newBChan 200
             aliveMVar <- liftIO newEmptyMVar
             let websocketClient =

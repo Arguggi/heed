@@ -19,7 +19,7 @@ import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
-import Data.Store (Store, decode, encode)
+import Data.Serialize (Serialize, decode, encode)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as TIO
@@ -172,7 +172,7 @@ wsApp conf uname pending_conn = do
             InvalidReceived -> putStrLn "Invalid command received"
 
 sendDown
-    :: (Store a)
+    :: (Serialize a)
     => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendBinaryData conn $ encode info
 

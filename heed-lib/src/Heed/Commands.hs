@@ -10,9 +10,11 @@ import Control.Lens
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int
 import Data.Monoid ((<>))
-import Data.Store (Store, decode, encode)
 import qualified Data.Text as T
+import Data.Time.Calendar (Day(ModifiedJulianDay), toModifiedJulianDay)
 import Data.Time.Clock
+import Data.Serialize (Serialize(get, put), encode, decode)
+import Data.Serialize.Text ()
 import GHC.Generics
 import Servant.API.ContentTypes
        (MimeRender(..), MimeUnrender(..), OctetStream)
@@ -39,7 +41,7 @@ instance Monoid Seen where
     Seen `mappend` _ = Seen
     Unseen `mappend` a = a
 
-instance Store Seen
+instance Serialize Seen
 
 -- | List of feeds sent to the client
 data FeFeedInfo' a b c = FeFeedInfo'
@@ -59,7 +61,7 @@ instance Eq FeFeedInfo where
 instance Ord FeFeedInfo where
     a `compare` b = (a ^. feedListName) `compare` (b ^. feedListName)
 
-instance Store FeFeedInfo
+instance Serialize FeFeedInfo
 
 -- | List of items, one for each feed
 data FeItemInfo' a b c d e f = FeItemInfo'
@@ -79,7 +81,7 @@ makeLenses ''FeItemInfo'
 instance Eq FeItemInfo where
     a == b = _itemInfoId a == _itemInfoId b
 
-instance Store FeItemInfo
+instance Serialize FeItemInfo
 
 -- | Commands sent from client to server via websocket
 --
@@ -98,7 +100,7 @@ data Up
     | ForceRefresh Int -- ^ Force the server to download an rss feed
     deriving (Generic, Show)
 
-instance Store Up
+instance Serialize Up
 
 -- | Commands sent from server to client via websocket
 data Down
@@ -111,7 +113,7 @@ data Down
     | NewItems FeFeedInfo -- ^ Send Feed update
     deriving (Generic, Show)
 
-instance Store Down
+instance Serialize Down
 
 data AuthData = AuthData
     { username :: T.Text
@@ -120,7 +122,7 @@ data AuthData = AuthData
 
 instance FromForm AuthData
 
-instance Store AuthData
+instance Serialize AuthData
 
 --instance MimeRender OctetStream AuthData where
 --mimeRender _ = fromStrict . encode
@@ -135,7 +137,19 @@ newtype Token = Token
     { unToken :: T.Text
     } deriving (Generic, Show)
 
-instance Store Token
+instance Serialize Token
 
 instance MimeRender OctetStream Token where
     mimeRender _ = fromStrict . encode
+
+instance Serialize UTCTime where
+    get = UTCTime <$> get <*> get
+    put (UTCTime day time) = put day >> put time
+
+instance Serialize Day where
+    get = fmap ModifiedJulianDay get
+    put = put . toModifiedJulianDay
+
+instance Serialize DiffTime where
+    get = fmap picosecondsToDiffTime get
+    put = put . diffTimeToPicoseconds

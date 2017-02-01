@@ -20,7 +20,7 @@ import Data.Function ((&))
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
 import qualified Data.Set as Set
-import Data.Store (encode)
+import Data.Serialize (encode)
 import qualified Data.Text as T
 import qualified Data.Time.Format as Time
 import qualified Data.Vector as Vec
