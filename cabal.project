@@ -8,3 +8,5 @@ constraints:
     , distributive < 0.5.2
 
 allow-newer: all
+
+with-compiler: ghc-8.0.2
