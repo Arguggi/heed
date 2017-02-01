@@ -46,7 +46,6 @@ library
                      , opaleye >=0.5.2.2
                      , opaleye-trans >=0.3.4
                      , postgresql-simple >=0.5.2.1
-                     , primitive == 0.6.1.0
                      , product-profunctors >=0.7.1.0
                      , safe >=0.3.10
                      , servant >=0.9.1.1
