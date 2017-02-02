@@ -4,8 +4,8 @@ packages:
     heed-backend
 
 constraints:
-      primitive == 0.6.1.0
-    , distributive < 0.5.2
+      -- Doesn't work with new-build
+      distributive < 0.5.2
 
 allow-newer: all
 
