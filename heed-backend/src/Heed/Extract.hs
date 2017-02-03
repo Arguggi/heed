@@ -17,43 +17,38 @@ module Heed.Extract
     , broadcastUpdate
     ) where
 
-import Control.Applicative ((<|>))
 import Control.Concurrent (ThreadId, threadDelay)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens
-import Control.Monad (join)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BSL
 import Data.Int (Int64)
 import Data.List (deleteFirstsBy, minimumBy)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (listToMaybe)
 import Data.Monoid ((<>))
 import Data.Ord (compare)
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
-import qualified Data.Text.Lazy as TL
-import Data.Text.Lazy.Builder (toLazyText)
 import Data.Text.Lazy.Encoding (decodeUtf8With)
-import Data.Time
-       (defaultTimeLocale, getCurrentTime, parseTimeM, rfc822DateFormat)
+import Data.Time (getCurrentTime)
 import Data.Time.Clock (UTCTime, addUTCTime, diffUTCTime)
-import Data.Time.ISO8601 (parseISO8601)
-import qualified HTMLEntities.Decoder as EntDec
 import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
+import qualified Heed.Feed.Atom as HAtom
+import qualified Heed.Feed.RSS as RSS
 import Heed.Query
 import Heed.Types
 import Heed.Utils (fork)
 import qualified Safe
-import qualified Text.Atom.Feed as Atom
 import Text.Feed.Import (parseFeedSource)
-import Text.Feed.Types
+import Text.Feed.Types (Feed(AtomFeed, RSS1Feed, RSSFeed, XMLFeed))
 import qualified Text.HTML.TagSoup as TS
 import qualified Text.HTML.TagSoup.Match as TS
-import qualified Text.RSS.Syntax as RSS
 
+-- | Start a thread for every feed in the db and notify the bchan in the 'BackendConf'
+--   when updates arrive
 startUpdateThread :: UTCTime -> BackendConf -> FeedInfoHR -> IO ThreadId
 startUpdateThread now baConf info =
     fork $ do
@@ -76,6 +71,7 @@ startUpdateThread now baConf info =
                 Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
             liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
+-- | Someone requested a force update. Download feed and update items in db in necessary
 forceUpdate
     :: ( MonadCatch m
        , MonadDb m
@@ -94,11 +90,13 @@ forceUpdate fid = do
     new <- updateFeed feedInfo
     return (feedInfo, new)
 
+-- | Broadcast updates to any listeners
 broadcastUpdate :: (FeedInfoHR, Int64) -> BChan.BroadcastChan BChan.In (FeedInfoHR, Int64) -> IO ()
 broadcastUpdate update@(_, new) bchan
     | new > 0 = BChan.writeBChan bchan update
     | otherwise = return ()
 
+-- | Download, parse and add items to db, also add unread items
 updateFeed
     :: ( MonadCatch m
        , MonadDb m
@@ -116,6 +114,8 @@ updateFeed info = do
     logMsg $ info ^. feedInfoName <> ": " <> (T.pack . show $ num) <> " new items"
     return num
 
+-- | Check before adding new feed if it already is present in the db. If it's already there
+--   set all the old items as unread for the user
 addFeed
     :: (MonadLog m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)
     => Url -- ^ Feed URL
@@ -136,6 +136,7 @@ addFeed url every uid = do
             newItems <- updateFeedItems oldFeed feedItems
             return (oldFeed, newItems)
 
+-- | Add feed to db and set items as unread
 addNewFeed
     :: MonadDb m
     => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m (FeedInfoHR, Int64)
@@ -148,6 +149,7 @@ addNewFeed feedInfo feedItems uid =
         _ <- addSubscription uid newFeedId
         return (head insertedFeed, num)
 
+-- | Add new items to db and add them as unread for all users that are subscribed
 updateFeedItems
     :: (MonadDb m, MonadTime m)
     => FeedInfoHR -> [FeedItemHW] -> m Int64
@@ -177,58 +179,19 @@ updateFeedItems feed feedItems = do
         (_feedItemTitle fromDb == _feedItemTitle fromHttp) &&
         (_feedItemUrl fromDb == _feedItemUrl fromHttp)
 
+-- | We have to apply 'Just' to the ids since when we read them from the DB they can't
+--   be 'Nothing'
 applyJust :: FeedItemHR -> FeedItemHW
 applyJust hrs = hrs & feedItemId . getFeedItemId %~ Just & feedItemFeedId . getFeedInfoId %~ Just
 
 extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoHW, [FeedItemHW])
-extractInfoFromFeed now url (AtomFeed feed) = Just (feedInfo, feedItems)
-  where
-    feedInfo =
-        defFeedInfo
-        { _feedInfoName =
-              T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed
-        , _feedInfoUrl = url
-        , _feedInfoUpdateEvery = 60
-        , _feedInfoLastUpdated = fromMaybe now (parseISO8601 . Atom.feedUpdated $ feed)
-        }
-    feedItems = atomEntryToItem now <$> Atom.feedEntries feed
-extractInfoFromFeed now url (RSSFeed feed) = Just (feedInfo, feedItems)
-  where
-    channel = RSS.rssChannel feed
-    feedInfo =
-        defFeedInfo
-        { _feedInfoName = T.strip . decodeHtmlEnt . T.pack . RSS.rssTitle $ channel
-        , _feedInfoUrl = url
-        , _feedInfoUpdateEvery = 60
-        , _feedInfoLastUpdated =
-              fromMaybe now $
-              join (parseRfc822 <$> (RSS.rssPubDate channel <|> RSS.rssLastUpdate channel))
-        }
-    feedItems = rssEntryToItem now <$> RSS.rssItems channel
+extractInfoFromFeed now url (AtomFeed feed) = HAtom.extractInfo now url feed
+extractInfoFromFeed now url (RSSFeed feed) = RSS.extractInfo now url feed
 -- TODO
 extractInfoFromFeed _ _ (RSS1Feed _) = Nothing
 extractInfoFromFeed _ _ (XMLFeed _) = Nothing
 
-atomEntryToItem :: UTCTime -> Atom.Entry -> FeedItemHW
-atomEntryToItem now entry =
-    defFeedItem
-    { _feedItemTitle = decodeHtmlEnt . T.pack . Atom.txtToString . Atom.entryTitle $ entry
-    , _feedItemUrl = T.pack . Safe.headDef "" $ (Atom.linkHref <$> Atom.entryLinks entry)
-    , _feedItemDate = fromMaybe now $ parseISO8601 (Atom.entryUpdated entry)
-    }
-
-rssEntryToItem :: UTCTime -> RSS.RSSItem -> FeedItemHW
-rssEntryToItem now entry =
-    defFeedItem
-    { _feedItemTitle = T.pack . fromMaybe "No Title" . RSS.rssItemTitle $ entry
-    , _feedItemUrl = T.pack . fromMaybe "No Url" . RSS.rssItemLink $ entry
-    , _feedItemDate = fromMaybe now $ join (parseRfc822 <$> RSS.rssItemPubDate entry)
-    , _feedItemComments = T.pack <$> RSS.rssItemComments entry
-    }
-
-parseRfc822 :: String -> Maybe UTCTime
-parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
-
+-- | Import OPML exported by tt-rss
 importOPML
     :: (MonadOpml m, MonadLog m, MonadReader BackendConf m, MonadIO m)
     => T.Text -> UserId Int -> m ()
@@ -245,6 +208,7 @@ importOPML opml userid = do
         return ()
     return ()
 
+-- | Parse tags of tt-rss exported OPML
 parseTTRssOPML :: T.Text -> Maybe [T.Text]
 parseTTRssOPML opml = maybeFeeds
   where
@@ -268,6 +232,9 @@ ttRssAttrNames = ["type", "text", "xmlUrl"]
 getFeedUrl :: TS.Tag T.Text -> T.Text
 getFeedUrl = TS.fromAttrib "xmlUrl"
 
+-- | Update date info of feed
+--   1) If any item doesn't have a date we have to set '_feedItemDate' as Missing
+--   2) We have to set the total number of feeds
 updateDateInfo :: UTCTime -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
 updateDateInfo now (info, items) = (newInfo, items)
   where
@@ -280,9 +247,6 @@ updateDateInfo now (info, items) = (newInfo, items)
         if any (\x -> time == _feedItemDate x) xs
             then Missing
             else Present
-
-decodeHtmlEnt :: T.Text -> T.Text
-decodeHtmlEnt = TL.toStrict . toLazyText . EntDec.htmlEncodedText
 
 class Monad m =>
       MonadParse m where

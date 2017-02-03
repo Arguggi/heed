@@ -23,6 +23,9 @@ library
   exposed-modules:     Heed
                      , Heed.Crypto
                      , Heed.Extract
+                     , Heed.Feed.Atom
+                     , Heed.Feed.RSS
+                     , Heed.Feed.HtmlEntities
                      , Heed.Query
                      , Heed.Server
   build-depends:       base == 4.9.*
