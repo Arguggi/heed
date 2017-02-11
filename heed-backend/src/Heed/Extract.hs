@@ -3,18 +3,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Heed.Extract
-    ( startUpdateThread
-    , addFeed
-    , importOPML
-    , parseTTRssOPML
-    , ttRssTags
-    , matchAllAttr
-    , ttRssAttrNames
-    , getFeedUrl
-    , parseOpml
+    ( addFeed
+    , broadcastUpdate
     , extractInfoFromFeed
     , forceUpdate
-    , broadcastUpdate
+    , getFeedUrl
+    , importOPML
+    , latinTitle
+    , matchAllAttr
+    , parseFeed
+    , parseOpml
+    , parseTTRssOPML
+    , startUpdateThread
+    , ttRssAttrNames
+    , ttRssTags
     ) where
 
 import Control.Concurrent (ThreadId, threadDelay)
@@ -24,6 +26,7 @@ import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import qualified Data.ByteString.Lazy as BSL
+import Data.Char (isLatin1)
 import Data.Int (Int64)
 import Data.List (deleteFirstsBy, minimumBy)
 import Data.Maybe (listToMaybe)
@@ -248,6 +251,10 @@ updateDateInfo now (info, items) = (newInfo, items)
             then Missing
             else Present
 
+latinTitle :: FeedItemHW -> Bool
+latinTitle item =
+    T.length (item ^. feedItemTitle) < ((length . filter isLatin1 . T.unpack . _feedItemTitle $ item) * 2)
+
 class Monad m =>
       MonadParse m where
     parseFeed :: BSL.ByteString -> Url -> Int -> m (FeedInfoHW, [FeedItemHW])
@@ -257,7 +264,7 @@ instance MonadParse Backend where
         validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
         now <- liftIO getCurrentTime
         validInfo <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
-        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every
+        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every & _2 %~ filter latinTitle
 
 class Monad m =>
       MonadOpml m where
