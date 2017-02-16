@@ -1,4 +1,6 @@
-module Heed.Feed.HtmlEntities (decodeHtmlEnt) where
+module Heed.Feed.HtmlEntities
+    ( decodeHtmlEnt
+    ) where
 
 import qualified Data.Text as T
 import Data.Text.Lazy (toStrict)

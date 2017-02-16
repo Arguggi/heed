@@ -19,7 +19,6 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Function ((&))
 import Data.Maybe (fromMaybe)
 import Data.Monoid ((<>))
-import qualified Data.Set as Set
 import Data.Serialize (encode)
 import qualified Data.Text as T
 import qualified Data.Time.Format as Time
@@ -208,21 +207,20 @@ handleMess s (NewItems feed) = do
     M.continue newState
   where
     (newState, needUpdate) =
-        case Vec.elemIndex feed (s ^. feeds . BL.listElementsL)
-             -- Insert as first element for now, we should put this in
-             -- the correct alphabetical position
-              of
-            Nothing -> (s & feeds . BL.listElementsL %~ insertInOrder feed, False)
-            -- Update the new
+        case Vec.elemIndex feed (s ^. feeds . BL.listElementsL) of
+            Nothing -> (s & feeds %~ insertInOrder feed, False)
             Just i ->
                 ( s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread)
                 , True)
     sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
 handleMess s InvalidSent = M.continue s
 
-insertInOrder :: FeFeedInfo -> Vec.Vector FeFeedInfo -> Vec.Vector FeFeedInfo
-insertInOrder newFeed =
-    Vec.fromList . Set.toAscList . Set.insert newFeed . Set.fromList . Vec.toList
+insertInOrder
+    :: Ord e
+    => e -> BL.List n e -> BL.List n e
+insertInOrder newFeed feedList = BL.listInsert pos newFeed feedList
+  where
+    pos = length $ Vec.takeWhile (< newFeed) (feedList ^. BL.listElementsL)
 
 getSelFeedItems
     :: (MonadIO m)

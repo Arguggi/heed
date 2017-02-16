@@ -8,9 +8,11 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import Data.Time (defaultTimeLocale, parseTimeM, rfc822DateFormat)
 import Data.Time.Clock (UTCTime)
-import Heed.Database (Url, FeedInfoHW, FeedItemHW, _feedInfoName, _feedInfoUrl,
-        _feedInfoUpdateEvery, _feedInfoLastUpdated, defFeedInfo, _feedItemTitle,
-        _feedItemUrl, _feedItemDate, defFeedItem, _feedItemComments)
+import Heed.Database
+       (FeedInfoHW, FeedItemHW, Url, defFeedInfo, defFeedItem,
+        _feedInfoLastUpdated, _feedInfoName, _feedInfoUpdateEvery,
+        _feedInfoUrl, _feedItemComments, _feedItemDate, _feedItemTitle,
+        _feedItemUrl)
 import Heed.Feed.HtmlEntities (decodeHtmlEnt)
 import qualified Text.RSS.Syntax as RSS
 

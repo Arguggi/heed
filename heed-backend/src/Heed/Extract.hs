@@ -253,7 +253,8 @@ updateDateInfo now (info, items) = (newInfo, items)
 
 latinTitle :: FeedItemHW -> Bool
 latinTitle item =
-    T.length (item ^. feedItemTitle) < ((length . filter isLatin1 . T.unpack . _feedItemTitle $ item) * 2)
+    T.length (item ^. feedItemTitle) <
+    ((length . filter isLatin1 . T.unpack . _feedItemTitle $ item) * 2)
 
 class Monad m =>
       MonadParse m where
@@ -264,7 +265,8 @@ instance MonadParse Backend where
         validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
         now <- liftIO getCurrentTime
         validInfo <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
-        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every & _2 %~ filter latinTitle
+        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every & _2 %~
+            filter latinTitle
 
 class Monad m =>
       MonadOpml m where

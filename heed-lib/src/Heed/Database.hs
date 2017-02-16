@@ -14,10 +14,10 @@ module Heed.Database where
 
 import Control.Lens
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
+import Data.Serialize (Serialize)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
-import Data.Serialize (Serialize)
 import GHC.Generics
 import Heed.Commands
 import Heed.DbEnums

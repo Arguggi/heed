@@ -4,11 +4,12 @@ module Heed.Feed.Atom
 
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import Data.Time.ISO8601 (parseISO8601)
 import Data.Time.Clock (UTCTime)
-import Heed.Database (Url, FeedInfoHW, FeedItemHW, _feedInfoName, _feedInfoUrl,
-        _feedInfoUpdateEvery, _feedInfoLastUpdated, defFeedInfo, _feedItemTitle,
-        _feedItemUrl, _feedItemDate, defFeedItem)
+import Data.Time.ISO8601 (parseISO8601)
+import Heed.Database
+       (FeedInfoHW, FeedItemHW, Url, defFeedInfo, defFeedItem,
+        _feedInfoLastUpdated, _feedInfoName, _feedInfoUpdateEvery,
+        _feedInfoUrl, _feedItemDate, _feedItemTitle, _feedItemUrl)
 import Heed.Feed.HtmlEntities (decodeHtmlEnt)
 import qualified Safe
 import qualified Text.Atom.Feed as Atom

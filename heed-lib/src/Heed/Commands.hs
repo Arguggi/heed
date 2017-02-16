@@ -10,11 +10,12 @@ import Control.Lens
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int
 import Data.Monoid ((<>))
-import qualified Data.Text as T
-import Data.Time.Calendar (Day(ModifiedJulianDay), toModifiedJulianDay)
-import Data.Time.Clock
-import Data.Serialize (Serialize(get, put), encode, decode)
+import Data.Serialize (Serialize(get, put), decode, encode)
 import Data.Serialize.Text ()
+import qualified Data.Text as T
+import Data.Time.Calendar
+       (Day(ModifiedJulianDay), toModifiedJulianDay)
+import Data.Time.Clock
 import GHC.Generics
 import Servant.API.ContentTypes
        (MimeRender(..), MimeUnrender(..), OctetStream)
