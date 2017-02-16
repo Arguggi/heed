@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Heed.Vty where
 
@@ -20,6 +21,8 @@ import Data.Monoid ((<>))
 import Data.Serialize (decode, encode)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
+import Data.Version (showVersion)
+import Development.GitRev (gitHash)
 import qualified Graphics.Vty as V
 import Heed.Commands
 import Heed.Types (ExitType(..))
@@ -32,6 +35,10 @@ import Network.HTTP.Simple
         setRequestBodyLBS, setRequestHost, setRequestMethod,
         setRequestPath, setRequestPort, setRequestSecure)
 import qualified Network.WebSockets as WS
+import Options.Applicative
+       (Parser, ParserInfo, execParser, help, helper, info, infoOption,
+        long, strArgument)
+import Paths_heed_vty (version)
 import System.Directory
        (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory)
 import Text.Read (readEither)
@@ -39,6 +46,7 @@ import Wuss (runSecureClientWith)
 
 main :: IO ()
 main = do
+    _ <- execParser optsParser
     configFolder <- getXdgDirectory XdgConfig progName
     createDirectoryIfMissing True configFolder
     final <-
@@ -165,3 +173,12 @@ authRequest configFolder = do
             , secure)
   where
     isSecure x = T.toLower x == "on"
+
+optsParser :: ParserInfo String
+optsParser = info (helper <*> versionOption <*> strArgument mempty) mempty
+
+versionOption :: Parser (a -> a)
+versionOption =
+    infoOption
+        (concat [showVersion version, " ", $(gitHash)])
+        (long "version" <> help "Show version")

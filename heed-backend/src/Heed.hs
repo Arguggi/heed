@@ -1,13 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Heed where
 
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Monad (forM_)
 import qualified Data.Ini as Ini
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.Time.Clock (getCurrentTime)
+import Data.Version (showVersion)
 import Database.PostgreSQL.Simple as PG
+import Development.GitRev (gitHash)
 import Heed.Extract (startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
@@ -15,6 +19,10 @@ import Heed.Types
 import Heed.Utils (Port, defPort)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
+import Options.Applicative
+       (Parser, ParserInfo, execParser, help, helper, info, infoOption,
+        long, strArgument)
+import Paths_heed_backend (version)
 import System.Environment (setEnv)
 import System.Exit (die)
 import qualified System.Log.FastLogger as Log
@@ -29,6 +37,7 @@ pgEnvVar = ["PGUSER", "PGDATABASE"]
 -- | Connect to PostgreSQL and start rest backend
 main :: IO ()
 main = do
+    _ <- execParser optsParser
     _ <- EKG.forkServer "localhost" 9579
     timeCache <- LogDate.newTimeCache LogDate.simpleTimeFormat
     Log.withTimedFastLogger timeCache (Log.LogStdout Log.defaultBufSize) $ \logger -> do
@@ -66,3 +75,12 @@ setupBackendConf logger =
     BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings <*>
     BChan.newBroadcastChan <*>
     pure logger
+
+optsParser :: ParserInfo String
+optsParser = info (helper <*> versionOption <*> strArgument mempty) mempty
+
+versionOption :: Parser (a -> a)
+versionOption =
+    infoOption
+        (concat [showVersion version, " ", $(gitHash)])
+        (long "version" <> help "Show version")
