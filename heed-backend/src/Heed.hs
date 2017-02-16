@@ -20,8 +20,7 @@ import Heed.Utils (Port, defPort)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
 import Options.Applicative
-       (Parser, ParserInfo, execParser, help, helper, info, infoOption,
-        long, strArgument)
+       (Parser, ParserInfo, execParser, help, info, infoOption, long)
 import Paths_heed_backend (version)
 import System.Environment (setEnv)
 import System.Exit (die)
@@ -77,7 +76,7 @@ setupBackendConf logger =
     pure logger
 
 optsParser :: ParserInfo String
-optsParser = info (helper <*> versionOption <*> strArgument mempty) mempty
+optsParser = info (versionOption <*> pure "") mempty
 
 versionOption :: Parser (a -> a)
 versionOption =

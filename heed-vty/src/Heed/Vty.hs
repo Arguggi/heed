@@ -36,8 +36,7 @@ import Network.HTTP.Simple
         setRequestPath, setRequestPort, setRequestSecure)
 import qualified Network.WebSockets as WS
 import Options.Applicative
-       (Parser, ParserInfo, execParser, help, helper, info, infoOption,
-        long, strArgument)
+       (Parser, ParserInfo, execParser, help, info, infoOption, long)
 import Paths_heed_vty (version)
 import System.Directory
        (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory)
@@ -175,7 +174,7 @@ authRequest configFolder = do
     isSecure x = T.toLower x == "on"
 
 optsParser :: ParserInfo String
-optsParser = info (helper <*> versionOption <*> strArgument mempty) mempty
+optsParser = info (versionOption <*> pure "") mempty
 
 versionOption :: Parser (a -> a)
 versionOption =
