@@ -14,6 +14,7 @@ library
   exposed-modules:     Heed.Commands
                      , Heed.Database
                      , Heed.DbEnums
+                     , Heed.Orphans
                      , Heed.Types
                      , Heed.Utils
   build-depends:       base ==4.9.*
@@ -23,6 +24,7 @@ library
                      , cereal-text >=0.1
                      , exceptions >=0.8.3
                      , fast-logger >=2.4
+                     , generic-random >=0.4
                      , http-api-data >=0.3.3
                      , http-client >=0.5.5
                      , lens >=4.15.1
@@ -32,6 +34,7 @@ library
                      , product-profunctors >=0.7.1.0
                      , profunctors >=5.2
                      , postgresql-simple >=0.5.2.1
+                     , QuickCheck >=2.9
                      , servant >=0.9.1.1
                      , slave-thread >= 1.0
                      , text >=1.2.2.1

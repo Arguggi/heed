@@ -1,6 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Heed.Vty.MainWidget where
+module Heed.Vty.MainWidget
+    ( app
+    , insertInOrder
+    , MyEvent(WsReceive)
+    ) where
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as M

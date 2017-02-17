@@ -1,8 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
 module Heed.Commands where
 
@@ -10,15 +8,16 @@ import Control.Lens
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int
 import Data.Monoid ((<>))
-import Data.Serialize (Serialize(get, put), decode, encode)
+import Data.Serialize (Serialize, decode, encode)
 import Data.Serialize.Text ()
 import qualified Data.Text as T
-import Data.Time.Calendar
-       (Day(ModifiedJulianDay), toModifiedJulianDay)
 import Data.Time.Clock
 import GHC.Generics
+import Generic.Random.Generic (genericArbitrary, uniform)
+import Heed.Orphans ()
 import Servant.API.ContentTypes
        (MimeRender(..), MimeUnrender(..), OctetStream)
+import Test.QuickCheck (Arbitrary(..))
 import Web.FormUrlEncoded (FromForm(..))
 
 -- | Convenience
@@ -44,6 +43,9 @@ instance Monoid Seen where
 
 instance Serialize Seen
 
+instance Arbitrary Seen where
+    arbitrary = genericArbitrary uniform
+
 -- | List of feeds sent to the client
 data FeFeedInfo' a b c = FeFeedInfo'
     { _feedListId :: a -- ^ Postgresql feed id
@@ -56,13 +58,20 @@ type FeFeedInfo = FeFeedInfo' Int T.Text Int64
 
 makeLenses ''FeFeedInfo'
 
-instance Eq FeFeedInfo where
+instance (Eq a) =>
+         Eq (FeFeedInfo' a b c) where
     a == b = (a ^. feedListId) == (b ^. feedListId)
 
-instance Ord FeFeedInfo where
+instance (Eq a, Ord b) =>
+         Ord (FeFeedInfo' a b c) where
     a `compare` b = (a ^. feedListName) `compare` (b ^. feedListName)
 
-instance Serialize FeFeedInfo
+instance (Serialize a, Serialize b, Serialize c) =>
+         Serialize (FeFeedInfo' a b c)
+
+instance (Arbitrary a, Arbitrary b, Arbitrary c) =>
+         Arbitrary (FeFeedInfo' a b c) where
+    arbitrary = genericArbitrary uniform
 
 -- | List of items, one for each feed
 data FeItemInfo' a b c d e f = FeItemInfo'
@@ -79,10 +88,16 @@ type FeItemInfo = FeItemInfo' Int T.Text T.Text UTCTime (Maybe T.Text) Seen
 
 makeLenses ''FeItemInfo'
 
-instance Eq FeItemInfo where
+instance (Eq a) =>
+         Eq (FeItemInfo' a b c d e f) where
     a == b = _itemInfoId a == _itemInfoId b
 
-instance Serialize FeItemInfo
+instance (Serialize a, Serialize b, Serialize c, Serialize d, Serialize e, Serialize f) =>
+         Serialize (FeItemInfo' a b c d e f)
+
+instance (Arbitrary a, Arbitrary b, Arbitrary c, Arbitrary d, Arbitrary e, Arbitrary f) =>
+         Arbitrary (FeItemInfo' a b c d e f) where
+    arbitrary = genericArbitrary uniform
 
 -- | Commands sent from client to server via websocket
 --
@@ -142,15 +157,3 @@ instance Serialize Token
 
 instance MimeRender OctetStream Token where
     mimeRender _ = fromStrict . encode
-
-instance Serialize UTCTime where
-    get = UTCTime <$> get <*> get
-    put (UTCTime day time) = put day >> put time
-
-instance Serialize Day where
-    get = fmap ModifiedJulianDay get
-    put = put . toModifiedJulianDay
-
-instance Serialize DiffTime where
-    get = fmap picosecondsToDiffTime get
-    put = put . diffTimeToPicoseconds
