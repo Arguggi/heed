@@ -154,9 +154,9 @@ getUserUnreadItems userid =
      O.restrict -< _feedItemId item O..=== _unreadFeedItemId unread
      returnA -< (item ^. feedItemFeedId . getFeedInfoId, O.pgInt8 1)
 
+-- Sort after in haskell land since we don't want to use sql's sorting function
 getAllUserFeedInfo :: UserId Int -> O.Query FeFeedInfoR
 getAllUserFeedInfo uid =
-    O.orderBy (O.asc _feedListName) $
     proc () ->
   do allfeeds <- getUserFeedsQ uid -< ()
      (fIId, unreadCount) <- getUserUnreadItems uid -< ()

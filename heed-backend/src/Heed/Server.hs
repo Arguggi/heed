@@ -17,6 +17,7 @@ import Control.Monad.IO.Class
 import Crypto.KDF.BCrypt
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
+import Data.List (sort)
 import Data.Monoid
 import Data.Proxy (Proxy(Proxy))
 import Data.Serialize (Serialize, decode, encode)
@@ -138,6 +139,7 @@ wsApp conf uname pending_conn = do
     -- As soon as someone connects get the relevant feeds from the db
     -- since we will have to send them once the client tells us it's ready
     unreadFeeds <- runQueryNoT dbConn $ getUserUnreadFeedInfo uid
+    let sortedUnread = sort unreadFeeds
     allfeeds <- runQueryNoT dbConn $ getUserFeeds uid
     -- Create a new Broadcast channel where updates are pushed from the update threads
     updateListener <- BChan.newBChanListener (conf ^. updateChan)
@@ -145,12 +147,10 @@ wsApp conf uname pending_conn = do
     forever $ do
         commandM <- decode <$> WS.receiveData conn
         let command = either (const InvalidReceived) id commandM
-        putStr "Received: "
-        print command
         case command of
             Initialized -> do
                 sendDown conn $ Status (unUserName uname)
-                sendDown conn $ Feeds unreadFeeds
+                sendDown conn $ Feeds sortedUnread
             GetFeedItems feedId -> do
                 items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
                 sendDown conn (FeedItems items)
