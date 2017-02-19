@@ -70,20 +70,29 @@ data CredStatus
 
 newtype Backend a = Backend
     { runBackend :: ExceptT HeedError (ReaderT BackendConf IO) a
-    } deriving ( Functor
-               , Applicative
+    } deriving ( Applicative
+               , Functor
                , Monad
-               , MonadError HeedError
-               , MonadReader BackendConf
-               , MonadIO
                , MonadCatch
+               , MonadError HeedError
+               , MonadIO
+               , MonadReader BackendConf
                , MonadThrow
                )
+
+newtype Testing a = Testing
+    { runTesting :: ReaderT PG.Connection IO a
+    } deriving (Applicative, Functor, Monad, MonadIO, MonadReader PG.Connection)
 
 runBe
     :: (MonadIO m)
     => BackendConf -> Backend a -> m (Either HeedError a)
 runBe conf = liftIO . flip runReaderT conf . runExceptT . runBackend
+
+runTest
+    :: (MonadIO m)
+    => PG.Connection -> Testing a -> m a
+runTest conn = liftIO . flip runReaderT conn . runTesting
 
 class Monad m =>
       MonadHttp m where
@@ -109,6 +118,11 @@ instance MonadDb Backend where
     execQuery query = do
         db <- asks _dbConnection
         catchSql HSqlException $ runTransaction db query
+
+instance MonadDb Testing where
+    execQuery query = do
+        db <- ask
+        runTransaction db query
 
 catchExcep
     :: (Exception e, MonadCatch m, MonadError HeedError m)
