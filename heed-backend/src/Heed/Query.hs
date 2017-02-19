@@ -5,7 +5,28 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Heed.Query where
+module Heed.Query
+    ( addSubscription
+    , allFeedInfo
+    , allFeeds
+    , allItemsRead
+    , getRecentItems
+    , getSubs
+    , getUserDb
+    , getUserFeeds
+    , getUserItems
+    , getUserUnreadFeedInfo
+    , insertFeed
+    , insertItems
+    , insertUnread
+    , printSql
+    , readFeed
+    , runFeedInfoQuery
+    , saveTokenDb
+    , setFeedLastUpdated
+    , thisFeed
+    , verifyToken
+    ) where
 
 import Control.Arrow (returnA)
 import Control.Lens hiding (from, un)

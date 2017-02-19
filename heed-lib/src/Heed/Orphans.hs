@@ -3,7 +3,9 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Heed.Orphans where
+module Heed.Orphans
+    (
+    ) where
 
 import Data.Serialize (Serialize(get, put))
 import Data.Serialize.Text ()

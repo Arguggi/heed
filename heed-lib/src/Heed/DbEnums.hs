@@ -4,7 +4,10 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Heed.DbEnums where
+module Heed.DbEnums
+    ( ItemsDate(Missing, Present)
+    , PGItemsDate
+    ) where
 
 import qualified Data.ByteString.Char8 as B8
 import Data.Monoid ((<>))

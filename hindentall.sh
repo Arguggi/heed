@@ -5,7 +5,7 @@ projects=("heed-backend" "heed-vty" "heed-lib")
 echo "Running stylish-haskell and hindent";
 
 for proj in "${projects[@]}"; do
-    for f in $(find "$proj/src/" -iname "*.hs" -type f); do
+    for f in $(find "$proj/src/" "$proj/exe/" "$proj/test/" -iname "*.hs" -type f); do
         echo "Indenting $f";
         basename "$f";
         stylish-haskell -i "$f";

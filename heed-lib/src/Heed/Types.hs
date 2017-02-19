@@ -6,7 +6,33 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Heed.Types where
+module Heed.Types
+    ( Backend
+    , BackendConf(..)
+    , ExitType(..)
+    , HeedError(..)
+    , MonadDb
+    , MonadHttp
+    , MonadLog
+    , MonadTime
+    , catchHttp
+    , downloadUrl
+    , execQuery
+    , getTime
+    , liftJust
+    , logMsg
+    , logMsgIO
+    , runBe
+    , runQueryNoT
+    , runTest
+    , runTransaction
+    , showUserHeedError
+    -- Lenses
+    , updateChan
+    , timedLogger
+    , dbConnection
+    , httpManager
+    ) where
 
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens
@@ -63,10 +89,6 @@ data ExitType
     = UserExit
     | WsDisconnect
     deriving (Eq, Show)
-
-data CredStatus
-    = Verified
-    | Unverified
 
 newtype Backend a = Backend
     { runBackend :: ExceptT HeedError (ReaderT BackendConf IO) a

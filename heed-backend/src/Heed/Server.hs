@@ -13,25 +13,27 @@ module Heed.Server where
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens hiding (Context)
 import Control.Monad (forever, void, when)
-import Control.Monad.IO.Class
-import Crypto.KDF.BCrypt
+import Control.Monad.IO.Class (liftIO)
+import Crypto.KDF.BCrypt (validatePassword)
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import Data.List (sort)
-import Data.Monoid
+import Data.Monoid ((<>))
 import Data.Proxy (Proxy(Proxy))
 import Data.Serialize (Serialize, decode, encode)
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import qualified Data.Text.IO as TIO
 import Data.Time.Clock (getCurrentTime)
-import Heed.Commands
-import Heed.Crypto
-import Heed.Database
+import qualified Heed.Commands as HC
+import Heed.Crypto (generateToken)
+import qualified Heed.Database as DB
 import Heed.Extract
        (addFeed, broadcastUpdate, forceUpdate, startUpdateThread)
-import Heed.Query
+import qualified Heed.Query as HQ
 import Heed.Types
+       (BackendConf, dbConnection, runBe, runQueryNoT, runTransaction,
+        showUserHeedError, updateChan)
 import Heed.Utils (Port, fork_)
 import Network.HTTP.Types (badRequest400)
 import Network.Wai
@@ -61,7 +63,7 @@ data UserName = UserName
     }
 
 -- | Our API, with auth-protection
-type AuthGenAPI = "auth" :> (ReqBody '[ OctetStream] AuthData :> Post '[ OctetStream] Token) :<|> AuthProtect "cookie-auth" :> Raw
+type AuthGenAPI = "auth" :> (ReqBody '[ OctetStream] HC.AuthData :> Post '[ OctetStream] HC.Token) :<|> AuthProtect "cookie-auth" :> Raw
 
 -- | A value holding our type-level API
 genAuthAPI :: Proxy AuthGenAPI
@@ -72,10 +74,10 @@ genAuthAPI = Proxy
 lookupTok :: BackendConf -> ByteString -> Handler UserName
 lookupTok conf authToken = do
     let dbConn = conf ^. dbConnection
-    tokenInfo <- runTransaction dbConn $ verifyToken (decodeUtf8 authToken)
+    tokenInfo <- runTransaction dbConn $ HQ.verifyToken (decodeUtf8 authToken)
     case tokenInfo of
         Nothing -> throwError err401
-        Just user -> return $ UserName (_userName user) (_getUserId . _userId $ user)
+        Just user -> return $ UserName (DB._userName user) (DB._getUserId . DB._userId $ user)
 
 -- | The auth handler wraps a function from Request -> Handler Tok
 -- we look for a Cookie and pass the value of the cookie to `lookupTok`.
@@ -103,21 +105,22 @@ type instance AuthServerData (AuthProtect "cookie-auth") = UserName
 genAuthServer :: BackendConf -> Server AuthGenAPI
 genAuthServer conf = checkCreds conf :<|> app conf
 
-checkCreds :: BackendConf -> AuthData -> Handler Token
-checkCreds conf (AuthData usern pw) = do
+checkCreds :: BackendConf -> HC.AuthData -> Handler HC.Token
+checkCreds conf (HC.AuthData usern pw) = do
     liftIO $ putStrLn "Checking auth"
     let dbConn = conf ^. dbConnection
-    userDbM <- runQueryNoT dbConn $ getUserDb usern
+    userDbM <- runQueryNoT dbConn $ HQ.getUserDb usern
     case userDbM of
         Just userDb -> do
             liftIO $ putStrLn "got pw hash"
-            let validPass = validatePassword (encodeUtf8 pw) (encodeUtf8 . _userPassword $ userDb)
+            let validPass =
+                    validatePassword (encodeUtf8 pw) (encodeUtf8 . DB._userPassword $ userDb)
             if validPass
                 then do
                     liftIO $ putStrLn "Verified"
                     newToken <- generateToken
-                    _ <- runQueryNoT dbConn $ saveTokenDb newToken (_userId userDb)
-                    return $ Token newToken
+                    _ <- runQueryNoT dbConn $ HQ.saveTokenDb newToken (DB._userId userDb)
+                    return $ HC.Token newToken
                 else (do liftIO $ putStrLn "Invalid password"
                          throwError err401)
         Nothing -> do
@@ -133,67 +136,68 @@ wsApp conf uname pending_conn = do
     -- User heed protocol
     let ar = WS.AcceptRequest (Just "heed") []
         dbConn = conf ^. dbConnection
-        uid = UserId $ unUserId uname
+        uid = DB.UserId $ unUserId uname
     conn <- WS.acceptRequestWith pending_conn ar
     WS.forkPingThread conn 10
     -- As soon as someone connects get the relevant feeds from the db
     -- since we will have to send them once the client tells us it's ready
-    unreadFeeds <- runQueryNoT dbConn $ getUserUnreadFeedInfo uid
+    unreadFeeds <- runQueryNoT dbConn $ HQ.getUserUnreadFeedInfo uid
     let sortedUnread = sort unreadFeeds
-    allfeeds <- runQueryNoT dbConn $ getUserFeeds uid
+    allfeeds <- runQueryNoT dbConn $ HQ.getUserFeeds uid
     -- Create a new Broadcast channel where updates are pushed from the update threads
     updateListener <- BChan.newBChanListener (conf ^. updateChan)
     sendUpdates updateListener conn allfeeds
     forever $ do
         commandM <- decode <$> WS.receiveData conn
-        let command = either (const InvalidReceived) id commandM
+        let command = either (const HC.InvalidReceived) id commandM
         case command of
-            Initialized -> do
-                sendDown conn $ Status (unUserName uname)
-                sendDown conn $ Feeds sortedUnread
-            GetFeedItems feedId -> do
-                items <- runQueryNoT dbConn $ getUserItems uid (FeedInfoId feedId)
-                sendDown conn (FeedItems items)
-            ItemRead itemId -> void . runQueryNoT dbConn $ readFeed uid (FeedItemId itemId)
-            FeedRead feedId -> void . runQueryNoT dbConn $ allItemsRead (FeedInfoId feedId) uid
-            NewFeed url updateEvery -> do
+            HC.Initialized -> do
+                sendDown conn $ HC.Status (unUserName uname)
+                sendDown conn $ HC.Feeds sortedUnread
+            HC.GetFeedItems feedId -> do
+                items <- runQueryNoT dbConn $ HQ.getUserItems uid (DB.FeedInfoId feedId)
+                sendDown conn (HC.FeedItems items)
+            HC.ItemRead itemId -> void . runQueryNoT dbConn $ HQ.readFeed uid (DB.FeedItemId itemId)
+            HC.FeedRead feedId ->
+                void . runQueryNoT dbConn $ HQ.allItemsRead (DB.FeedInfoId feedId) uid
+            HC.NewFeed url updateEvery -> do
                 newFeed <- runBe conf $ addFeed url updateEvery uid
                 case newFeed of
-                    Left e -> sendDown conn (BackendError (showUserHeedError e))
+                    Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
                     Right (feed, _) -> do
                         now <- getCurrentTime
                         _ <- startUpdateThread now conf feed
-                        sendDown conn (FeedAdded url)
-            ForceRefresh fid -> do
-                updateE <- runBe conf $ forceUpdate (FeedInfoId fid)
+                        sendDown conn (HC.FeedAdded url)
+            HC.ForceRefresh fid -> do
+                updateE <- runBe conf $ forceUpdate (DB.FeedInfoId fid)
                 case updateE of
-                    Left e -> sendDown conn (BackendError (showUserHeedError e))
+                    Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
                     Right update -> broadcastUpdate update (conf ^. updateChan)
-            InvalidReceived -> putStrLn "Invalid command received"
+            HC.InvalidReceived -> putStrLn "Invalid command received"
 
 sendDown
     :: (Serialize a)
     => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendBinaryData conn $ encode info
 
-sendUpdates :: BChan.BroadcastChan BChan.Out (FeedInfoHR, Int64)
+sendUpdates :: BChan.BroadcastChan BChan.Out (DB.FeedInfoHR, Int64)
             -> WS.Connection
-            -> [FeedInfoHR]
+            -> [DB.FeedInfoHR]
             -> IO ()
 sendUpdates bchan wsconn userfeeds =
     fork_ . forever $ do
         (feed, numItems) <- BChan.readBChan bchan
-        when ((feed ^. feedInfoId) `elem` subIds) $
+        when ((feed ^. DB.feedInfoId) `elem` subIds) $
             sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
   where
-    subIds = userfeeds ^.. traverse . feedInfoId
+    subIds = userfeeds ^.. traverse . DB.feedInfoId
 
-sendNewItems :: WS.Connection -> FeFeedInfo -> IO ()
-sendNewItems wsconn finfo = sendDown wsconn (NewItems finfo)
+sendNewItems :: WS.Connection -> HC.FeFeedInfo -> IO ()
+sendNewItems wsconn finfo = sendDown wsconn (HC.NewItems finfo)
 
-toFrontEndFeedInfo :: FeedInfoHR -> Int64 -> FeFeedInfo
+toFrontEndFeedInfo :: DB.FeedInfoHR -> Int64 -> HC.FeFeedInfo
 toFrontEndFeedInfo beInfo =
-    FeFeedInfo' (beInfo ^. feedInfoId . getFeedInfoId) (beInfo ^. feedInfoName)
+    HC.FeFeedInfo' (beInfo ^. DB.feedInfoId . DB.getFeedInfoId) (beInfo ^. DB.feedInfoName)
 
 backupApp :: Application
 backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"

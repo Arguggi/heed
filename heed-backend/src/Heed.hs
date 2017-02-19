@@ -15,7 +15,7 @@ import Development.GitRev (gitHash)
 import Heed.Extract (startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
-import Heed.Types
+import Heed.Types (BackendConf(..), execQuery, runBe)
 import Heed.Utils (Port, defPort)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)

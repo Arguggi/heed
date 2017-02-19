@@ -2,17 +2,40 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Heed.Commands where
+module Heed.Commands
+    ( AuthData(..)
+    , Down(..)
+    , FeFeedInfo
+    , FeFeedInfo'(..)
+    , FeItemInfo
+    , FeItemInfo'(..)
+    , Seen(..)
+    , Token(..)
+    , Up(..)
+    , fromBool
+    , toBool
+    -- Feed Info Lenses
+    , feedListId
+    , feedListName
+    , feedListUnread
+    -- Feed Item Lenses
+    , itemInfoId
+    , itemInfoTitle
+    , itemInfoLink
+    , itemInfoDate
+    , itemInfoComments
+    , itemInfoRead
+    ) where
 
 import Control.Lens
 import Data.ByteString.Lazy (fromStrict, toStrict)
-import Data.Int
+import Data.Int (Int64)
 import Data.Monoid ((<>))
 import Data.Serialize (Serialize, decode, encode)
 import Data.Serialize.Text ()
 import qualified Data.Text as T
-import Data.Time.Clock
-import GHC.Generics
+import Data.Time.Clock (UTCTime)
+import GHC.Generics (Generic)
 import Generic.Random.Generic (genericArbitrary, uniform)
 import Heed.Orphans ()
 import Servant.API.ContentTypes

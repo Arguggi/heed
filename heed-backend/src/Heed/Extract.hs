@@ -22,9 +22,11 @@ module Heed.Extract
 import Control.Concurrent (ThreadId, threadDelay)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Lens
-import Control.Monad.Catch
-import Control.Monad.Except
-import Control.Monad.Reader
+import Control.Monad (forM_, forever, when)
+import Control.Monad.Catch (MonadCatch)
+import Control.Monad.Except (MonadError)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Reader (MonadReader, ask)
 import qualified Data.ByteString.Lazy as BSL
 import Data.Char (isLatin1)
 import Data.Int (Int64)

@@ -1,14 +1,13 @@
 module Heed.Crypto where
 
-import Control.Monad.IO.Class
-import Crypto.Random.Types
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Crypto.KDF.BCrypt (hashPassword)
+import Crypto.Random.Types (MonadRandom)
 import Data.Char (chr)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Vector.Unboxed
-import System.Random.MWC
-
-import Crypto.KDF.BCrypt (hashPassword)
+import Data.Vector.Unboxed (replicateM, toList)
+import System.Random.MWC (asGenIO, uniformR, withSystemRandom)
 
 generateToken
     :: (MonadIO m)

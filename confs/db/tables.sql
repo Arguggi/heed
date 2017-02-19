@@ -62,4 +62,3 @@ CREATE TRIGGER after_new_user
     AFTER INSERT ON heed_user
     FOR EACH ROW
         EXECUTE PROCEDURE add_id_token();
-
