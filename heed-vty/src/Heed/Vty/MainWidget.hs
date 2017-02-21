@@ -45,19 +45,22 @@ drawUi s = [ui]
     ui = C.center $ vBox [statusBar, B.hBorder, mainInfo]
     statusBar = txt ("Connected as " <> (s ^. userName)) <+> (padLeft BT.Max . txt $ s ^. status)
     mainInfo = hBox [feedListVty, B.vBorder, itemInfoVty]
-    feedListVty = hLimit 50 $ BL.renderList feedDrawElement True (s ^. feeds)
+    feedListVty = hLimit feedListWidth $ BL.renderList feedDrawElement True (s ^. feeds)
     itemInfoVty = vBox [itemListVty, B.hBorder, itemDetailVty]
     itemListVty = BL.renderList itemDrawElement True (s ^. items)
     itemDetailVty = vLimit 4 $ itemDrawDetail (BL.listSelectedElement $ s ^. items)
 
 feedDrawElement :: Bool -> FeFeedInfo -> Widget Name
 feedDrawElement sel a =
-    selectedStyle $ txt (a ^. feedListName) <+> (padLeft BT.Max . str . show $ a ^. feedListUnread)
+    selectedStyle $ hLimit infoNameMaxWidth (txt (a ^. feedListName)) <+>
+    (padLeft BT.Max . str . show $ a ^. feedListUnread)
   where
     selectedStyle =
         if sel
             then withAttr "selected"
             else id
+    -- Start from max width, subtract length of unread items (e.g. 88) and then a space
+    infoNameMaxWidth = feedListWidth - (length . show $ a ^. feedListUnread) - 1
 
 itemDrawElement :: Bool -> FeItemInfo -> Widget Name
 itemDrawElement sel a =
@@ -258,3 +261,6 @@ myAttrs = [("selected", BU.fg V.white), ("read", BU.fg V.red)]
 
 euTimeLocale :: Time.TimeLocale
 euTimeLocale = Time.defaultTimeLocale {Time.dateFmt = "%d/%m/%y"}
+
+feedListWidth :: Int
+feedListWidth = 50
