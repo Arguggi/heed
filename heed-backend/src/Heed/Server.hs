@@ -33,7 +33,7 @@ import Heed.Extract
 import qualified Heed.Query as HQ
 import Heed.Types
        (BackendConf, dbConnection, runBe, runQueryNoT, runTransaction,
-        showUserHeedError, updateChan)
+        showUserHeedError, updateChan, ChanUpdates(..))
 import Heed.Utils (Port, fork_)
 import Network.HTTP.Types (badRequest400)
 import Network.Wai
@@ -164,8 +164,10 @@ wsApp conf uname pending_conn = do
                 newFeed <- runBe conf $ addFeed url updateEvery uid
                 case newFeed of
                     Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
-                    Right (feed, _) -> do
+                    Right (feed, num) -> do
                         now <- getCurrentTime
+                        BChan.writeBChan (conf^.updateChan) (UpdateFeedList feed)
+                        BChan.writeBChan (conf^.updateChan) (SendItems feed num)
                         _ <- startUpdateThread now conf feed
                         sendDown conn (HC.FeedAdded url)
             HC.ForceRefresh fid -> do
@@ -180,17 +182,20 @@ sendDown
     => WS.Connection -> a -> IO ()
 sendDown conn info = WS.sendBinaryData conn $ encode info
 
-sendUpdates :: BChan.BroadcastChan BChan.Out (DB.FeedInfoHR, Int64)
+sendUpdates :: BChan.BroadcastChan BChan.Out ChanUpdates
             -> WS.Connection
             -> [DB.FeedInfoHR]
             -> IO ()
 sendUpdates bchan wsconn userfeeds =
-    fork_ . forever $ do
-        (feed, numItems) <- BChan.readBChan bchan
-        when ((feed ^. DB.feedInfoId) `elem` subIds) $
-            sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
+    fork_ . flip iterateM_ userfeeds $ \feeds -> do
+        update <- BChan.readBChan bchan
+        case update of
+            SendItems feed numItems -> do
+                when ((feed ^. DB.feedInfoId) `elem` subIds feeds) $ sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
+                return feeds
+            UpdateFeedList feed -> return $ feed : feeds
   where
-    subIds = userfeeds ^.. traverse . DB.feedInfoId
+    subIds feeds = feeds ^.. traverse . DB.feedInfoId
 
 sendNewItems :: WS.Connection -> HC.FeFeedInfo -> IO ()
 sendNewItems wsconn finfo = sendDown wsconn (HC.NewItems finfo)
@@ -201,3 +206,11 @@ toFrontEndFeedInfo beInfo =
 
 backupApp :: Application
 backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"
+
+-- Stolen from monad-loops
+{-# SPECIALIZE iterateM_ :: (a -> IO a) -> a -> IO b #-}
+-- |Execute an action forever, feeding the result of each execution as the
+-- input to the next.
+iterateM_ :: Monad m => (a -> m a) -> a -> m b
+iterateM_ f = g
+    where g x = f x >>= g

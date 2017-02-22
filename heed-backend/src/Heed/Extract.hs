@@ -96,9 +96,9 @@ forceUpdate fid = do
     return (feedInfo, new)
 
 -- | Broadcast updates to any listeners
-broadcastUpdate :: (FeedInfoHR, Int64) -> BChan.BroadcastChan BChan.In (FeedInfoHR, Int64) -> IO ()
-broadcastUpdate update@(_, new) bchan
-    | new > 0 = BChan.writeBChan bchan update
+broadcastUpdate :: (FeedInfoHR, Int64) -> BChan.BroadcastChan BChan.In ChanUpdates -> IO ()
+broadcastUpdate (items, new) bchan
+    | new > 0 = BChan.writeBChan bchan (SendItems items new)
     | otherwise = return ()
 
 -- | Download, parse and add items to db, also add unread items

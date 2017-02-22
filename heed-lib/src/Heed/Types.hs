@@ -9,6 +9,7 @@
 module Heed.Types
     ( Backend
     , BackendConf(..)
+    , ChanUpdates(..)
     , ExitType(..)
     , HeedError(..)
     , MonadDb
@@ -74,12 +75,14 @@ showUserHeedError (HSqlException _) = "Database error"
 
 instance Exception HeedError
 
-type Count = Int64
+data ChanUpdates
+    = SendItems FeedInfoHR Int64
+    | UpdateFeedList FeedInfoHR
 
 data BackendConf = BackendConf
     { _dbConnection :: PG.Connection
     , _httpManager :: Manager
-    , _updateChan :: BChan.BroadcastChan BChan.In (FeedInfoHR, Count)
+    , _updateChan :: BChan.BroadcastChan BChan.In ChanUpdates
     , _timedLogger :: Log.TimedFastLogger
     }
 
