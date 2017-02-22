@@ -36,7 +36,6 @@ import Data.Serialize.Text ()
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime)
 import GHC.Generics (Generic)
-import Generic.Random.Generic (genericArbitrary, uniform)
 import Heed.Orphans ()
 import Servant.API.ContentTypes
        (MimeRender(..), MimeUnrender(..), OctetStream)
@@ -67,7 +66,7 @@ instance Monoid Seen where
 instance Serialize Seen
 
 instance Arbitrary Seen where
-    arbitrary = genericArbitrary uniform
+    arbitrary = fromBool <$> arbitrary
 
 -- | List of feeds sent to the client
 data FeFeedInfo' a b c = FeFeedInfo'
@@ -94,7 +93,7 @@ instance (Serialize a, Serialize b, Serialize c) =>
 
 instance (Arbitrary a, Arbitrary b, Arbitrary c) =>
          Arbitrary (FeFeedInfo' a b c) where
-    arbitrary = genericArbitrary uniform
+    arbitrary = FeFeedInfo' <$> arbitrary <*> arbitrary <*> arbitrary
 
 -- | List of items, one for each feed
 data FeItemInfo' a b c d e f = FeItemInfo'
@@ -120,7 +119,7 @@ instance (Serialize a, Serialize b, Serialize c, Serialize d, Serialize e, Seria
 
 instance (Arbitrary a, Arbitrary b, Arbitrary c, Arbitrary d, Arbitrary e, Arbitrary f) =>
          Arbitrary (FeItemInfo' a b c d e f) where
-    arbitrary = genericArbitrary uniform
+    arbitrary = FeItemInfo' <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
 
 -- | Commands sent from client to server via websocket
 --

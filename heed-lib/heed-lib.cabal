@@ -24,7 +24,6 @@ library
                      , cereal-text >=0.1
                      , exceptions >=0.8.3
                      , fast-logger >=2.4
-                     , generic-random >=0.4
                      , http-api-data >=0.3.3
                      , http-client >=0.5.5
                      , lens >=4.15.1
