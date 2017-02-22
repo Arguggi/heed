@@ -9,7 +9,6 @@ import qualified Brick.Widgets.List as BL
 import Control.Lens
 import qualified Data.Vector as Vec
 import GHC.Generics (Generic)
-import Generic.Random.Generic (genericArbitrary, uniform)
 import Heed.Commands (FeFeedInfo)
 import Heed.Vty.MainWidget (insertInOrder)
 import Test.Hspec (describe, hspec, it)
@@ -45,7 +44,7 @@ data ListName =
     deriving (Generic, Show)
 
 instance Arbitrary ListName where
-    arbitrary = genericArbitrary uniform
+    arbitrary = return ListName
 
 instance (Arbitrary n, Arbitrary e, Ord e) =>
          Arbitrary (BL.List n e) where

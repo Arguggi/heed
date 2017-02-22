@@ -60,7 +60,6 @@ Test-Suite heed-vty-tests
   main-is:             Main.hs
   build-depends:       base
                      , brick >=0.17
-                     , generic-random >=0.4
                      , heed-lib
                      , heed-vty
                      , hspec >=2.3
