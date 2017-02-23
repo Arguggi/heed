@@ -10,6 +10,7 @@ module Heed.Query
     , allFeedInfo
     , allFeeds
     , allItemsRead
+    , feedUpdateInterval
     , getRecentItems
     , getSubs
     , getUserDb
@@ -19,12 +20,16 @@ module Heed.Query
     , insertFeed
     , insertItems
     , insertUnread
+    , insertUserPrefName
     , printSql
     , readFeed
     , runFeedInfoQuery
     , saveTokenDb
     , setFeedLastUpdated
     , thisFeed
+    , updateFeedInterval
+    , updateUserPrefName
+    , userFeedName
     , verifyToken
     ) where
 
@@ -37,10 +42,12 @@ import Data.Profunctor.Product.Default (Default)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
 import Heed.Commands
-       (FeFeedInfo, FeFeedInfo'(..), FeItemInfo, FeItemInfo'(..))
+       (FeFeedInfo, FeFeedInfo'(..), FeFeedInfoR, FeItemInfo,
+        FeItemInfo'(..), FeItemInfoR, feedListId, feedListName)
 import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import qualified Opaleye as O
+import qualified Opaleye.FunctionalJoin as JOIN
 import qualified Opaleye.Trans as OT
 
 -- | Print a sql query, for debugging only
@@ -185,8 +192,19 @@ getAllUserFeedInfo uid =
      O.restrict -< fIId O..=== (_getFeedInfoId . _feedInfoId $ allfeeds)
      returnA -< FeFeedInfo' fIId fIName unreadCount
 
+getAllUserPref :: UserId Int -> O.Query UserFeedInfoPrefR
+getAllUserPref uid =
+    proc () ->
+  do pref <- O.queryTable userPrefTable -< ()
+     O.restrict -< O.constant uid O..=== (pref ^. prefUserId)
+     returnA -< pref
+
 getUserUnreadFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
-getUserUnreadFeedInfo userid = OT.query $ getAllUserFeedInfo userid
+getUserUnreadFeedInfo userid =
+    OT.query $ JOIN.leftJoinF unite id joinOn (getAllUserFeedInfo userid) (getAllUserPref userid)
+  where
+    unite info pref = info & feedListName .~ (pref ^. prefName)
+    joinOn info pref = (FeedInfoId $ info ^. feedListId) O..=== pref ^. prefFeedId
 
 getUserFeeds :: UserId Int -> OT.Transaction [FeedInfoHR]
 getUserFeeds uid = OT.query $ getUserFeedsQ uid
@@ -264,3 +282,33 @@ allFeedInfo fid =
   do feed <- O.queryTable feedInfoTable -< ()
      O.restrict -< (feed ^. feedInfoId) O..=== O.constant fid
      returnA -< feed
+
+userFeedName :: FeedInfoIdH -> UserId Int -> OT.Transaction [UserFeedInfoPrefHR]
+userFeedName fid userid =
+    OT.query $
+    proc () ->
+  do pref <- O.queryTable userPrefTable -< ()
+     O.restrict -<
+       ((pref ^. prefUserId) O..=== O.constant userid) O..&&
+         ((pref ^. prefFeedId) O..=== O.constant fid)
+     returnA -< pref
+
+insertUserPrefName :: UserFeedInfoPrefHW -> OT.Transaction Int64
+insertUserPrefName pref = OT.insertMany userPrefTable [O.constant pref]
+
+updateUserPrefName :: UserFeedInfoPrefHW -> OT.Transaction Int64
+updateUserPrefName pref = OT.update userPrefTable (const (O.constant pref)) correctRow
+  where
+    correctRow row =
+        row ^. prefUserId O..=== O.constant (pref ^. prefUserId) O..&& row ^. prefFeedId O..===
+        O.constant (pref ^. prefFeedId)
+
+feedUpdateInterval :: FeedInfoIdH -> OT.Transaction [Int]
+feedUpdateInterval fid = fmap _feedInfoUpdateEvery <$> allFeedInfo fid
+
+updateFeedInterval :: FeedInfoIdH -> Int -> OT.Transaction [FeedInfoHR]
+updateFeedInterval fid interval = OT.updateReturning feedInfoTable rToW correctRow id
+  where
+    correctRow row = row ^. feedInfoId O..=== O.constant fid
+    rToW x =
+        x & feedInfoUpdateEvery .~ O.constant interval & feedInfoId .~ O.constant (Just <$> fid)

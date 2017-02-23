@@ -8,6 +8,7 @@ module Heed.QueryTest
     ( checkAuthTokenTable
     , checkFeedInfoTable
     , checkFeedItemTable
+    , checkPrefTable
     , checkSubscriptionTable
     , checkUnreadItemTable
     , checkUserTable
@@ -26,6 +27,9 @@ checkFeedInfoTable = OT.query $ O.countRows (O.queryTable DB.feedInfoTable)
 
 checkFeedItemTable :: OT.Transaction [Int64]
 checkFeedItemTable = OT.query $ O.countRows (O.queryTable DB.feedItemTable)
+
+checkPrefTable :: OT.Transaction [Int64]
+checkPrefTable = OT.query $ O.countRows (O.queryTable DB.userPrefTable)
 
 checkSubscriptionTable :: OT.Transaction [Int64]
 checkSubscriptionTable = OT.query $ O.countRows (O.queryTable DB.subscriptionTable)

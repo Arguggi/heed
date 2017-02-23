@@ -4,18 +4,22 @@
 module Heed where
 
 import qualified Control.Concurrent.BroadcastChan as BChan
-import Control.Monad (forM_)
+import Control.Concurrent.STM.TVar (newTVarIO)
+import Control.Lens ((&), (.~), (^..))
+import Control.Monad (forM, forM_)
 import qualified Data.Ini as Ini
+import qualified Data.Map.Strict as Map
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.Time.Clock (getCurrentTime)
 import Data.Version (showVersion)
 import Database.PostgreSQL.Simple as PG
 import Development.GitRev (gitHash)
+import Heed.Database (feedInfoId)
 import Heed.Extract (startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
-import Heed.Types (BackendConf(..), execQuery, runBe)
+import Heed.Types (BackendConf(..), execQuery, runBe, threadMap)
 import Heed.Utils (Port, defPort)
 import Network.HTTP.Client (newManager)
 import Network.HTTP.Client.TLS (tlsManagerSettings)
@@ -43,10 +47,15 @@ main = do
         baConf <- setupBackendConf logger
         feedsE <- runBe baConf $ execQuery allFeeds
         now <- getCurrentTime
-        case feedsE of
-            Left _ -> die "Can't get feed list from db"
-            Right feeds -> forM_ feeds (startUpdateThread now baConf)
-        genAuthMain baConf port
+        threads <-
+            case feedsE of
+                Left _ -> die "Can't get feed list from db"
+                Right feeds -> do
+                    threadIds <- forM feeds (startUpdateThread now baConf)
+                    let nameThreadList = zip (feeds ^.. traverse . feedInfoId) threadIds
+                    return $ Map.fromList nameThreadList
+        tvarThreads <- newTVarIO threads
+        genAuthMain (baConf & (threadMap .~ tvarThreads)) port
 
 -- | Read ini file and setup 'pgEnvVar' variables
 setupEnvGetPort :: IO Port
@@ -71,7 +80,8 @@ setupBackendConf :: Log.TimedFastLogger -> IO BackendConf
 setupBackendConf logger =
     BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings <*>
     BChan.newBroadcastChan <*>
-    pure logger
+    pure logger <*>
+    newTVarIO Map.empty
 
 optsParser :: ParserInfo String
 optsParser = info (versionOption <*> pure "") mempty

@@ -13,8 +13,9 @@ import qualified Database.PostgreSQL.Simple as PG
 import Database.PostgreSQL.Tmp (DBInfo(..), withTmpDB)
 import qualified Heed.QueryTest as QT
 import Heed.Types (execQuery, runTest)
+import Heed.Utils (silentProc)
 import qualified Opaleye.Trans as OT
-import System.Process (callProcess)
+import System.Process (createProcess, waitForProcess)
 import Test.Hspec (describe, hspec, it, shouldSatisfy)
 
 testingDB :: ByteString
@@ -25,6 +26,7 @@ tables =
     [ (QT.checkAuthTokenTable, "Auth token Table")
     , (QT.checkFeedInfoTable, "Feed Info Table")
     , (QT.checkFeedItemTable, "Feed Items Table")
+    , (QT.checkPrefTable, "User Pref Tables")
     , (QT.checkSubscriptionTable, "Subscriptions Table")
     , (QT.checkUserTable, "User Tables")
     ]
@@ -37,15 +39,18 @@ main = do
     connect testingDB (runSQLTests "SQL tables should match haskell")
     withTmpDB $ \(DBInfo tempName tempRole) -> do
         let tempDB = encodeUtf8 $ "dbname='" <> tempName <> "' user='" <> tempRole <> "'"
-        callProcess
-            "/usr/bin/psql"
-            [ "-d"
-            , T.unpack tempName
-            , "-U"
-            , T.unpack tempRole
-            , "-f"
-            , "/home/arguggi/projects/heed/confs/db/tables.sql"
-            ]
+        (_, _, _, p) <-
+            createProcess $
+            silentProc
+                "/usr/bin/psql"
+                [ "-d"
+                , T.unpack tempName
+                , "-U"
+                , T.unpack tempRole
+                , "-f"
+                , "/home/arguggi/projects/heed/confs/db/tables.sql"
+                ]
+        _ <- waitForProcess p
         connect tempDB $ runSQLTests "SQL file should match haskell"
 
 runSQLTests :: String -> PG.Connection -> IO ()

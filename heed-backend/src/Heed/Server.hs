@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -10,14 +11,19 @@
 
 module Heed.Server where
 
+import Control.Concurrent (ThreadId, killThread)
 import qualified Control.Concurrent.BroadcastChan as BChan
+import Control.Concurrent.STM.TVar (TVar, modifyTVar', readTVar)
 import Control.Lens hiding (Context)
-import Control.Monad (forever, void, when)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad (forM_, forever, void, when)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.STM (atomically)
 import Crypto.KDF.BCrypt (validatePassword)
 import Data.ByteString (ByteString)
 import Data.Int (Int64)
 import Data.List (sort)
+import qualified Data.Map.Strict as Map
+import Data.Maybe (listToMaybe)
 import Data.Monoid ((<>))
 import Data.Proxy (Proxy(Proxy))
 import Data.Serialize (Serialize, decode, encode)
@@ -32,8 +38,11 @@ import Heed.Extract
        (addFeed, broadcastUpdate, forceUpdate, startUpdateThread)
 import qualified Heed.Query as HQ
 import Heed.Types
-       (BackendConf, dbConnection, runBe, runQueryNoT, runTransaction,
-        showUserHeedError, updateChan, ChanUpdates(..))
+       (BackendConf, ChanUpdates(..), ThreadState, dbConnection, runBe,
+        runQueryNoT, runTransaction, showUserHeedError, threadMap,
+        updateChan)
+
+--import Heed.Update (editableFeedInfo, updateFeedInfo)
 import Heed.Utils (Port, fork_)
 import Network.HTTP.Types (badRequest400)
 import Network.Wai
@@ -41,6 +50,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import qualified Network.WebSockets as WS
+import qualified Safe
 import Servant (throwError)
 import Servant.API
        ((:<|>)((:<|>)), (:>), OctetStream, Post, ReqBody)
@@ -107,17 +117,14 @@ genAuthServer conf = checkCreds conf :<|> app conf
 
 checkCreds :: BackendConf -> HC.AuthData -> Handler HC.Token
 checkCreds conf (HC.AuthData usern pw) = do
-    liftIO $ putStrLn "Checking auth"
     let dbConn = conf ^. dbConnection
     userDbM <- runQueryNoT dbConn $ HQ.getUserDb usern
     case userDbM of
         Just userDb -> do
-            liftIO $ putStrLn "got pw hash"
             let validPass =
                     validatePassword (encodeUtf8 pw) (encodeUtf8 . DB._userPassword $ userDb)
             if validPass
                 then do
-                    liftIO $ putStrLn "Verified"
                     newToken <- generateToken
                     _ <- runQueryNoT dbConn $ HQ.saveTokenDb newToken (DB._userId userDb)
                     return $ HC.Token newToken
@@ -166,15 +173,63 @@ wsApp conf uname pending_conn = do
                     Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
                     Right (feed, num) -> do
                         now <- getCurrentTime
-                        BChan.writeBChan (conf^.updateChan) (UpdateFeedList feed)
-                        BChan.writeBChan (conf^.updateChan) (SendItems feed num)
-                        _ <- startUpdateThread now conf feed
+                        BChan.writeBChan (conf ^. updateChan) (UpdateFeedList feed)
+                        BChan.writeBChan (conf ^. updateChan) (SendItems feed num)
+                        tid <- startUpdateThread now conf feed
+                        fork_ $ updateThreadMap (conf ^. threadMap) (feed ^. DB.feedInfoId) tid
                         sendDown conn (HC.FeedAdded url)
             HC.ForceRefresh fid -> do
                 updateE <- runBe conf $ forceUpdate (DB.FeedInfoId fid)
                 case updateE of
                     Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
                     Right update -> broadcastUpdate update (conf ^. updateChan)
+            HC.GetSingleFeedInfo fid -> do
+                infoM <- runQueryNoT dbConn $ HQ.allFeedInfo (DB.FeedInfoId fid)
+                let infoE = Safe.headMay infoM
+                case infoE of
+                    Nothing -> sendDown conn (HC.BackendError "Invalid feed")
+                    Just info -> sendDown conn . HC.EditableFeedInfo $ HC.toFeEditFeed info
+            -- TODO Make this shorter / move
+            HC.UpdatedFeedInfo feedEdit -> do
+                let newName = feedEdit ^. HC.feEditName
+                    newInterval = feedEdit ^. HC.feEditUpdateEvery
+                    fid = DB.FeedInfoId $ feedEdit ^. HC.feEditId
+                    newUserPref = DB.UserFeedInfoPref uid fid newName
+                -- Update Feed name
+                oldFeedNameM <- listToMaybe <$> runQueryNoT dbConn (HQ.userFeedName fid uid)
+                _ <-
+                    case oldFeedNameM
+                    -- First time we change it
+                          of
+                        Nothing -> runQueryNoT dbConn $ HQ.insertUserPrefName newUserPref
+                    -- Update an old name
+                        Just oldPref ->
+                            if (oldPref ^. DB.prefName) /= newName
+                                then runQueryNoT dbConn $ HQ.updateUserPrefName newUserPref
+                                else return 0
+                sendDown conn $ HC.FeedInfoUpdated (feedEdit ^. HC.feEditId, newName)
+                -- Get old update interval
+                oldUpdateIntervalM <- listToMaybe <$> runQueryNoT dbConn (HQ.feedUpdateInterval fid)
+                needRestart <-
+                    case oldUpdateIntervalM
+                    -- Shouldn't happen
+                          of
+                        Nothing -> return Nothing
+                    -- Only update when the new interval is shorter then the old one
+                        Just oldInterval ->
+                            if newIntervalIsLonger newInterval oldInterval
+                                then return Nothing
+                                else listToMaybe <$>
+                                     runQueryNoT dbConn (HQ.updateFeedInterval fid newInterval)
+                            where newIntervalIsLonger = (>=)
+                -- Restart the update thread with the new interval
+                case needRestart of
+                    Nothing -> return ()
+                    Just updatedFeed -> do
+                        now <- getCurrentTime
+                        tid <- startUpdateThread now conf updatedFeed
+                        updateThreadMap (conf ^. threadMap) fid tid
+                return ()
             HC.InvalidReceived -> putStrLn "Invalid command received"
 
 sendDown
@@ -191,7 +246,8 @@ sendUpdates bchan wsconn userfeeds =
         update <- BChan.readBChan bchan
         case update of
             SendItems feed numItems -> do
-                when ((feed ^. DB.feedInfoId) `elem` subIds feeds) $ sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
+                when ((feed ^. DB.feedInfoId) `elem` subIds feeds) $
+                    sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
                 return feeds
             UpdateFeedList feed -> return $ feed : feeds
   where
@@ -208,9 +264,30 @@ backupApp :: Application
 backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"
 
 -- Stolen from monad-loops
-{-# SPECIALIZE iterateM_ :: (a -> IO a) -> a -> IO b #-}
+{-# SPECIALISE iterateM_ :: (a -> IO a) -> a -> IO b #-}
+
 -- |Execute an action forever, feeding the result of each execution as the
 -- input to the next.
-iterateM_ :: Monad m => (a -> m a) -> a -> m b
+iterateM_
+    :: Monad m
+    => (a -> m a) -> a -> m b
 iterateM_ f = g
-    where g x = f x >>= g
+  where
+    g x = f x >>= g
+
+-- | A new thead has been started for a feed that we maybe already had in the db.
+--   If we already had the feed we have to kill the old thread
+--   This also has to be done when we modify a feed info since we may have modified
+--   the updateEvery field
+updateThreadMap
+    :: (MonadIO m)
+    => TVar ThreadState -> DB.FeedInfoIdH -> ThreadId -> m ()
+updateThreadMap tvar fid newThreadId =
+    liftIO $ do
+        oldTidM <-
+            atomically $ do
+                tidsmap <- readTVar tvar
+                let !oldTid = Map.lookup fid tidsmap
+                modifyTVar' tvar (Map.alter (\_ -> Just newThreadId) fid)
+                return oldTid
+        forM_ oldTidM killThread

@@ -34,6 +34,7 @@ library
                      , broadcast-chan >=0.1.1
                      , bytestring >=0.10.8.1
                      , cereal >=0.5
+                     , containers >=0.5
                      , cryptonite >=0.21
                      , exceptions >=0.8.3
                      , fast-logger >=2.4
@@ -58,6 +59,7 @@ library
                      , servant >=0.9.1.1
                      , servant-server >=0.9.1.1
                      , slave-thread >=1.0
+                     , stm >=2.4
                      , tagsoup >=0.14
                      , text >=1.2.2.1
                      , time >=1.6.0.1

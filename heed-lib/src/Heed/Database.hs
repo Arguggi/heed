@@ -19,8 +19,8 @@ import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
 import GHC.Generics
-import Heed.Commands
 import Heed.DbEnums
+import Heed.Orphans ()
 import qualified Opaleye as O
 
 -- * Define database types
@@ -66,10 +66,18 @@ data FeedInfo a b c d e f g = FeedInfo
 
 makeLenses ''FeedInfo
 
+instance (Eq b) =>
+         Eq (FeedInfo a b c d e f g) where
+    f1 == f2 = (f1 ^. feedInfoName) == (f2 ^. feedInfoName)
+
+instance (Ord b) =>
+         Ord (FeedInfo a b c d e f g) where
+    f1 `compare` f2 = (f1 ^. feedInfoName) `compare` (f2 ^. feedInfoName)
+
 -- | For additional typesafety
 newtype FeedInfoId a = FeedInfoId
     { _getFeedInfoId :: a
-    } deriving (Functor, Show, Generic, Eq)
+    } deriving (Functor, Show, Generic, Eq, Ord)
 
 makeLenses ''FeedInfoId
 
@@ -85,6 +93,11 @@ type FeedInfoHR = FeedInfo (FeedInfoId Int) Text Text Int UTCTime ItemsDate Int
 type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime ItemsDate Int
 
 instance Serialize FeedInfoHR
+
+instance (Serialize a) =>
+         Serialize (FeedInfoId (Maybe a))
+
+instance Serialize FeedInfoHW
 
 -- | PostgreSQL Feeds <-> Users (Subscriptions) Table
 data Subscription a b = Subscription
@@ -315,13 +328,31 @@ authTokenTable =
              , _authTokenToken = O.required "token"
              })
 
-$(makeAdaptorAndInstance "pFeFeedInfo" ''FeFeedInfo')
+data UserFeedInfoPref a b c = UserFeedInfoPref
+    { _prefUserId :: a -- ^ Foreign key on UserId -- PGInt4
+    , _prefFeedId :: b -- ^ Foreign key on FeedInfoId -- PGInt4
+    , _prefName :: c -- ^ User Feed Name
+    }
 
-type FeFeedInfoR = FeFeedInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
+makeLenses ''UserFeedInfoPref
 
-$(makeAdaptorAndInstance "pFeItemInfo" ''FeItemInfo')
+type UserFeedInfoPrefHR = UserFeedInfoPref (UserId Int) FeedInfoIdH Text
 
-type FeItemInfoR = FeItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText)) (O.Column O.PGBool)
+type UserFeedInfoPrefHW = UserFeedInfoPref (UserId Int) FeedInfoIdH Text
 
-instance O.QueryRunnerColumnDefault O.PGBool Seen where
-    queryRunnerColumnDefault = fromBool <$> O.fieldQueryRunnerColumn
+type UserFeedInfoPrefW = UserFeedInfoPref UserIdColumnW FeedInfoIdColumnW (O.Column O.PGText)
+
+type UserFeedInfoPrefR = UserFeedInfoPref UserIdColumnR FeedInfoIdColumnR (O.Column O.PGText)
+
+$(makeAdaptorAndInstance "pUserFeedInfoPref" ''UserFeedInfoPref)
+
+userPrefTable :: O.Table UserFeedInfoPrefW UserFeedInfoPrefR
+userPrefTable =
+    O.Table
+        "user_feed_info_pref"
+        (pUserFeedInfoPref
+             UserFeedInfoPref
+             { _prefUserId = pUserId (UserId (O.required "user_id"))
+             , _prefFeedId = pFeedInfoId (FeedInfoId (O.required "feed_info_id"))
+             , _prefName = O.required "feed_info_name"
+             })

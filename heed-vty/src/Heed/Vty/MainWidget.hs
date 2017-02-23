@@ -29,8 +29,9 @@ import qualified Data.Time.Format as Time
 import qualified Data.Vector as Vec
 import qualified Graphics.Vty as V
 import Heed.Commands
-import Heed.Utils (fork_)
+import Heed.Utils (fork_, silentProc)
 import Heed.Vty.AddFeedWidget (addVty)
+import Heed.Vty.EditFeedWidget (editVty)
 import Heed.Vty.WidgetStates
 import qualified Network.WebSockets as WS
 import qualified System.Process as Process
@@ -121,6 +122,13 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
     getSelFeedItems s''
     M.continue s''
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'n') [])) = M.suspendAndResume $ addVty s
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'e') [])) = do
+    let conn = s ^. wsConn
+        sel = BL.listSelectedElement (s ^. feeds)
+    case sel of
+        Nothing -> return ()
+        Just (_, e) -> fork_ $ WS.sendBinaryData conn (encode (GetSingleFeedInfo (e ^. feedListId)))
+    M.continue $ s & status .~ "Getting feed info to edit"
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
     let selectedFeedId = s ^. feeds . to BL.listSelectedElement ^? _Just . _2 . feedListId
         conn = s ^. wsConn
@@ -164,19 +172,11 @@ updateUnreadCount (Unseen, s) = do
 
 openTab :: FeItemInfo -> IO ()
 openTab e = do
-    forM_ (sameDomain link (e ^. itemInfoComments)) callBrowser
-    callBrowser link
+    forM_ (sameDomain link (e ^. itemInfoComments)) (callBrowser "chromium")
+    callBrowser "chromium" link
   where
     link = e ^. itemInfoLink
-    callBrowser l =
-        fork_ $
-        Process.createProcess
-            (browserProc l)
-            { Process.std_in = Process.NoStream
-            , Process.std_out = Process.NoStream
-            , Process.std_err = Process.NoStream
-            }
-    browserProc l = Process.proc "chromium" [T.unpack l]
+    callBrowser browser url = fork_ $ Process.createProcess (silentProc browser [T.unpack url])
     -- If the comments are on the same domain we shouldn't bother opening them
     sameDomain l commentsM = do
         comments <- commentsM
@@ -220,7 +220,15 @@ handleMess s (NewItems feed) = do
                 ( s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread)
                 , True)
     sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
+handleMess s (EditableFeedInfo feed) = M.suspendAndResume $ editVty s feed
+handleMess s (FeedInfoUpdated (fid, name)) = M.continue $ updateName s name fid
 handleMess s InvalidSent = M.continue s
+
+updateName :: AppState -> T.Text -> Int -> AppState
+updateName s name fid =
+    case Vec.findIndex (\x -> x ^. feedListId == fid) (s ^. feeds . BL.listElementsL) of
+        Nothing -> s
+        Just ind -> s & feeds . BL.listElementsL . ix ind . feedListName .~ name
 
 insertInOrder
     :: Ord e

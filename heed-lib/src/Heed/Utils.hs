@@ -4,12 +4,14 @@ module Heed.Utils
     , progName
     , Port
     , defPort
+    , silentProc
     ) where
 
 import Control.Concurrent (ThreadId)
 import Control.Monad (void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified SlaveThread as ST
+import qualified System.Process as Process
 
 fork
     :: (MonadIO m)
@@ -30,3 +32,11 @@ type Port = Int
 
 defPort :: Port
 defPort = 443
+
+silentProc :: FilePath -> [String] -> Process.CreateProcess
+silentProc fp command =
+    (Process.proc fp command)
+    { Process.std_in = Process.NoStream
+    , Process.std_out = Process.NoStream
+    , Process.std_err = Process.NoStream
+    }

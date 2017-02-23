@@ -9,8 +9,8 @@ for proj in "${projects[@]}"; do
         echo "Indenting $f";
         basename "$f";
         stylish-haskell -i "$f";
-        if [ "$(basename "$f")" == "MainWidget.hs" ]; then
-            echo "Not using arrows for MainWidget";
+        if [ "$(basename "$f")" == "Utils.hs" ]; then
+            echo "Not using arrows for Utils";
             hindent --indent-size 4 --line-length 100 --no-force-newline "$f";
         else
             hindent --indent-size 4 --line-length 100 --no-force-newline -XArrows "$f";

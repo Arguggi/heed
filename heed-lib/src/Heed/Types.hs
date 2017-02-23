@@ -16,6 +16,7 @@ module Heed.Types
     , MonadHttp
     , MonadLog
     , MonadTime
+    , ThreadState
     , catchHttp
     , downloadUrl
     , execQuery
@@ -28,26 +29,30 @@ module Heed.Types
     , runTest
     , runTransaction
     , showUserHeedError
-    -- Lenses
+    -- * 'BackendConf' Lenses
     , updateChan
     , timedLogger
     , dbConnection
     , httpManager
+    , threadMap
     ) where
 
+import Control.Concurrent (ThreadId)
 import qualified Control.Concurrent.BroadcastChan as BChan
+import Control.Concurrent.STM (TVar)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader
 import Data.ByteString.Lazy as BSL
 import Data.Int (Int64)
+import qualified Data.Map.Strict as Map
 import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text as T
 import Data.Time
 import qualified Database.PostgreSQL.Simple as PG
-import Heed.Database (FeedInfoHR)
+import Heed.Database (FeedInfoHR, FeedInfoIdH)
 import Network.HTTP.Client hiding (Proxy)
 import qualified Opaleye.Trans as OT
 import qualified System.Log.FastLogger as Log
@@ -76,14 +81,18 @@ showUserHeedError (HSqlException _) = "Database error"
 instance Exception HeedError
 
 data ChanUpdates
-    = SendItems FeedInfoHR Int64
+    = SendItems FeedInfoHR
+                Int64
     | UpdateFeedList FeedInfoHR
+
+type ThreadState = Map.Map FeedInfoIdH ThreadId
 
 data BackendConf = BackendConf
     { _dbConnection :: PG.Connection
     , _httpManager :: Manager
     , _updateChan :: BChan.BroadcastChan BChan.In ChanUpdates
     , _timedLogger :: Log.TimedFastLogger
+    , _threadMap :: TVar ThreadState
     }
 
 makeLenses ''BackendConf

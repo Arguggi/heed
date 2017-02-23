@@ -1,14 +1,19 @@
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Heed.Commands
     ( AuthData(..)
     , Down(..)
+    , FeEditFeed
+    , FeEditFeed'(..)
     , FeFeedInfo
     , FeFeedInfo'(..)
+    , FeFeedInfoR
     , FeItemInfo
     , FeItemInfo'(..)
+    , FeItemInfoR
     , Seen(..)
     , Token(..)
     , Up(..)
@@ -18,25 +23,33 @@ module Heed.Commands
     , feedListId
     , feedListName
     , feedListUnread
-    -- Feed Item Lenses
+    -- * Feed Item Lenses
     , itemInfoId
     , itemInfoTitle
     , itemInfoLink
     , itemInfoDate
     , itemInfoComments
     , itemInfoRead
+    , toFeEditFeed
+    -- * EditableFeedInfo Lenses
+    , feEditId
+    , feEditName
+    , feEditUpdateEvery
     ) where
 
 import Control.Lens
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int (Int64)
 import Data.Monoid ((<>))
+import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Serialize (Serialize, decode, encode)
 import Data.Serialize.Text ()
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime)
 import GHC.Generics (Generic)
+import qualified Heed.Database as DB
 import Heed.Orphans ()
+import qualified Opaleye as O
 import Servant.API.ContentTypes
        (MimeRender(..), MimeUnrender(..), OctetStream)
 import Test.QuickCheck (Arbitrary(..))
@@ -114,12 +127,45 @@ instance (Eq a) =>
          Eq (FeItemInfo' a b c d e f) where
     a == b = _itemInfoId a == _itemInfoId b
 
+data FeEditFeed' a b c = FeEditFeed'
+    { _feEditId :: a
+    , _feEditName :: b
+    , _feEditUpdateEvery :: c
+    } deriving (Show, Generic)
+
+makeLenses ''FeEditFeed'
+
+type FeEditFeed = FeEditFeed' Int T.Text Int
+
+toFeEditFeed :: DB.FeedInfoHR -> FeEditFeed
+toFeEditFeed feed =
+    FeEditFeed'
+        (feed ^. DB.feedInfoId . DB.getFeedInfoId)
+        (feed ^. DB.feedInfoName)
+        (feed ^. DB.feedInfoUpdateEvery)
+
+instance (Serialize a, Serialize b, Serialize c) =>
+         Serialize (FeEditFeed' a b c)
+
 instance (Serialize a, Serialize b, Serialize c, Serialize d, Serialize e, Serialize f) =>
          Serialize (FeItemInfo' a b c d e f)
 
 instance (Arbitrary a, Arbitrary b, Arbitrary c, Arbitrary d, Arbitrary e, Arbitrary f) =>
          Arbitrary (FeItemInfo' a b c d e f) where
-    arbitrary = FeItemInfo' <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+    arbitrary =
+        FeItemInfo' <$> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*>
+        arbitrary
+
+$(makeAdaptorAndInstance "pFeFeedInfo" ''FeFeedInfo')
+
+type FeFeedInfoR = FeFeedInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
+
+$(makeAdaptorAndInstance "pFeItemInfo" ''FeItemInfo')
+
+type FeItemInfoR = FeItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText)) (O.Column O.PGBool)
+
+instance O.QueryRunnerColumnDefault O.PGBool Seen where
+    queryRunnerColumnDefault = fromBool <$> O.fieldQueryRunnerColumn
 
 -- | Commands sent from client to server via websocket
 --
@@ -136,6 +182,8 @@ data Up
     | NewFeed T.Text
               Int -- ^ Sent when adding a new feed (url + update every x minutes)
     | ForceRefresh Int -- ^ Force the server to download an rss feed
+    | GetSingleFeedInfo Int -- ^ Get a single feeds information
+    | UpdatedFeedInfo FeEditFeed -- ^ Get a single feeds information
     deriving (Generic, Show)
 
 instance Serialize Up
@@ -149,6 +197,8 @@ data Down
     | FeedAdded T.Text -- ^ Confirm the feed was added
     | BackendError T.Text -- ^ Send a generic error string
     | NewItems FeFeedInfo -- ^ Send Feed update
+    | EditableFeedInfo FeEditFeed -- ^ Send all Info for a feed
+    | FeedInfoUpdated (Int, T.Text) -- ^ Send new name
     deriving (Generic, Show)
 
 instance Serialize Down
