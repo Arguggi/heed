@@ -15,7 +15,7 @@ import Control.Concurrent (ThreadId, killThread)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (TVar, modifyTVar', readTVar)
 import Control.Lens hiding (Context)
-import Control.Monad (forM_, forever, void, when)
+import Control.Monad (forM, forM_, forever, join, void, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.STM (atomically)
 import Crypto.KDF.BCrypt (validatePassword)
@@ -188,21 +188,17 @@ wsApp conf uname pending_conn = do
                 let infoE = Safe.headMay infoM
                 case infoE of
                     Nothing -> sendDown conn (HC.BackendError "Invalid feed")
-                    Just info -> sendDown conn . HC.EditableFeedInfo $ HC.toFeEditFeed info
-            -- TODO Make this shorter / move
+                    Just info -> sendDown conn (HC.EditableFeedInfo $ HC.toFeEditFeed info)
             HC.UpdatedFeedInfo feedEdit -> do
                 let newName = feedEdit ^. HC.feEditName
                     newInterval = feedEdit ^. HC.feEditUpdateEvery
                     fid = DB.FeedInfoId $ feedEdit ^. HC.feEditId
                     newUserPref = DB.UserFeedInfoPref uid fid newName
                 -- Update Feed name
-                oldFeedNameM <- listToMaybe <$> runQueryNoT dbConn (HQ.userFeedName fid uid)
+                oldPrefM <- listToMaybe <$> runQueryNoT dbConn (HQ.userFeedName fid uid)
                 _ <-
-                    case oldFeedNameM
-                    -- First time we change it
-                          of
+                    case oldPrefM of
                         Nothing -> runQueryNoT dbConn $ HQ.insertUserPrefName newUserPref
-                    -- Update an old name
                         Just oldPref ->
                             if (oldPref ^. DB.prefName) /= newName
                                 then runQueryNoT dbConn $ HQ.updateUserPrefName newUserPref
@@ -210,26 +206,15 @@ wsApp conf uname pending_conn = do
                 sendDown conn $ HC.FeedInfoUpdated (feedEdit ^. HC.feEditId, newName)
                 -- Get old update interval
                 oldUpdateIntervalM <- listToMaybe <$> runQueryNoT dbConn (HQ.feedUpdateInterval fid)
-                needRestart <-
-                    case oldUpdateIntervalM
-                    -- Shouldn't happen
-                          of
-                        Nothing -> return Nothing
-                    -- Only update when the new interval is shorter then the old one
-                        Just oldInterval ->
-                            if newIntervalIsLonger newInterval oldInterval
-                                then return Nothing
-                                else listToMaybe <$>
-                                     runQueryNoT dbConn (HQ.updateFeedInterval fid newInterval)
-                            where newIntervalIsLonger = (>=)
+                needRestartM <-
+                    forM oldUpdateIntervalM $ \_ ->
+                        listToMaybe <$> runQueryNoT dbConn (HQ.updateFeedInterval fid newInterval)
                 -- Restart the update thread with the new interval
-                case needRestart of
-                    Nothing -> return ()
-                    Just updatedFeed -> do
-                        now <- getCurrentTime
-                        tid <- startUpdateThread now conf updatedFeed
-                        updateThreadMap (conf ^. threadMap) fid tid
-                return ()
+                -- and kill old thread
+                forM_ (join needRestartM) $ \updated -> do
+                    now <- getCurrentTime
+                    tid <- startUpdateThread now conf updated
+                    updateThreadMap (conf ^. threadMap) fid tid
             HC.InvalidReceived -> putStrLn "Invalid command received"
 
 sendDown
