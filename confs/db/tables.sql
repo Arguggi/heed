@@ -26,12 +26,12 @@ CREATE TABLE subscription (
 );
 
 CREATE TABLE feed_item (
-   id serial PRIMARY KEY,
-   feed_info_id serial REFERENCES feed_info(id) ON DELETE CASCADE NOT NULL,
-   title text NOT NULL,
-   url text NOT NULL,
-   pub_date timestamp with time zone NOT NULL,
-   comment_url text
+    id serial PRIMARY KEY,
+    feed_info_id serial REFERENCES feed_info(id) ON DELETE CASCADE NOT NULL,
+    title text NOT NULL,
+    url text NOT NULL,
+    pub_date timestamp with time zone NOT NULL,
+    comment_url text
 );
 
 CREATE TABLE unread_item (
