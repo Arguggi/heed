@@ -9,3 +9,4 @@ extra-deps:
 - html-entities-1.1.2
 - uri-0.1.6.4
 - postgres-tmp-0.1.0.1
+- brick-0.17.1
