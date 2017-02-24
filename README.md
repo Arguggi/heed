@@ -1,5 +1,7 @@
 # Heed - RSS Reader
 
+![heed-vty screenshot](https://github.com/arguggi/heed/raw/master/screenshot.png?raw=true)
+
 Composed of 3 main parts:
 
     - heed-backend
