@@ -62,7 +62,7 @@ Displays information via a glances-like interface
 
 ## heed-lib
 
-Common library so we can, for example, keep serialization/unserialization code in sync between back and frontend.
+Common library so we can, for example, keep serialization code in sync between back and frontend.
 
 # Some motivation and history
 
@@ -79,4 +79,4 @@ I created some mtl-style classes hoping to be able to test my functions. I hope 
 Every feed will start an update thread that will download and add the latest items to the database and at the same time broadcast
 to every connected user the number of new items.
 
-All things SQL works thanks to [opaleye](https://github.com/tomjaguarpaw/haskell-opaleye).
+All things SQL work thanks to [opaleye](https://github.com/tomjaguarpaw/haskell-opaleye).
