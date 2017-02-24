@@ -3,7 +3,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Main where
+module Main
+    ( main
+    ) where
 
 import qualified Brick.Widgets.List as BL
 import Control.Lens

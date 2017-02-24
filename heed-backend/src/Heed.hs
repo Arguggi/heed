@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Heed where
+module Heed
+    ( main
+    ) where
 
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (newTVarIO)
@@ -69,6 +71,7 @@ setupEnvGetPort = do
                 either (const "") id (Ini.lookupValue "postgresql" (T.pack var) ini)
             return $ getPort ini
 
+-- | Get port fron ini or 'defPort'
 getPort :: Ini.Ini -> Port
 getPort ini =
     either (const defPort) id $ do
@@ -83,6 +86,7 @@ setupBackendConf logger =
     pure logger <*>
     newTVarIO Map.empty
 
+-- | Only parse --version and --help
 optsParser :: ParserInfo String
 optsParser = info (versionOption <*> pure "") mempty
 

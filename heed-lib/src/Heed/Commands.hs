@@ -3,10 +3,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-{-| Everything going from backend <-> frontend should be this module
+{-| Everything going from backend \<-\> frontend should be this module
 -}
 module Heed.Commands
-    -- * Authentication
     ( AuthData(..)
     , Token(..)
     -- * Data sent from backend to client

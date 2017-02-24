@@ -2,7 +2,6 @@
     and if the current heed database also matches.
 -}
 module Heed.QueryTest
-      -- * Tables
     ( checkAuthTokenTable
     , checkFeedInfoTable
     , checkFeedItemTable
