@@ -2,7 +2,7 @@
 # Exit on error
 set -e
 
-VERSION=0.2.0.0;
+VERSION=0.3.0.0;
 
 # Build the backend
 echo "Building"

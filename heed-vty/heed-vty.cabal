@@ -1,5 +1,5 @@
 name:                heed-vty
-version:             0.2.0.0
+version:             0.3.0.0
 synopsis:            Show feeds downloaded by heed-backend
 description:         Frontend for heed-backend
 license:             BSD3
