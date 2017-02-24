@@ -5,18 +5,14 @@
 module Heed.Extract
     ( addFeed
     , broadcastUpdate
-    , extractInfoFromFeed
     , forceUpdate
-    , getFeedUrl
-    , importOPML
-    , latinTitle
-    , matchAllAttr
-    , parseFeed
-    , parseOpml
+    , importOPMLTTRSS
     , parseTTRssOPML
     , startUpdateThread
-    , ttRssAttrNames
-    , ttRssTags
+    -- * Parse feed MTL
+    , MonadParse(parseFeed)
+    -- * Parse OPTM MTL
+    , MonadOpml(parseOpml)
     ) where
 
 import Control.Concurrent (ThreadId, threadDelay)
@@ -54,7 +50,11 @@ import qualified Text.HTML.TagSoup.Match as TS
 
 -- | Start a thread for every feed in the db and notify the bchan in the 'BackendConf'
 --   when updates arrive
-startUpdateThread :: UTCTime -> BackendConf -> FeedInfoHR -> IO ThreadId
+startUpdateThread
+    :: UTCTime -- ^ Current time
+    -> BackendConf
+    -> FeedInfoHR -- ^ Feed to keed updated
+    -> IO ThreadId
 startUpdateThread now baConf info =
     fork $ do
         let nextUpdateAt =
@@ -76,7 +76,8 @@ startUpdateThread now baConf info =
                 Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
             liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
--- | Someone requested a force update. Download feed and update items in db in necessary
+-- | 'UserId' requested an immediate update.
+--   Download feed and update items in db if necessary.
 forceUpdate
     :: ( MonadCatch m
        , MonadDb m
@@ -86,7 +87,8 @@ forceUpdate
        , MonadParse m
        , MonadTime m
        )
-    => FeedInfoIdH -> m (FeedInfoHR, Int64)
+    => FeedInfoIdH -- ^ Feed to update
+    -> m (FeedInfoHR, Int64)
 forceUpdate fid = do
     feedInfoList <- execQuery $ allFeedInfo fid
     -- The list should always have a valid FeedInfo from the DB, but someone may send
@@ -96,7 +98,10 @@ forceUpdate fid = do
     return (feedInfo, new)
 
 -- | Broadcast updates to any listeners
-broadcastUpdate :: (FeedInfoHR, Int64) -> BChan.BroadcastChan BChan.In ChanUpdates -> IO ()
+broadcastUpdate
+    :: (FeedInfoHR, Int64) -- ^ (Feed, number of new items)
+    -> BChan.BroadcastChan BChan.In ChanUpdates -- ^ New items will be sent here
+    -> IO ()
 broadcastUpdate (items, new) bchan
     | new > 0 = BChan.writeBChan bchan (SendItems items new)
     | otherwise = return ()
@@ -111,7 +116,8 @@ updateFeed
        , MonadParse m
        , MonadTime m
        )
-    => FeedInfoHR -> m Int64
+    => FeedInfoHR -- ^ Feed to update
+    -> m Int64 -- ^ Number of new items
 updateFeed info = do
     feed <- catchHttp DownloadFailed $ downloadUrl (_feedInfoUrl info)
     (_, feedItems) <- parseFeed feed (_feedInfoUrl info) (_feedInfoUpdateEvery info)
@@ -120,12 +126,15 @@ updateFeed info = do
     return num
 
 -- | Check before adding new feed if it already is present in the db. If it's already there
---   set all the old items as unread for the user
+--   set all the old items as unread for the user.
+--
+--   Returns the new Feed and the number of unread items
+--
 addFeed
     :: (MonadLog m, MonadHttp m, MonadParse m, MonadDb m, MonadTime m)
     => Url -- ^ Feed URL
     -> Int -- ^ Update Every
-    -> UserId Int
+    -> UserId Int -- ^ 'UserId'
     -> m (FeedInfoHR, Int64)
 addFeed url every uid = do
     logMsg $ "Adding: " <> url
@@ -197,10 +206,12 @@ extractInfoFromFeed _ _ (RSS1Feed _) = Nothing
 extractInfoFromFeed _ _ (XMLFeed _) = Nothing
 
 -- | Import OPML exported by tt-rss
-importOPML
+importOPMLTTRSS
     :: (MonadOpml m, MonadLog m, MonadReader BackendConf m, MonadIO m)
-    => T.Text -> UserId Int -> m ()
-importOPML opml userid = do
+    => T.Text -- ^ Raw feed data
+    -> UserId Int -- ^ 'Userid'
+    -> m ()
+importOPMLTTRSS opml userid = do
     feeds <- parseOpml opml parseTTRssOPML
     conf <- ask
     forM_ feeds $ \url -> do
@@ -260,7 +271,11 @@ latinTitle item =
 
 class Monad m =>
       MonadParse m where
-    parseFeed :: BSL.ByteString -> Url -> Int -> m (FeedInfoHW, [FeedItemHW])
+    parseFeed
+        :: BSL.ByteString -- ^ Raw feed data
+        -> Url -- ^ Feed 'Url'
+        -> Int -- ^ Update every x minutes
+        -> m (FeedInfoHW, [FeedItemHW])
 
 instance MonadParse Backend where
     parseFeed feed url every = do
@@ -272,7 +287,10 @@ instance MonadParse Backend where
 
 class Monad m =>
       MonadOpml m where
-    parseOpml :: T.Text -> (T.Text -> Maybe [Url]) -> m [Url]
+    parseOpml
+        :: T.Text -- ^ Raw OPML data
+        -> (T.Text -> Maybe [Url]) -- ^ Parsing function
+        -> m [Url]
 
 instance MonadOpml Backend where
     parseOpml opml parsingFun = liftJust InvalidOPMLData $ parsingFun opml

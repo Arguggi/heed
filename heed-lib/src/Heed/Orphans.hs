@@ -3,7 +3,10 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+{-| Only exports orphan instances
+-}
 module Heed.Orphans
+      -- * Orphans
     (
     ) where
 

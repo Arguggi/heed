@@ -3,9 +3,13 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell #-}
 
+{-| Everything going from backend <-> frontend should be this module
+-}
 module Heed.Commands
+    -- * Authentication
     ( AuthData(..)
-    , Down(..)
+    , Token(..)
+    -- * Data sent from backend to client
     , FeEditFeed
     , FeEditFeed'(..)
     , FeFeedInfo
@@ -14,12 +18,16 @@ module Heed.Commands
     , FeItemInfo
     , FeItemInfo'(..)
     , FeItemInfoR
-    , Seen(..)
-    , Token(..)
+    -- * Websocket messages
+    -- ** From client to backend
     , Up(..)
+    -- ** From backend to client
+    , Down(..)
+    -- ** Seen <-> Bool isomorphism
+    , Seen(..)
     , fromBool
     , toBool
-    -- Feed Info Lenses
+    -- * Feed Info Lenses
     , feedListId
     , feedListName
     , feedListUnread
@@ -58,9 +66,10 @@ import Web.FormUrlEncoded (FromForm(..))
 -- | Convenience
 type HeedUserName = T.Text
 
+-- | Feed item status
 data Seen
-    = Seen
-    | Unseen
+    = Seen -- ^ Already read
+    | Unseen -- ^ Still unread
     deriving (Show, Generic, Eq)
 
 toBool :: Seen -> Bool
@@ -137,6 +146,8 @@ makeLenses ''FeEditFeed'
 
 type FeEditFeed = FeEditFeed' Int T.Text Int
 
+-- | Convert from 'DB.FeedInfoHR' to 'FeEditFeed' since the client can only change
+-- some properties of the feed and sending all of them is pointless
 toFeEditFeed :: DB.FeedInfoHR -> FeEditFeed
 toFeEditFeed feed =
     FeEditFeed'
@@ -158,10 +169,12 @@ instance (Arbitrary a, Arbitrary b, Arbitrary c, Arbitrary d, Arbitrary e, Arbit
 
 $(makeAdaptorAndInstance "pFeFeedInfo" ''FeFeedInfo')
 
+-- | 'FeFeedInfo' opaleye type
 type FeFeedInfoR = FeFeedInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
 
 $(makeAdaptorAndInstance "pFeItemInfo" ''FeItemInfo')
 
+-- | 'FeItemInfo' opaleye type
 type FeItemInfoR = FeItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText)) (O.Column O.PGBool)
 
 instance O.QueryRunnerColumnDefault O.PGBool Seen where
@@ -203,6 +216,7 @@ data Down
 
 instance Serialize Down
 
+-- | Authentication pair sent from the client
 data AuthData = AuthData
     { username :: T.Text
     , password :: T.Text

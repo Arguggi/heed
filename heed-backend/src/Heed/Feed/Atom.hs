@@ -11,7 +11,11 @@ import Heed.Feed.HtmlEntities (decodeHtmlEnt)
 import qualified Safe
 import qualified Text.Atom.Feed as Atom
 
-extractInfo :: UTCTime -> DB.Url -> Atom.Feed -> Maybe (DB.FeedInfoHW, [DB.FeedItemHW])
+extractInfo
+    :: UTCTime -- ^ Current time
+    -> DB.Url -- ^ Feed 'DB.URL'
+    -> Atom.Feed -- ^ 'Atom.Feed' with information
+    -> Maybe (DB.FeedInfoHW, [DB.FeedItemHW])
 extractInfo now url feed = Just (feedInfo, feedItems)
   where
     feedInfo =

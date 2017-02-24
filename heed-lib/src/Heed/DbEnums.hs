@@ -21,13 +21,15 @@ import qualified Database.PostgreSQL.Simple.FromField as PG
 import GHC.Generics
 import qualified Opaleye as O
 
+-- | Iso to Bool, only to avoid boolean blindness
 data ItemsDate
-    = Missing
-    | Present
+    = Missing -- ^ Feed has no items on dates and the current time will be used
+    | Present -- ^ Feed has dates on items
     deriving (Typeable, Show, Generic)
 
 instance Serialize ItemsDate
 
+-- | Postgres type
 data PGItemsDate
 
 missing, present, unexpected :: Text.Text

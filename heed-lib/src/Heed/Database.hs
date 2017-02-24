@@ -10,7 +10,112 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Heed.Database where
+{-| Database definitions
+-}
+module Heed.Database
+    ( Url
+    -- * User info info
+    , User(..)
+    , UserH
+    , UserW
+    , UserR
+    , userTable
+    -- ** User Lenses
+    , userId
+    , userName
+    , userPassword
+    , userEmail
+    -- * UserId newtype
+    , UserId(..)
+    , UserIdColumnWO
+    , UserIdColumnW
+    , UserIdColumnR
+    -- ** UserId lenses
+    , getUserId
+    -- * Feed Info info
+    , FeedInfo(..)
+    , FeedInfoHW
+    , FeedInfoHR
+    , FeedInfoW
+    , FeedInfoR
+    , defTime
+    , setTime
+    , defFeedInfo
+    , defUpdateEvery
+    , feedInfoTable
+    -- * Feed Info lenses
+    , feedInfoId
+    , feedInfoName
+    , feedInfoUrl
+    , feedInfoUpdateEvery
+    , feedInfoLastUpdated
+    , feedHasItemDate
+    , feedNumberItems
+    -- * FeedItem info
+    , FeedItem(..)
+    , FeedItemHR
+    , FeedItemHW
+    , FeedItemW
+    , FeedItemR
+    -- ** FeedItem lenses
+    , feedItemId
+    , feedItemFeedId
+    , feedItemTitle
+    , feedItemUrl
+    , feedItemDate
+    , feedItemComments
+    , defFeedItem
+    , feedItemTable
+    -- * FeedItemId newtype
+    , FeedItemId(..)
+    , FeedItemIdH
+    , FeedItemIdColumnWO
+    , FeedItemIdColumnW
+    , FeedItemIdColumnR
+    -- ** FeedItemId lenses
+    , getFeedItemId
+    -- * FeedInfoId newtype
+    , FeedInfoId(..)
+    , FeedInfoIdH
+    , FeedInfoIdColumnWO
+    , FeedInfoIdColumnW
+    , FeedInfoIdColumnR
+    -- ** FeedInfoId lenses
+    , getFeedInfoId
+    -- * UnreadItem info
+    , UnreadItem(..)
+    , UnreadItemW
+    , UnreadItemR
+    , unreadItemTable
+    -- ** UnreadItem lenses
+    , unreadFeedItemId
+    , unreadUserId
+    -- * Authtoken info
+    , AuthToken(..)
+    , AuthTokenW
+    , AuthTokenR
+    , authTokenTable
+    -- ** Authtoken Lenses
+    , authTokenHeedUserId
+    , authTokenToken
+    -- * Subscription info
+    , Subscription(..)
+    , subscriptionTable
+    -- ** Subscription lenses
+    , subscriptionFeedId
+    , subscriptionUserId
+    -- * UserFeedInfoPref info
+    , UserFeedInfoPref(..)
+    , UserFeedInfoPrefHW
+    , UserFeedInfoPrefHR
+    , UserFeedInfoPrefW
+    , UserFeedInfoPrefR
+    , userPrefTable
+    -- ** UserFeedInfoPref lenses
+    , prefUserId
+    , prefFeedId
+    , prefName
+    ) where
 
 import Control.Lens
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
@@ -195,6 +300,7 @@ type FeedInfoIdColumnW = FeedInfoId (O.Column O.PGInt4)
 
 type FeedInfoIdColumnR = FeedInfoId (O.Column O.PGInt4)
 
+-- Update timestamp on feed read from DB and make it writable to DB
 setTime :: UTCTime -> FeedInfoR -> FeedInfoW
 setTime utc feedInfo =
     feedInfo
@@ -202,6 +308,7 @@ setTime utc feedInfo =
     , _feedInfoLastUpdated = O.pgUTCTime utc
     }
 
+-- Default 'FeedInfoHW'
 defFeedInfo :: FeedInfoHW
 defFeedInfo =
     FeedInfo
@@ -214,9 +321,11 @@ defFeedInfo =
     , _feedNumberItems = 20
     }
 
+-- | Default Time ( == 0 seconds absolute)
 defTime :: UTCTime
 defTime = UTCTime (fromGregorian 0 0 0) (secondsToDiffTime 0)
 
+-- | Default update interval
 defUpdateEvery :: Int
 defUpdateEvery = 60
 
@@ -269,6 +378,7 @@ type FeedItemIdColumnW = FeedItemId (O.Column O.PGInt4)
 
 type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
 
+-- | Default feed item
 defFeedItem :: FeedItemHW
 defFeedItem =
     FeedItem

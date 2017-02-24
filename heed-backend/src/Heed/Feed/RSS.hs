@@ -12,7 +12,11 @@ import qualified Heed.Database as DB
 import Heed.Feed.HtmlEntities (decodeHtmlEnt)
 import qualified Text.RSS.Syntax as RSS
 
-extractInfo :: UTCTime -> DB.Url -> RSS.RSS -> Maybe (DB.FeedInfoHW, [DB.FeedItemHW])
+extractInfo
+    :: UTCTime -- ^ Current time
+    -> DB.Url -- ^ 'DB.Url' of feed
+    -> RSS.RSS -- ^ 'RSS.RSS' with information
+    -> Maybe (DB.FeedInfoHW, [DB.FeedItemHW])
 extractInfo now url feed = Just (feedInfo, feedItems)
   where
     channel = RSS.rssChannel feed
