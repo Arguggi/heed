@@ -15,11 +15,12 @@ import Control.Concurrent (ThreadId, killThread)
 import qualified Control.Concurrent.BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (TVar, modifyTVar', readTVar)
 import Control.Lens hiding (Context)
-import Control.Monad (forM, forM_, forever, join, void, when)
+import Control.Monad (forM, forM_, forever, join, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.STM (atomically)
 import Crypto.KDF.BCrypt (validatePassword)
 import Data.ByteString (ByteString)
+import Data.Foldable (find)
 import Data.Int (Int64)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
@@ -230,21 +231,22 @@ sendUpdates :: BChan.BroadcastChan BChan.Out ChanUpdates
 sendUpdates bchan wsconn userfeeds =
     fork_ . flip iterateM_ userfeeds $ \feeds -> do
         update <- BChan.readBChan bchan
-        case update of
+        case update
+            -- If user is subbed to updated feed find and send it
+              of
             SendItems feed numItems -> do
-                when ((feed ^. DB.feedInfoId) `elem` subIds feeds) $
-                    sendNewItems wsconn (toFrontEndFeedInfo feed numItems)
+                forM_ (maybeSubFeed feed feeds) (sendNewItems wsconn . toFrontEndFeedInfo numItems)
                 return feeds
             UpdateFeedList feed -> return $ feed : feeds
   where
-    subIds feeds = feeds ^.. traverse . DB.feedInfoId
+    maybeSubFeed feed = find (\f -> (feed ^. DB.feedInfoId) == (f ^. DB.feedInfoId))
 
 sendNewItems :: WS.Connection -> HC.FeFeedInfo -> IO ()
 sendNewItems wsconn finfo = sendDown wsconn (HC.NewItems finfo)
 
-toFrontEndFeedInfo :: DB.FeedInfoHR -> Int64 -> HC.FeFeedInfo
-toFrontEndFeedInfo beInfo =
-    HC.FeFeedInfo' (beInfo ^. DB.feedInfoId . DB.getFeedInfoId) (beInfo ^. DB.feedInfoName)
+toFrontEndFeedInfo :: Int64 -> DB.FeedInfoHR -> HC.FeFeedInfo
+toFrontEndFeedInfo unread beInfo =
+    HC.FeFeedInfo' (beInfo ^. DB.feedInfoId . DB.getFeedInfoId) (beInfo ^. DB.feedInfoName) unread
 
 backupApp :: Application
 backupApp _ respond = respond $ responseLBS badRequest400 [] "Bad request"
