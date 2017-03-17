@@ -162,11 +162,16 @@ tokenToUser token =
 getUserFeedsQ :: UserId Int -> O.Query FeedInfoR
 getUserFeedsQ userid =
     proc () ->
-  do subs <- O.queryTable subscriptionTable -< ()
-     feeds <- O.queryTable feedInfoTable -< ()
-     O.restrict -< _subscriptionUserId subs O..=== O.constant userid
-     O.restrict -< _feedInfoId feeds O..=== _subscriptionFeedId subs
-     returnA -< feeds
+  do sub <- O.queryTable subscriptionTable -< ()
+     feedWithCustomName <- myLeftJoin -< ()
+     O.restrict -< _subscriptionUserId sub O..=== O.constant userid
+     O.restrict -<
+       _feedInfoId feedWithCustomName O..=== _subscriptionFeedId sub
+     returnA -< feedWithCustomName
+  where
+    myLeftJoin = JOIN.leftJoinF unite id joinOn (O.queryTable feedInfoTable) (getAllUserPref userid)
+    unite info pref = info & feedInfoName .~ (pref ^. prefName)
+    joinOn info pref = (info ^. feedInfoId) O..=== (pref ^. prefFeedId)
 
 type FeedInfoIdGrouped = O.Column O.PGInt4
 
