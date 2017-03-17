@@ -38,11 +38,9 @@ import Heed.Extract
        (addFeed, broadcastUpdate, forceUpdate, startUpdateThread)
 import qualified Heed.Query as HQ
 import Heed.Types
-       (BackendConf, ChanUpdates(..), ThreadState, dbConnection, runBe,
-        runQueryNoT, runTransaction, showUserHeedError, threadMap,
-        updateChan)
-
---import Heed.Update (editableFeedInfo, updateFeedInfo)
+       (BackendConf, ChanUpdates(..), HeedError, ThreadState,
+        dbConnection, runBe, runQueryNoT, runTransaction,
+        showUserHeedError, threadMap, updateChan)
 import Heed.Utils (Port, fork_)
 import Network.HTTP.Types (badRequest400)
 import Network.Wai
@@ -170,7 +168,7 @@ wsApp conf uname pending_conn = do
             HC.NewFeed url updateEvery -> do
                 newFeed <- runBe conf $ addFeed url updateEvery uid
                 case newFeed of
-                    Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
+                    Left e -> sendError conn e
                     Right (feed, num) -> do
                         now <- getCurrentTime
                         BChan.writeBChan (conf ^. updateChan) (UpdateFeedList feed)
@@ -181,7 +179,7 @@ wsApp conf uname pending_conn = do
             HC.ForceRefresh fid -> do
                 updateE <- runBe conf $ forceUpdate (DB.FeedInfoId fid)
                 case updateE of
-                    Left e -> sendDown conn (HC.BackendError (showUserHeedError e))
+                    Left e -> sendError conn e
                     Right update -> broadcastUpdate update (conf ^. updateChan)
             HC.GetSingleFeedInfo fid -> do
                 infoM <- runQueryNoT dbConn $ HQ.allFeedInfo (DB.FeedInfoId fid)
@@ -216,6 +214,9 @@ wsApp conf uname pending_conn = do
                     tid <- startUpdateThread now conf updated
                     updateThreadMap (conf ^. threadMap) fid tid
             HC.InvalidReceived -> putStrLn "Invalid command received"
+
+sendError :: WS.Connection -> HeedError -> IO ()
+sendError conn e = sendDown conn (HC.BackendError (showUserHeedError e))
 
 sendDown
     :: (Serialize a)

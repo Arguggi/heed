@@ -6,7 +6,8 @@
 {-| Only exports orphan instances
 -}
 module Heed.Orphans
-    () where
+    (
+    ) where
 
 import Data.Serialize (Serialize(get, put))
 import Data.Serialize.Text ()
