@@ -25,6 +25,7 @@ module Heed.Query
     , readFeed
     , runFeedInfoQuery
     , saveTokenDb
+    , showSql
     , setFeedLastUpdated
     , thisFeed
     , updateFeedInterval
@@ -50,11 +51,16 @@ import qualified Opaleye as O
 import qualified Opaleye.FunctionalJoin as JOIN
 import qualified Opaleye.Trans as OT
 
+showSql
+    :: Default O.Unpackspec a a
+    => O.Query a -> String
+showSql = fromMaybe "Empty query" . O.showSqlForPostgres
+
 -- | Print a sql query, for debugging only
 printSql
     :: Default O.Unpackspec a a
     => O.Query a -> IO ()
-printSql = putStrLn . fromMaybe "Empty query" . O.showSqlForPostgres
+printSql = putStrLn . showSql
 
 -- | Query used in 'getRecentItems'
 getItemsFromQ :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
