@@ -26,10 +26,12 @@ import Control.Monad.Reader (MonadReader, ask)
 import qualified Data.ByteString.Lazy as BSL
 import Data.Char (isLatin1)
 import Data.Int (Int64)
-import Data.List (deleteFirstsBy, minimumBy)
+import Data.List.NonEmpty (NonEmpty)
+import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (listToMaybe)
 import Data.Monoid ((<>))
 import Data.Ord (compare)
+import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy.Encoding (decodeUtf8With)
@@ -153,29 +155,43 @@ addFeed url every uid = do
 -- | Add feed to db and set items as unread
 addNewFeed
     :: MonadDb m
-    => FeedInfoHW -> [FeedItemHW] -> UserId Int -> m (FeedInfoHR, Int64)
+    => FeedInfoHW -> NonEmpty FeedItemHW -> UserId Int -> m (FeedInfoHR, Int64)
 addNewFeed feedInfo feedItems uid =
     execQuery $ do
         insertedFeed <- insertFeed feedInfo
         let newFeedId = _feedInfoId . head $ insertedFeed
-        insertedItems <- insertItems feedItems newFeedId
+        insertedItems <- insertItems (NonEmpty.toList feedItems) newFeedId
         num <- insertUnread insertedItems [uid]
         _ <- addSubscription uid newFeedId
         return (head insertedFeed, num)
 
+newtype FeedItemEq = FeedItemEq
+    { runFeedItemEq :: FeedItemHW
+    }
+
+instance Eq FeedItemEq where
+    (FeedItemEq a) == (FeedItemEq b) =
+        _feedItemTitle a == _feedItemTitle b && _feedItemDate a == _feedItemDate b && _feedItemUrl a ==
+        _feedItemUrl b
+
+instance Ord FeedItemEq where
+    (FeedItemEq a) `compare` (FeedItemEq b) = _feedItemDate a `compare` _feedItemDate b
+
 -- | Add new items to db and add them as unread for all users that are subscribed
 updateFeedItems
     :: (MonadDb m, MonadTime m)
-    => FeedInfoHR -> [FeedItemHW] -> m Int64
+    => FeedInfoHR -> NonEmpty FeedItemHW -> m Int64
 updateFeedItems feed feedItems = do
     now <- getTime
     execQuery $ do
         let feedId = feed ^. feedInfoId
-            newFeedItems :: [FeedItemHW]
-            newFeedItems = feedItems & traverse . feedItemFeedId .~ (Just <$> feedId)
-        recentItems <- getRecentItems feed (_feedItemDate (minimumBy after feedItems))
-        let newItems :: [FeedItemHW]
-            newItems = deleteFirstsBy (sameItem feedId) newFeedItems (applyJust <$> recentItems)
+            newItemsSet = Set.fromList $ fmap FeedItemEq (NonEmpty.toList feedItems)
+            -- feedItems is NonEmpty so we can safely call Set.findMin
+            firstDate = _feedItemDate . runFeedItemEq $ Set.findMin newItemsSet
+        recentItems <- getRecentItems feed firstDate
+        let recentItemsSet = Set.fromList $ fmap (FeedItemEq . applyJust) recentItems
+            newItems :: [FeedItemHW]
+            newItems = fmap runFeedItemEq . Set.toList $ newItemsSet `Set.difference` recentItemsSet
         inserted <-
             if not (null newItems)
                 then do
@@ -185,13 +201,6 @@ updateFeedItems feed feedItems = do
                 else return 0
         _ <- setFeedLastUpdated feedId now
         return inserted
-  where
-    after x y = compare (_feedItemDate x) (_feedItemDate y)
-    sameItem :: FeedInfoId Int -> FeedItemHW -> FeedItemHW -> Bool
-    sameItem feedId fromHttp fromDb =
-        (fromDb ^. feedItemFeedId) == (Just <$> feedId) &&
-        (_feedItemTitle fromDb == _feedItemTitle fromHttp) &&
-        (_feedItemUrl fromDb == _feedItemUrl fromHttp)
 
 -- | We have to apply 'Just' to the ids since when we read them from the DB they can't
 --   be 'Nothing'
@@ -251,7 +260,7 @@ getFeedUrl = TS.fromAttrib "xmlUrl"
 -- | Update date info of feed
 --   1) If any item doesn't have a date we have to set '_feedItemDate' as Missing
 --   2) We have to set the total number of feeds
-updateDateInfo :: UTCTime -> (FeedInfoHW, [FeedItemHW]) -> (FeedInfoHW, [FeedItemHW])
+updateDateInfo :: UTCTime -> (FeedInfoHW, NonEmpty FeedItemHW) -> (FeedInfoHW, NonEmpty FeedItemHW)
 updateDateInfo now (info, items) = (newInfo, items)
   where
     newInfo =
@@ -275,15 +284,16 @@ class Monad m =>
         :: BSL.ByteString -- ^ Raw feed data
         -> Url -- ^ Feed 'Url'
         -> Int -- ^ Update every x minutes
-        -> m (FeedInfoHW, [FeedItemHW])
+        -> m (FeedInfoHW, NonEmpty FeedItemHW)
 
 instance MonadParse Backend where
     parseFeed feed url every = do
         validFeed <- liftJust InvalidXML . parseFeedSource . decodeUtf8With lenientDecode $ feed
         now <- liftIO getCurrentTime
-        validInfo <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
-        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every & _2 %~
-            filter latinTitle
+        (feedInfo, itemsInfoM) <- liftJust InvalidFeedData $ extractInfoFromFeed now url validFeed
+        itemsInfo <- liftJust FeedListEmpty $ NonEmpty.nonEmpty (filter latinTitle itemsInfoM)
+        let validInfo = (feedInfo, itemsInfo)
+        return $ validInfo & updateDateInfo now & _1 . feedInfoUpdateEvery .~ every
 
 class Monad m =>
       MonadOpml m where

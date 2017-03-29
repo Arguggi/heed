@@ -58,14 +58,15 @@ import qualified Opaleye.Trans as OT
 import qualified System.Log.FastLogger as Log
 
 data HeedError where
-    InvalidFeedQuery :: HeedError
-    InvalidXML :: HeedError
-    InvalidFeedData :: HeedError
-    InvalidOPMLData :: HeedError
-    MultipleFeedsSameUrl :: HeedError
-    InvalidUrl :: HttpException -> HeedError
-    DownloadFailed :: HttpException -> HeedError
-    HSqlException :: PG.SqlError -> HeedError
+        InvalidFeedQuery :: HeedError
+        InvalidXML :: HeedError
+        InvalidFeedData :: HeedError
+        InvalidOPMLData :: HeedError
+        MultipleFeedsSameUrl :: HeedError
+        InvalidUrl :: HttpException -> HeedError
+        DownloadFailed :: HttpException -> HeedError
+        HSqlException :: PG.SqlError -> HeedError
+        FeedListEmpty :: HeedError
     deriving (Show)
 
 -- | Show 'HeedError' for humans
@@ -75,6 +76,7 @@ showUserHeedError InvalidXML = "Invalid feed format"
 showUserHeedError InvalidFeedData = "Invalid feed data"
 showUserHeedError InvalidOPMLData = "Invalid opml data"
 showUserHeedError MultipleFeedsSameUrl = "Feed is already present in the database"
+showUserHeedError FeedListEmpty = "Feed has no valid items "
 showUserHeedError (InvalidUrl _) = "Invalid URL"
 showUserHeedError (DownloadFailed _) = "Download failed"
 showUserHeedError (HSqlException _) = "Database error"
