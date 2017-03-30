@@ -38,6 +38,7 @@ module Heed.Database
     , FeedInfoHR
     , FeedInfoW
     , FeedInfoR
+    , afterDefTime
     , defTime
     , setTime
     , defFeedInfo
@@ -324,6 +325,10 @@ defFeedInfo =
 -- | Default Time ( == 0 seconds absolute)
 defTime :: UTCTime
 defTime = UTCTime (fromGregorian 0 0 0) (secondsToDiffTime 0)
+
+-- | Second test Default Time ( == 0 seconds absolute)
+afterDefTime :: UTCTime
+afterDefTime = UTCTime (fromGregorian 0 0 0) (secondsToDiffTime 10)
 
 -- | Default update interval
 defUpdateEvery :: Int

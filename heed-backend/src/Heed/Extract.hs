@@ -5,6 +5,7 @@
 module Heed.Extract
     ( addFeed
     , broadcastUpdate
+    , filterNew
     , forceUpdate
     , importOPMLTTRSS
     , parseTTRssOPML
@@ -25,13 +26,15 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.Reader (MonadReader, ask)
 import qualified Data.ByteString.Lazy as BSL
 import Data.Char (isLatin1)
+import qualified Data.HashSet as HashSet
+import qualified Data.Hashable as Hash
 import Data.Int (Int64)
+import Data.List (minimumBy)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (listToMaybe)
 import Data.Monoid ((<>))
 import Data.Ord (compare)
-import qualified Data.Set as Set
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy.Encoding (decodeUtf8With)
@@ -165,17 +168,29 @@ addNewFeed feedInfo feedItems uid =
         _ <- addSubscription uid newFeedId
         return (head insertedFeed, num)
 
+-- What we consider "new"
 newtype FeedItemEq = FeedItemEq
     { runFeedItemEq :: FeedItemHW
     }
 
 instance Eq FeedItemEq where
     (FeedItemEq a) == (FeedItemEq b) =
-        _feedItemTitle a == _feedItemTitle b && _feedItemDate a == _feedItemDate b && _feedItemUrl a ==
-        _feedItemUrl b
+        _feedItemTitle a == _feedItemTitle b && _feedItemUrl a == _feedItemUrl b
 
-instance Ord FeedItemEq where
-    (FeedItemEq a) `compare` (FeedItemEq b) = _feedItemDate a `compare` _feedItemDate b
+compareDate :: FeedItemEq -> FeedItemEq -> Ordering
+compareDate (FeedItemEq a) (FeedItemEq b) = _feedItemDate a `compare` _feedItemDate b
+
+instance Hash.Hashable FeedItemEq where
+    hashWithSalt s (FeedItemEq item) =
+        s `Hash.hashWithSalt` _feedItemTitle item `Hash.hashWithSalt` _feedItemUrl item
+
+filterNew
+    :: [FeedItemHW] -- ^ New items from feed
+    -> [FeedItemHW] -- ^ Items from database
+    -> [FeedItemHW]
+filterNew new db = fmap runFeedItemEq . HashSet.toList $ toHash new `HashSet.difference` toHash db
+  where
+    toHash = HashSet.fromList . fmap FeedItemEq
 
 -- | Add new items to db and add them as unread for all users that are subscribed
 updateFeedItems
@@ -183,29 +198,28 @@ updateFeedItems
     => FeedInfoHR -> NonEmpty FeedItemHW -> m Int64
 updateFeedItems feed feedItems = do
     now <- getTime
+    -- Get items from db (and transform them to HW)
+    recentItems <- fmap (fmap toHW) . execQuery $ getRecentItems feed firstDate
+        --recentItemsSet = Set.fromList $ fmap (FeedItemEq . applyJust) recentItems
+    let newItems :: [FeedItemHW]
+        --newItems = fmap runFeedItemEq . Set.toList $ newItemsSet `Set.difference` recentItemsSet
+        newItems = filterNew (NonEmpty.toList feedItems) recentItems
     execQuery $ do
-        let feedId = feed ^. feedInfoId
-            newItemsSet = Set.fromList $ fmap FeedItemEq (NonEmpty.toList feedItems)
-            -- feedItems is NonEmpty so we can safely call Set.findMin
-            firstDate = _feedItemDate . runFeedItemEq $ Set.findMin newItemsSet
-        recentItems <- getRecentItems feed firstDate
-        let recentItemsSet = Set.fromList $ fmap (FeedItemEq . applyJust) recentItems
-            newItems :: [FeedItemHW]
-            newItems = fmap runFeedItemEq . Set.toList $ newItemsSet `Set.difference` recentItemsSet
-        inserted <-
-            if not (null newItems)
-                then do
-                    insertedItems <- insertItems newItems feedId
-                    feedSubs <- getSubs feedId
-                    insertUnread insertedItems feedSubs
-                else return 0
         _ <- setFeedLastUpdated feedId now
-        return inserted
+        if not (null newItems)
+        then do
+            insertedItems <- insertItems newItems feedId
+            feedSubs <- getSubs feedId
+            insertUnread insertedItems feedSubs
+        else return 0
+  where
+    feedId = feed ^. feedInfoId
+    firstDate = _feedItemDate . runFeedItemEq . minimumBy compareDate . fmap FeedItemEq $ feedItems
 
 -- | We have to apply 'Just' to the ids since when we read them from the DB they can't
 --   be 'Nothing'
-applyJust :: FeedItemHR -> FeedItemHW
-applyJust hrs = hrs & feedItemId . getFeedItemId %~ Just & feedItemFeedId . getFeedInfoId %~ Just
+toHW :: FeedItemHR -> FeedItemHW
+toHW hrs = hrs & feedItemId . getFeedItemId %~ Just & feedItemFeedId . getFeedInfoId %~ Just
 
 extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoHW, [FeedItemHW])
 extractInfoFromFeed now url (AtomFeed feed) = HAtom.extractInfo now url feed
