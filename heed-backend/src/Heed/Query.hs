@@ -92,7 +92,11 @@ getRecentItems
 getRecentItems feed time =
     case _feedHasItemDate feed of
         Present -> OT.query $ getItemsFromQ (_feedInfoId feed) time
-        Missing -> reverse <$> OT.query (getLastItemsQ (_feedInfoId feed) (_feedNumberItems feed))
+        Missing -> reverse <$> OT.query (getLastItemsQ (_feedInfoId feed) (rounded (_feedNumberItems feed)))
+    where
+        -- The number of items isn't always correct, better round up
+        rounded :: Int -> Int
+        rounded x = round $ (fromIntegral x :: Double) * 1.3
 
 -- | Insert new feed
 insertFeed
