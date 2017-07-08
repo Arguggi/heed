@@ -1,4 +1,4 @@
-resolver: nightly-2017-03-29
+resolver: nightly-2017-07-06
 
 packages:
 - heed-backend
@@ -9,3 +9,5 @@ extra-deps:
 - html-entities-1.1.4
 - uri-0.1.6.4
 - postgres-tmp-0.1.0.1
+- brick-0.19
+- websockets-0.11.2.0

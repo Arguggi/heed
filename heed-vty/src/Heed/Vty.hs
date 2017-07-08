@@ -85,7 +85,10 @@ insecureWebsocket host port (Token t) aliveMVar =
         (T.unpack host)
         port
         "/"
-        (WS.ConnectionOptions $ fillMVarOnPong aliveMVar)
+        (WS.ConnectionOptions
+            (fillMVarOnPong aliveMVar)
+            (WS.PermessageDeflateCompression WS.defaultPermessageDeflate)
+            True)
         [("auth-token", encodeUtf8 t)]
 
 secureWebsocket
@@ -99,7 +102,10 @@ secureWebsocket host port (Token t) aliveMVar =
         (T.unpack host)
         ((read . show $ port) :: PortNumber)
         "/"
-        (WS.ConnectionOptions $ fillMVarOnPong aliveMVar)
+        (WS.ConnectionOptions
+            (fillMVarOnPong aliveMVar)
+            (WS.PermessageDeflateCompression WS.defaultPermessageDeflate)
+            True)
         [("auth-token", encodeUtf8 t)]
 
 fillMVarOnPong :: MVar () -> IO ()

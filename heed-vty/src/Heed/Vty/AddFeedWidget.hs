@@ -30,8 +30,8 @@ import Text.URI (parseURI, uriScheme)
 drawUI :: S.AddState -> [T.Widget S.AddName]
 drawUI st = [ui]
   where
-    e1 = F.withFocusRing (st ^. S.addFocusRing) E.renderEditor (st ^. S.urlEdit)
-    e2 = F.withFocusRing (st ^. S.addFocusRing) E.renderEditor (st ^. S.addUpdateEdit)
+    e1 = F.withFocusRing (st ^. S.addFocusRing) (E.renderEditor (txt . Text.unlines)) (st ^. S.urlEdit)
+    e2 = F.withFocusRing (st ^. S.addFocusRing) (E.renderEditor (txt . Text.unlines)) (st ^. S.addUpdateEdit)
     ui =
         C.center $
         (txt "Feed Url " <+> errorMsg (st ^. urlMessage)) <=> hLimit 100 e1 <=>
@@ -101,8 +101,8 @@ initialState :: WS.Connection -> S.AddState
 initialState =
     S.AddState
         (F.focusRing [S.UrlEdit, S.UpdateEdit])
-        (E.editorText S.UrlEdit (txt . Text.unlines) (Just 1) "")
-        (E.editorText S.UpdateEdit (txt . Text.unlines) (Just 1) "60")
+        (E.editorText S.UrlEdit (Just 1) "")
+        (E.editorText S.UpdateEdit (Just 1) "60")
         ""
         ""
         False

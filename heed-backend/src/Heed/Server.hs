@@ -57,7 +57,7 @@ import Servant.API.Experimental.Auth (AuthProtect)
 import Servant.API.Raw (Raw)
 import Servant.Server
        (Context((:.), EmptyContext), Handler, Server, err401,
-        serveWithContext)
+        serveWithContext, Tagged(..))
 import Servant.Server.Experimental.Auth
        (AuthHandler, AuthServerData, mkAuthHandler)
 
@@ -133,8 +133,8 @@ checkCreds conf (HC.AuthData usern pw) = do
             liftIO $ putStrLn "No such user"
             throwError err401
 
-app :: BackendConf -> UserName -> Application
-app conf uname = websocketsOr WS.defaultConnectionOptions (wsApp conf uname) backupApp
+app :: BackendConf -> UserName -> Tagged Handler Application
+app conf uname = Tagged $ websocketsOr WS.defaultConnectionOptions (wsApp conf uname) backupApp
 
 wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do

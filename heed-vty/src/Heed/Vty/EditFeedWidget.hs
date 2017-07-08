@@ -30,8 +30,8 @@ import Safe (headDef)
 drawUI :: S.EditState -> [T.Widget S.EditName]
 drawUI st = [ui]
   where
-    e1 = F.withFocusRing (st ^. S.editFocusRing) E.renderEditor (st ^. S.nameEdit)
-    e2 = F.withFocusRing (st ^. S.editFocusRing) E.renderEditor (st ^. S.editUpdateEdit)
+    e1 = F.withFocusRing (st ^. S.editFocusRing) (E.renderEditor (txt . Text.unlines)) (st ^. S.nameEdit)
+    e2 = F.withFocusRing (st ^. S.editFocusRing) (E.renderEditor (txt . Text.unlines)) (st ^. S.editUpdateEdit)
     ui =
         C.center $
         (txt "Feed Name " <+> errorMsg (st ^. S.nameMessage)) <=> hLimit 100 e1 <=>
@@ -98,10 +98,9 @@ initialState edit =
     S.EditState
         (_feEditId edit)
         (F.focusRing [S.NameEdit, S.UpdateEveryEdit])
-        (E.editorText S.NameEdit (txt . Text.unlines) (Just 1) (_feEditName edit))
+        (E.editorText S.NameEdit (Just 1) (_feEditName edit))
         (E.editorText
              S.UpdateEveryEdit
-             (txt . Text.unlines)
              (Just 1)
              (Text.pack . show . _feEditUpdateEvery $ edit))
         ""
