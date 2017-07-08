@@ -134,7 +134,14 @@ checkCreds conf (HC.AuthData usern pw) = do
             throwError err401
 
 app :: BackendConf -> UserName -> Tagged Handler Application
-app conf uname = Tagged $ websocketsOr WS.defaultConnectionOptions (wsApp conf uname) backupApp
+app conf uname = Tagged $ websocketsOr connectionOptions (wsApp conf uname) backupApp
+    where
+        connectionOptions =
+            WS.ConnectionOptions
+                (return ())
+                (WS.PermessageDeflateCompression WS.defaultPermessageDeflate)
+                True
+
 
 wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do
