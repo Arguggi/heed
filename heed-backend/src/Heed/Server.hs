@@ -49,6 +49,7 @@ import Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import qualified Network.WebSockets as WS
+import qualified Network.WebSockets.Connection as WSC
 import qualified Safe
 import Servant (throwError)
 import Servant.API
@@ -141,7 +142,8 @@ app conf uname = Tagged $ websocketsOr connectionOptions (wsApp conf uname) back
                 (return ())
                 (WS.PermessageDeflateCompression WS.defaultPermessageDeflate)
                 True
-
+                WSC.NoSizeLimit
+                WSC.NoSizeLimit
 
 wsApp :: BackendConf -> UserName -> WS.ServerApp
 wsApp conf uname pending_conn = do

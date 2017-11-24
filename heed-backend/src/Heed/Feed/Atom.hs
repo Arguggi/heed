@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Heed.Feed.Atom
     ( extractInfo
     ) where
@@ -24,7 +26,7 @@ extractInfo now url feed = Just (feedInfo, feedItems)
               T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed
         , DB._feedInfoUrl = url
         , DB._feedInfoUpdateEvery = 60
-        , DB._feedInfoLastUpdated = fromMaybe now (parseISO8601 . Atom.feedUpdated $ feed)
+        , DB._feedInfoLastUpdated = fromMaybe now (parseISO8601 . T.unpack . Atom.feedUpdated $ feed)
         }
     feedItems = entryToItem now <$> Atom.feedEntries feed
 
@@ -32,6 +34,6 @@ entryToItem :: UTCTime -> Atom.Entry -> DB.FeedItemHW
 entryToItem now entry =
     DB.defFeedItem
     { DB._feedItemTitle = decodeHtmlEnt . T.pack . Atom.txtToString . Atom.entryTitle $ entry
-    , DB._feedItemUrl = T.pack . Safe.headDef "" $ (Atom.linkHref <$> Atom.entryLinks entry)
-    , DB._feedItemDate = fromMaybe now $ parseISO8601 (Atom.entryUpdated entry)
+    , DB._feedItemUrl = Safe.headDef "" (Atom.linkHref <$> Atom.entryLinks entry)
+    , DB._feedItemDate = fromMaybe now . parseISO8601 . T.unpack $ Atom.entryUpdated entry
     }

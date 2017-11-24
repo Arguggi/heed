@@ -1,5 +1,5 @@
 name:                heed-vty
-version:             0.3.0.0
+version:             0.4.0.0
 synopsis:            Show feeds downloaded by heed-backend
 description:         Frontend for heed-backend
 license:             BSD3
@@ -12,7 +12,7 @@ cabal-version:       >=1.10
 
 executable heed-vty
   main-is:             Main.hs
-  build-depends:       base == 4.9.*
+  build-depends:       base >=4.9
                      , heed-vty
   hs-source-dirs:      exe
   default-language:    Haskell2010
@@ -25,8 +25,8 @@ library
                      , Heed.Vty.MainWidget
                      , Heed.Vty.WidgetStates
                      , Paths_heed_vty
-  build-depends:       base ==4.9.*
-                     , brick >=0.19
+  build-depends:       base >=4.9
+                     , brick >=0.20
                      , bytestring >=0.10.8.1
                      , cereal >=0.5
                      , containers >=0.5.7

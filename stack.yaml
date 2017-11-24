@@ -1,4 +1,4 @@
-resolver: nightly-2017-07-06
+resolver: nightly-2017-11-24
 
 packages:
 - heed-backend
@@ -6,8 +6,6 @@ packages:
 - heed-vty
 
 extra-deps:
-- html-entities-1.1.4
+- html-entities-1.1.4.1
+- opaleye-trans-0.4.2
 - uri-0.1.6.4
-- postgres-tmp-0.1.0.1
-- brick-0.19
-- websockets-0.11.2.0

@@ -37,6 +37,7 @@ import Network.HTTP.Simple
         setRequestBodyLBS, setRequestHost, setRequestMethod,
         setRequestPath, setRequestPort, setRequestSecure)
 import qualified Network.WebSockets as WS
+import qualified Network.WebSockets.Connection as WSC
 import Options.Applicative
        (Parser, ParserInfo, execParser, help, info, infoOption, long)
 import Paths_heed_vty (version)
@@ -88,7 +89,9 @@ insecureWebsocket host port (Token t) aliveMVar =
         (WS.ConnectionOptions
             (fillMVarOnPong aliveMVar)
             (WS.PermessageDeflateCompression WS.defaultPermessageDeflate)
-            True)
+            True
+            WSC.NoSizeLimit
+            WSC.NoSizeLimit)
         [("auth-token", encodeUtf8 t)]
 
 secureWebsocket
@@ -105,7 +108,9 @@ secureWebsocket host port (Token t) aliveMVar =
         (WS.ConnectionOptions
             (fillMVarOnPong aliveMVar)
             (WS.PermessageDeflateCompression WS.defaultPermessageDeflate)
-            True)
+            True
+            WSC.NoSizeLimit
+            WSC.NoSizeLimit)
         [("auth-token", encodeUtf8 t)]
 
 fillMVarOnPong :: MVar () -> IO ()

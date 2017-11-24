@@ -15,7 +15,7 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core
        (hBox, hLimit, padLeft, str, txt, vBox, vLimit, withAttr, (<+>),
-        (<=>))
+        (<=>), txtWrap)
 import qualified Brick.Widgets.List as BL
 import Control.Lens
 import Control.Monad (forM_, when)
@@ -40,6 +40,8 @@ import Text.URI (parseURI, uriRegName)
 newtype MyEvent =
     WsReceive Down
 
+data Browser = Firefox | Chromium
+
 drawUi :: AppState -> [Widget Name]
 drawUi s = [ui]
   where
@@ -53,19 +55,17 @@ drawUi s = [ui]
 
 feedDrawElement :: Bool -> FeFeedInfo -> Widget Name
 feedDrawElement sel a =
-    selectedStyle $ hLimit infoNameMaxWidth (txt (a ^. feedListName)) <+>
+    selectedStyle $ txtWrap (a ^. feedListName) <+>
     (padLeft BT.Max . str . show $ a ^. feedListUnread)
   where
     selectedStyle =
         if sel
             then withAttr "selected"
             else id
-    -- Start from max width, subtract length of unread items (e.g. 88) and then a space
-    infoNameMaxWidth = feedListWidth - (length . show $ a ^. feedListUnread) - 1
 
 itemDrawElement :: Bool -> FeItemInfo -> Widget Name
 itemDrawElement sel a =
-    selectedStyle $ txt (a ^. itemInfoTitle) <+> (padLeft BT.Max . str . showTime $ a)
+    selectedStyle $ txtWrap (a ^. itemInfoTitle) <+> (padLeft BT.Max . str . showTime $ a)
   where
     selectedStyle
         | sel = withAttr "selected"
@@ -76,8 +76,8 @@ itemDrawElement sel a =
 itemDrawDetail :: Maybe (Int, FeItemInfo) -> Widget Name
 itemDrawDetail Nothing = txt "No item selected"
 itemDrawDetail (Just (_, info)) =
-    txt (info ^. itemInfoTitle) <=> txt (info ^. itemInfoLink) <=>
-    txt (fromMaybe "no comments" $ info ^. itemInfoComments)
+    txtWrap (info ^. itemInfoTitle) <=> txtWrap (info ^. itemInfoLink) <=>
+    txtWrap (fromMaybe "no comments" $ info ^. itemInfoComments)
 
 appEvent :: AppState -> BT.BrickEvent Name MyEvent -> BT.EventM Name (BT.Next AppState)
 -- Close app
@@ -102,13 +102,8 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'k') [])) = do
     s' <- updateUnreadCount $ setItemAsRead s
     M.continue $ s' & items %~ BL.listMoveUp
 -- Open link in chromium
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = do
-    liftIO $
-        case BL.listSelectedElement (s ^. items) of
-            Nothing -> return ()
-            Just (_, e) -> openTab e
-    s' <- updateUnreadCount $ setItemAsRead s
-    M.continue $ s' & items %~ BL.listMoveDown
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = openInBrowser s Chromium
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'O') [])) = openInBrowser s Firefox
 -- Set all items as read
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
     s' <-
@@ -142,6 +137,15 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
 appEvent s (BT.AppEvent (WsReceive e)) = handleMess s e
 appEvent s _ = M.continue s
 
+openInBrowser :: AppState -> Browser -> BT.EventM Name (BT.Next AppState)
+openInBrowser s browser = do
+    liftIO $
+        case BL.listSelectedElement (s ^. items) of
+            Nothing -> return ()
+            Just (_, e) -> openTab browser e
+    s' <- updateUnreadCount $ setItemAsRead s
+    M.continue $ s' & items %~ BL.listMoveDown
+
 sendRead
     :: (MonadIO m)
     => AppState -> m ()
@@ -170,13 +174,16 @@ updateUnreadCount (Unseen, s) = do
             Nothing -> s
             Just i -> s & feeds . BL.listElementsL . ix i . feedListUnread -~ 1
 
-openTab :: FeItemInfo -> IO ()
-openTab e = do
-    forM_ (sameDomain link (e ^. itemInfoComments)) (callBrowser "chromium")
-    callBrowser "chromium" link
+openTab :: Browser -> FeItemInfo -> IO ()
+openTab browser e = do
+    forM_ (sameDomain link (e ^. itemInfoComments)) (callBrowser selectedBrowser)
+    callBrowser selectedBrowser link
   where
     link = e ^. itemInfoLink
-    callBrowser browser url = fork_ $ Process.createProcess (silentProc browser [T.unpack url])
+    selectedBrowser = case browser of
+        Chromium -> "chromium"
+        Firefox -> "firefox"
+    callBrowser brow url = fork_ $ Process.createProcess (silentProc brow [T.unpack url])
     -- If the comments are on the same domain we shouldn't bother opening them
     sameDomain l commentsM = do
         comments <- commentsM
