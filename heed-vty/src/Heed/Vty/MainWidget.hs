@@ -14,7 +14,7 @@ import qualified Brick.Util as BU
 import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core
-       (hBox, hLimit, padLeft, str, txt, vBox, vLimit, withAttr, (<+>),
+       (hBox, hLimit, padLeft, padRight, str, txt, vBox, vLimit, withAttr, (<+>),
         (<=>), txtWrap)
 import qualified Brick.Widgets.List as BL
 import Control.Lens
@@ -54,8 +54,8 @@ drawUi s = [ui]
     itemDetailVty = vLimit 4 $ itemDrawDetail (BL.listSelectedElement $ s ^. items)
 
 feedDrawElement :: Bool -> FeFeedInfo -> Widget Name
-feedDrawElement sel a =
-    selectedStyle $ txtWrap (a ^. feedListName) <+>
+feedDrawElement sel a = selectedStyle $
+    padRight BT.Max (txtWrap (a ^. feedListName)) <+>
     (padLeft BT.Max . str . show $ a ^. feedListUnread)
   where
     selectedStyle =
@@ -133,6 +133,11 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
             Just fid -> do
                 fork_ $ WS.sendBinaryData conn (encode (ForceRefresh fid))
                 return $ s & status .~ "Refreshing selected feed"
+    M.continue s'
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'c') [])) = do
+    let s' = s & feeds . BL.listElementsL %~ Vec.filter ((/= 0) . _feedListUnread)
+               & feeds %~ BL.listMoveTo 0
+    getSelFeedItems s'
     M.continue s'
 appEvent s (BT.AppEvent (WsReceive e)) = handleMess s e
 appEvent s _ = M.continue s

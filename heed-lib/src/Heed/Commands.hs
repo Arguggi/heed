@@ -79,10 +79,12 @@ fromBool :: Bool -> Seen
 fromBool True = Seen
 fromBool False = Unseen
 
+instance Semigroup Seen where
+    Seen <> _ = Seen
+    Unseen <> a = a
+
 instance Monoid Seen where
     mempty = Seen
-    Seen `mappend` _ = Seen
-    Unseen `mappend` a = a
 
 instance Serialize Seen
 

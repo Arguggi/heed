@@ -8,11 +8,12 @@ module Heed.Vty
 
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
+import Control.Applicative ((<**>))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
        (MVar, newEmptyMVar, tryPutMVar, tryTakeMVar)
 import Control.Exception (Handler(..), catches, throwIO)
-import Control.Monad (forever, void)
+import Control.Monad (forever, unless, void)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Loops (iterateM_)
 import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
@@ -23,6 +24,8 @@ import Data.Monoid ((<>))
 import Data.Serialize (decode, encode)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.Text.IO as TIO
+import Data.Time.Clock (getCurrentTime, NominalDiffTime, UTCTime, addUTCTime, diffUTCTime)
 import Data.Version (showVersion)
 import Development.GitRev (gitHash)
 import qualified Graphics.Vty as V
@@ -39,16 +42,19 @@ import Network.HTTP.Simple
 import qualified Network.WebSockets as WS
 import qualified Network.WebSockets.Connection as WSC
 import Options.Applicative
-       (Parser, ParserInfo, execParser, help, info, infoOption, long)
+       (Parser, ParserInfo, execParser, flag, help, info, infoOption, long, fullDesc, short, helpDoc)
 import Paths_heed_vty (version)
 import System.Directory
-       (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory)
+       (XdgDirectory(..), createDirectoryIfMissing, getXdgDirectory, doesFileExist, withCurrentDirectory)
+import System.Exit (exitSuccess)
+import Text.PrettyPrint.ANSI.Leijen (text)
 import Text.Read (readEither)
 import Wuss (runSecureClientWith)
 
 main :: IO ()
 main = do
-    _ <- execParser optsParser
+    force <- execParser optsParserInfo
+    unless force checkPermission
     configFolder <- getXdgDirectory XdgConfig progName
     createDirectoryIfMissing True configFolder
     final <-
@@ -186,11 +192,60 @@ authRequest configFolder = do
   where
     isSecure x = T.toLower x == "on"
 
-optsParser :: ParserInfo String
-optsParser = info (versionOption <*> pure "") mempty
+type ForceStart = Bool
 
-versionOption :: Parser (a -> a)
-versionOption =
+optsParserInfo :: ParserInfo ForceStart
+optsParserInfo = info (optsParser <**> versionParser) fullDesc
+
+versionParser :: Parser (a -> a)
+versionParser =
     infoOption
         (concat [showVersion version, " ", $(gitHash)])
-        (long "version" <> help "Show version")
+        (short 'v' <> long "version" <> help "Show version")
+
+optsParser :: Parser ForceStart
+optsParser =
+    flag False True
+        (  short 'f'
+        <> long "force"
+        <> helpDoc (Just (text "don't check timestamp")))
+
+checkPermission :: IO ()
+checkPermission = do
+    dataFolder <- getXdgDirectory XdgData progName
+    createDirectoryIfMissing True dataFolder
+    withCurrentDirectory dataFolder $ do
+        fileExists <- doesFileExist "timestamp"
+        if fileExists
+            then do
+                putStrLn "Old timestamp found"
+                checkTimeDiff
+            else do
+                putStrLn "Creating timestamp for the first time"
+                saveTimeStamp
+
+timestampFile :: String
+timestampFile = "timestamp"
+
+pauseInterval :: NominalDiffTime
+pauseInterval = 60 * 60 * 4
+
+checkTimeDiff :: IO ()
+checkTimeDiff = do
+    putStrLn "Checking time diff"
+    now <- getCurrentTime
+    oldTimestamp :: UTCTime <- read . T.unpack <$> TIO.readFile timestampFile
+    let nextAllowedTime = addUTCTime pauseInterval oldTimestamp
+    if nextAllowedTime > now
+        then do
+            putStrLn $ "It is now: " <> show now
+            putStrLn $ "You may open heed after: " <> show nextAllowedTime
+            putStrLn $ "or in: " <> show (diffUTCTime nextAllowedTime now / 60) <> " minutes"
+            exitSuccess
+        else saveTimeStamp
+
+saveTimeStamp :: IO ()
+saveTimeStamp = do
+    putStrLn "Saving now to timestamp file"
+    now <- getCurrentTime
+    writeFile timestampFile (show now)

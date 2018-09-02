@@ -9,7 +9,7 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Heed.Server where
+module Heed.Server (genAuthMain) where
 
 import Control.Concurrent (ThreadId, killThread)
 import qualified Control.Concurrent.BroadcastChan as BChan
@@ -120,16 +120,15 @@ checkCreds conf (HC.AuthData usern pw) = do
     let dbConn = conf ^. dbConnection
     userDbM <- runQueryNoT dbConn $ HQ.getUserDb usern
     case userDbM of
-        Just userDb -> do
-            let validPass =
-                    validatePassword (encodeUtf8 pw) (encodeUtf8 . DB._userPassword $ userDb)
-            if validPass
+        Just userDb ->
+            if validatePassword (encodeUtf8 pw) (encodeUtf8 . DB._userPassword $ userDb)
                 then do
                     newToken <- generateToken
                     _ <- runQueryNoT dbConn $ HQ.saveTokenDb newToken (DB._userId userDb)
                     return $ HC.Token newToken
-                else (do liftIO $ putStrLn "Invalid password"
-                         throwError err401)
+                else do
+                    liftIO $ putStrLn "Invalid password"
+                    throwError err401
         Nothing -> do
             liftIO $ putStrLn "No such user"
             throwError err401
