@@ -94,9 +94,11 @@ getRecentItems feed time =
         Present -> OT.query $ getItemsFromQ (_feedInfoId feed) time
         Missing -> reverse <$> OT.query (getLastItemsQ (_feedInfoId feed) (rounded (_feedNumberItems feed)))
     where
-        -- The number of items isn't always correct, better round up
+        -- The number of items isn't always correct, better round up,
+        -- by a lot. This caused some problems with duplicate feeds being inserted,
+        -- better be slower and correct rather than faster and incorrect.
         rounded :: Int -> Int
-        rounded x = round $ (fromIntegral x :: Double) * 1.3
+        rounded x = round $ (fromIntegral x :: Double) * 3
 
 -- | Insert new feed
 insertFeed

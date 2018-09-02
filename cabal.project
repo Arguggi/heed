@@ -2,3 +2,5 @@ packages:
     heed-lib
     heed-vty
     heed-backend
+
+with-compiler: ghc-8.4.3
