@@ -93,7 +93,7 @@ getRecentItems feed time =
     case _feedHasItemDate feed of
         Present -> OT.query $ getItemsFromQ (_feedInfoId feed) time
         -- Get last 200
-        Missing -> reverse <$> OT.query (getLastItemsQ (_feedInfoId feed) 200
+        Missing -> reverse <$> OT.query (getLastItemsQ (_feedInfoId feed) 200)
 
 
 -- | Insert new feed
