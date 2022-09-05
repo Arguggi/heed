@@ -10,7 +10,6 @@ module Heed.DbEnums
     ) where
 
 import qualified Data.ByteString.Char8 as B8
-import Data.Monoid ((<>))
 import qualified Data.Profunctor as Pro
 import qualified Data.Profunctor.Product.Default as ProDef
 import Data.Serialize (Serialize)
@@ -48,18 +47,18 @@ instance PG.FromField ItemsDate where
             | otherwise =
                 PG.returnError PG.ConversionFailed f (Text.unpack $ unexpected <> itemsDateString)
 
-instance O.QueryRunnerColumnDefault PGItemsDate ItemsDate where
-    queryRunnerColumnDefault = O.fieldQueryRunnerColumn
+instance O.DefaultFromField PGItemsDate ItemsDate where
+    defaultFromField = O.fieldQueryRunnerColumn
 
 constantColumnUsing
-    :: O.Constant haskell (O.Column pgType)
+    :: O.ToFields haskell (O.Column pgType)
     -> (haskell' -> haskell)
-    -> O.Constant haskell' (O.Column pgType')
+    -> O.ToFields haskell' (O.Column pgType')
 constantColumnUsing oldConstant f = Pro.dimap f O.unsafeCoerceColumn oldConstant
 
-instance ProDef.Default O.Constant ItemsDate (O.Column PGItemsDate) where
+instance ProDef.Default O.ToFields ItemsDate (O.Column PGItemsDate) where
     def =
-        constantColumnUsing (ProDef.def :: O.Constant String (O.Column O.PGText)) itemsDateToString
+        constantColumnUsing (ProDef.def :: O.ToFields String (O.Column O.PGText)) itemsDateToString
       where
         itemsDateToString :: ItemsDate -> String
         itemsDateToString Missing = "missing"

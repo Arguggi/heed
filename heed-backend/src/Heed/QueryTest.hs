@@ -18,28 +18,28 @@ import qualified Opaleye.Trans as OT
 
 -- | Query 'DB.authTokenTable'
 checkAuthTokenTable :: OT.Transaction [Int64]
-checkAuthTokenTable = OT.query $ O.countRows (O.queryTable DB.authTokenTable)
+checkAuthTokenTable = OT.query $ O.countRows (O.selectTable DB.authTokenTable)
 
 -- | Query 'DB.feedInfoTable'
 checkFeedInfoTable :: OT.Transaction [Int64]
-checkFeedInfoTable = OT.query $ O.countRows (O.queryTable DB.feedInfoTable)
+checkFeedInfoTable = OT.query $ O.countRows (O.selectTable DB.feedInfoTable)
 
 -- | Query 'DB.feedItemTable'
 checkFeedItemTable :: OT.Transaction [Int64]
-checkFeedItemTable = OT.query $ O.countRows (O.queryTable DB.feedItemTable)
+checkFeedItemTable = OT.query $ O.countRows (O.selectTable DB.feedItemTable)
 
 -- | Query 'DB.userPrefTable'
 checkPrefTable :: OT.Transaction [Int64]
-checkPrefTable = OT.query $ O.countRows (O.queryTable DB.userPrefTable)
+checkPrefTable = OT.query $ O.countRows (O.selectTable DB.userPrefTable)
 
 -- | Query 'DB.subscriptionTable'
 checkSubscriptionTable :: OT.Transaction [Int64]
-checkSubscriptionTable = OT.query $ O.countRows (O.queryTable DB.subscriptionTable)
+checkSubscriptionTable = OT.query $ O.countRows (O.selectTable DB.subscriptionTable)
 
 -- | Query 'DB.unreadItemTable'
 checkUnreadItemTable :: OT.Transaction [Int64]
-checkUnreadItemTable = OT.query $ O.countRows (O.queryTable DB.unreadItemTable)
+checkUnreadItemTable = OT.query $ O.countRows (O.selectTable DB.unreadItemTable)
 
 -- | Query 'DB.userTable'
 checkUserTable :: OT.Transaction [Int64]
-checkUserTable = OT.query $ O.countRows (O.queryTable DB.userTable)
+checkUserTable = OT.query $ O.countRows (O.selectTable DB.userTable)

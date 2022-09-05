@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns:yt="http://www.youtube.com/xml/schemas/2015" xmlns:media="http://search.yahoo.com/mrss/" xmlns="http://www.w3.org/2005/Atom">
+ <link rel="self" href="http://www.youtube.com/feeds/videos.xml?channel_id=UCHnyfMqiRRG1u-2MsSQLbXA"/>
+ <id>yt:channel:UCHnyfMqiRRG1u-2MsSQLbXA</id>
+ <yt:channelId>UCHnyfMqiRRG1u-2MsSQLbXA</yt:channelId>
+ <title>Veritasium</title>
+ <link rel="alternate" href="https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA"/>
+ <author>
+  <name>Veritasium</name>
+  <uri>https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA</uri>
+ </author>
+ <published>2010-07-21T07:18:02+00:00</published>
+ <entry>
+  <id>yt:video:Grv1RJkdyqI</id>
+  <yt:videoId>Grv1RJkdyqI</yt:videoId>
+  <yt:channelId>UCHnyfMqiRRG1u-2MsSQLbXA</yt:channelId>
+  <title>I Asked Bill Gates What's The Next Crisis?</title>
+  <link rel="alternate" href="https://www.youtube.com/watch?v=Grv1RJkdyqI"/>
+  <author>
+   <name>Veritasium</name>
+   <uri>https://www.youtube.com/channel/UCHnyfMqiRRG1u-2MsSQLbXA</uri>
+  </author>
+  <published>2021-02-04T14:00:03+00:00</published>
+  <updated>2021-02-05T22:05:28+00:00</updated>
+  <media:group>
+   <media:title>I Asked Bill Gates What's The Next Crisis?</media:title>
+   <media:content url="https://www.youtube.com/v/Grv1RJkdyqI?version=3" type="application/x-shockwave-flash" width="640" height="390"/>
+   <media:thumbnail url="https://i4.ytimg.com/vi/Grv1RJkdyqI/hqdefault.jpg" width="480" height="360"/>
+   <media:description>description</media:description>
+   <media:community>
+    <media:starRating count="94409" average="4.61" min="1" max="5"/>
+    <media:statistics views="1388897"/>
+   </media:community>
+  </media:group>
+ </entry>
+</feed>

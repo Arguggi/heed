@@ -20,9 +20,7 @@ import qualified Brick.Widgets.List as BL
 import Control.Lens
 import Control.Monad (forM_, when)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Data.Function ((&))
 import Data.Maybe (fromMaybe)
-import Data.Monoid ((<>))
 import Data.Serialize (encode)
 import qualified Data.Text as T
 import qualified Data.Time.Format as Time
@@ -40,7 +38,7 @@ import Text.URI (parseURI, uriRegName)
 newtype MyEvent =
     WsReceive Down
 
-data Browser = Firefox | Chromium
+data Browser = Firefox
 
 drawUi :: AppState -> [Widget Name]
 drawUi s = [ui]
@@ -101,8 +99,7 @@ appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'j') [])) = do
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'k') [])) = do
     s' <- updateUnreadCount $ setItemAsRead s
     M.continue $ s' & items %~ BL.listMoveUp
--- Open link in chromium
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = openInBrowser s Chromium
+appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = openInBrowser s Firefox
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'O') [])) = openInBrowser s Firefox
 -- Set all items as read
 appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
@@ -186,7 +183,6 @@ openTab browser e = do
   where
     link = e ^. itemInfoLink
     selectedBrowser = case browser of
-        Chromium -> "chromium"
         Firefox -> "firefox"
     callBrowser brow url = fork_ $ Process.createProcess (silentProc brow [T.unpack url])
     -- If the comments are on the same domain we shouldn't bother opening them

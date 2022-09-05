@@ -5,13 +5,12 @@ module Heed
     ( main
     ) where
 
-import qualified Control.Concurrent.BroadcastChan as BChan
+import qualified BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (newTVarIO)
 import Control.Lens ((&), (.~), (^..))
 import Control.Monad (forM, forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Map.Strict as Map
-import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.Time.Clock (getCurrentTime)
 import Data.Version (showVersion)
@@ -33,6 +32,7 @@ import System.Exit (die)
 import qualified System.Log.FastLogger as Log
 import qualified System.Log.FastLogger.Date as LogDate
 import Text.Read (readEither)
+import Data.Either (fromRight)
 
 -- | List of Environment variables to setup for PostgreSQL
 pgEnvVar :: [String]
@@ -61,20 +61,22 @@ main = do
 
 -- | Read ini file and setup 'pgEnvVar' variables
 setupEnvGetPort :: IO Port
-setupEnvGetPort = do
-    iniFile <- Ini.readIniFile "/etc/heed/backend.ini"
-    case iniFile of
-        Left e -> die $ "Invalid ini file: " ++ e
-        Right ini -> do
-            forM_ pgEnvVar $ \var ->
-                setEnv var . T.unpack $
-                either (const "") id (Ini.lookupValue "postgresql" (T.pack var) ini)
-            return $ getPort ini
+setupEnvGetPort = return defPort
+    -- iniFile <- Ini.readIniFile "backend.ini"
+    -- case iniFile of
+    --     Left e -> do
+    --         putStrLn $ "Ignoring ini file: " ++ e
+    --         return defPort
+    --     Right ini -> do
+    --         forM_ pgEnvVar $ \var ->
+    --             let value = T.unpack . fromRight "" $ Ini.lookupValue "postgresql" (T.pack var) ini in
+    --             setEnv var value
+    --         return $ getPort ini
 
 -- | Get port fron ini or 'defPort'
 getPort :: Ini.Ini -> Port
 getPort ini =
-    either (const defPort) id $ do
+    fromRight defPort $ do
         port <- Ini.lookupValue "websocket" "port" ini
         readEither . T.unpack $ port
 

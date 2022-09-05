@@ -15,7 +15,6 @@ import Brick.Widgets.Core (hLimit, txt, withAttr, (<+>), (<=>))
 import qualified Brick.Widgets.Edit as E
 import Control.Lens
 import Control.Monad.IO.Class (MonadIO)
-import Data.Monoid ((<>))
 import Data.Serialize (encode)
 import Data.Text (Text)
 import qualified Data.Text as Text

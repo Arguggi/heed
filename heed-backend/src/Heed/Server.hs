@@ -12,7 +12,7 @@
 module Heed.Server (genAuthMain) where
 
 import Control.Concurrent (ThreadId, killThread)
-import qualified Control.Concurrent.BroadcastChan as BChan
+import qualified BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (TVar, modifyTVar', readTVar)
 import Control.Lens hiding (Context)
 import Control.Monad (forM, forM_, forever, join, void)
@@ -25,7 +25,6 @@ import Data.Int (Int64)
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (listToMaybe)
-import Data.Monoid ((<>))
 import Data.Proxy (Proxy(Proxy))
 import Data.Serialize (Serialize, decode, encode)
 import Data.Text (Text)
@@ -152,77 +151,77 @@ wsApp conf uname pending_conn = do
         dbConn = conf ^. dbConnection
         uid = DB.UserId $ unUserId uname
     conn <- WS.acceptRequestWith pending_conn ar
-    WS.forkPingThread conn 10
-    -- As soon as someone connects get the relevant feeds from the db
-    -- since we will have to send them once the client tells us it's ready
-    unreadFeeds <- runQueryNoT dbConn $ HQ.getUserUnreadFeedInfo uid
-    let sortedUnread = sort unreadFeeds
-    allfeeds <- runQueryNoT dbConn $ HQ.getUserFeeds uid
-    -- Create a new Broadcast channel where updates are pushed from the update threads
-    updateListener <- BChan.newBChanListener (conf ^. updateChan)
-    sendUpdates updateListener conn allfeeds
-    forever $ do
-        commandM <- decode <$> WS.receiveData conn
-        let command = either (const HC.InvalidReceived) id commandM
-        case command of
-            HC.Initialized -> do
-                sendDown conn $ HC.Status (unUserName uname)
-                sendDown conn $ HC.Feeds sortedUnread
-            HC.GetFeedItems feedId -> do
-                items <- runQueryNoT dbConn $ HQ.getUserItems uid (DB.FeedInfoId feedId)
-                sendDown conn (HC.FeedItems items)
-            HC.ItemRead itemId -> void . runQueryNoT dbConn $ HQ.readFeed uid (DB.FeedItemId itemId)
-            HC.FeedRead feedId ->
-                void . runQueryNoT dbConn $ HQ.allItemsRead (DB.FeedInfoId feedId) uid
-            HC.NewFeed url updateEvery -> do
-                newFeed <- runBe conf $ addFeed url updateEvery uid
-                case newFeed of
-                    Left e -> sendError conn e
-                    Right (feed, num) -> do
+    WSC.withPingThread conn 10 (return ()) $ do
+        -- As soon as someone connects get the relevant feeds from the db
+        -- since we will have to send them once the client tells us it's ready
+        unreadFeeds <- runQueryNoT dbConn $ HQ.getUserUnreadFeedInfo uid
+        let sortedUnread = sort unreadFeeds
+        allfeeds <- runQueryNoT dbConn $ HQ.getUserFeeds uid
+        -- Create a new Broadcast channel where updates are pushed from the update threads
+        updateListener <- BChan.newBChanListener (conf ^. updateChan)
+        sendUpdates updateListener conn allfeeds
+        forever $ do
+            commandM <- decode <$> WS.receiveData conn
+            let command = either (const HC.InvalidReceived) id commandM
+            case command of
+                HC.Initialized -> do
+                    sendDown conn $ HC.Status (unUserName uname)
+                    sendDown conn $ HC.Feeds sortedUnread
+                HC.GetFeedItems feedId -> do
+                    items <- runQueryNoT dbConn $ HQ.getUserItems uid (DB.FeedInfoId feedId)
+                    sendDown conn (HC.FeedItems items)
+                HC.ItemRead itemId -> void . runQueryNoT dbConn $ HQ.readFeed uid (DB.FeedItemId itemId)
+                HC.FeedRead feedId ->
+                    void . runQueryNoT dbConn $ HQ.allItemsRead (DB.FeedInfoId feedId) uid
+                HC.NewFeed url updateEvery -> do
+                    newFeed <- runBe conf $ addFeed url updateEvery uid
+                    case newFeed of
+                        Left e -> sendError conn e
+                        Right (feed, num) -> do
+                            now <- getCurrentTime
+                            _ <- BChan.writeBChan (conf ^. updateChan) (UpdateFeedList feed)
+                            _ <- BChan.writeBChan (conf ^. updateChan) (SendItems feed num)
+                            tid <- startUpdateThread now conf feed
+                            fork_ $ updateThreadMap (conf ^. threadMap) (feed ^. DB.feedInfoId) tid
+                            sendDown conn (HC.FeedAdded url)
+                HC.ForceRefresh fid -> do
+                    updateE <- runBe conf $ forceUpdate (DB.FeedInfoId fid)
+                    case updateE of
+                        Left e -> sendError conn e
+                        Right update -> broadcastUpdate update (conf ^. updateChan) >> return ()
+                HC.GetSingleFeedInfo fid -> do
+                    infoM <- runQueryNoT dbConn $ HQ.allFeedInfo (DB.FeedInfoId fid)
+                    let infoE = Safe.headMay infoM
+                    case infoE of
+                        Nothing -> sendDown conn (HC.BackendError "Invalid feed")
+                        Just info -> sendDown conn (HC.EditableFeedInfo $ HC.toFeEditFeed info)
+                HC.UpdatedFeedInfo feedEdit -> do
+                    let newName = feedEdit ^. HC.feEditName
+                        newInterval = feedEdit ^. HC.feEditUpdateEvery
+                        fid = DB.FeedInfoId $ feedEdit ^. HC.feEditId
+                        newUserPref = DB.UserFeedInfoPref uid fid newName
+                    -- Update Feed name
+                    oldPrefM <- listToMaybe <$> runQueryNoT dbConn (HQ.userFeedName fid uid)
+                    _ <-
+                        case oldPrefM of
+                            Nothing -> runQueryNoT dbConn $ HQ.insertUserPrefName newUserPref
+                            Just oldPref ->
+                                if (oldPref ^. DB.prefName) /= newName
+                                    then runQueryNoT dbConn $ HQ.updateUserPrefName newUserPref
+                                    else return 0
+                    sendDown conn $ HC.FeedInfoUpdated (feedEdit ^. HC.feEditId, newName)
+                    -- Get old update interval
+                    oldUpdateIntervalM <- listToMaybe <$> runQueryNoT dbConn (HQ.feedUpdateInterval fid)
+                    needRestartM <-
+                        forM oldUpdateIntervalM $ \_ ->
+                            listToMaybe <$> runQueryNoT dbConn (HQ.updateFeedInterval fid newInterval)
+                    -- Restart the update thread with the new interval
+                    -- and kill old thread
+                    forM_ (join needRestartM) $ \updated -> do
                         now <- getCurrentTime
-                        BChan.writeBChan (conf ^. updateChan) (UpdateFeedList feed)
-                        BChan.writeBChan (conf ^. updateChan) (SendItems feed num)
-                        tid <- startUpdateThread now conf feed
-                        fork_ $ updateThreadMap (conf ^. threadMap) (feed ^. DB.feedInfoId) tid
-                        sendDown conn (HC.FeedAdded url)
-            HC.ForceRefresh fid -> do
-                updateE <- runBe conf $ forceUpdate (DB.FeedInfoId fid)
-                case updateE of
-                    Left e -> sendError conn e
-                    Right update -> broadcastUpdate update (conf ^. updateChan)
-            HC.GetSingleFeedInfo fid -> do
-                infoM <- runQueryNoT dbConn $ HQ.allFeedInfo (DB.FeedInfoId fid)
-                let infoE = Safe.headMay infoM
-                case infoE of
-                    Nothing -> sendDown conn (HC.BackendError "Invalid feed")
-                    Just info -> sendDown conn (HC.EditableFeedInfo $ HC.toFeEditFeed info)
-            HC.UpdatedFeedInfo feedEdit -> do
-                let newName = feedEdit ^. HC.feEditName
-                    newInterval = feedEdit ^. HC.feEditUpdateEvery
-                    fid = DB.FeedInfoId $ feedEdit ^. HC.feEditId
-                    newUserPref = DB.UserFeedInfoPref uid fid newName
-                -- Update Feed name
-                oldPrefM <- listToMaybe <$> runQueryNoT dbConn (HQ.userFeedName fid uid)
-                _ <-
-                    case oldPrefM of
-                        Nothing -> runQueryNoT dbConn $ HQ.insertUserPrefName newUserPref
-                        Just oldPref ->
-                            if (oldPref ^. DB.prefName) /= newName
-                                then runQueryNoT dbConn $ HQ.updateUserPrefName newUserPref
-                                else return 0
-                sendDown conn $ HC.FeedInfoUpdated (feedEdit ^. HC.feEditId, newName)
-                -- Get old update interval
-                oldUpdateIntervalM <- listToMaybe <$> runQueryNoT dbConn (HQ.feedUpdateInterval fid)
-                needRestartM <-
-                    forM oldUpdateIntervalM $ \_ ->
-                        listToMaybe <$> runQueryNoT dbConn (HQ.updateFeedInterval fid newInterval)
-                -- Restart the update thread with the new interval
-                -- and kill old thread
-                forM_ (join needRestartM) $ \updated -> do
-                    now <- getCurrentTime
-                    tid <- startUpdateThread now conf updated
-                    updateThreadMap (conf ^. threadMap) fid tid
-            HC.InvalidReceived -> putStrLn "Invalid command received"
+                        tid <- startUpdateThread now conf updated
+                        updateThreadMap (conf ^. threadMap) fid tid
+                HC.InvalidReceived -> putStrLn "Invalid command received"
 
 sendError :: WS.Connection -> HeedError -> IO ()
 sendError conn e = sendDown conn (HC.BackendError (showUserHeedError e))
@@ -239,13 +238,13 @@ sendUpdates :: BChan.BroadcastChan BChan.Out ChanUpdates
 sendUpdates bchan wsconn userfeeds =
     fork_ . flip iterateM_ userfeeds $ \feeds -> do
         update <- BChan.readBChan bchan
-        case update
+        case update of
+            Nothing -> putStrLn "Failed to send items" >> return []
             -- If user is subbed to updated feed find and send it
-              of
-            SendItems feed numItems -> do
+            Just (SendItems feed numItems) -> do
                 forM_ (maybeSubFeed feed feeds) (sendNewItems wsconn . toFrontEndFeedInfo numItems)
                 return feeds
-            UpdateFeedList feed -> return $ feed : feeds
+            Just (UpdateFeedList feed) -> return $ feed : feeds
   where
     maybeSubFeed feed = find (\f -> (feed ^. DB.feedInfoId) == (f ^. DB.feedInfoId))
 

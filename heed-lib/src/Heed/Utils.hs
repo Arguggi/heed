@@ -34,7 +34,7 @@ type Port = Int
 
 -- | Default port for server (assumes TLS so 443)
 defPort :: Port
-defPort = 443
+defPort = 8090
 
 -- | 'Process.CreateProcess' with all handles (in,out,err) closed
 --   we need this since vty doens't handle stdout well

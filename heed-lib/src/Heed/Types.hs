@@ -38,7 +38,7 @@ module Heed.Types
     ) where
 
 import Control.Concurrent (ThreadId)
-import qualified Control.Concurrent.BroadcastChan as BChan
+import qualified BroadcastChan as BChan
 import Control.Concurrent.STM (TVar)
 import Control.Lens
 import Control.Monad.Catch
@@ -47,7 +47,6 @@ import Control.Monad.Reader
 import Data.ByteString.Lazy as BSL
 import Data.Int (Int64)
 import qualified Data.Map.Strict as Map
-import Data.Monoid ((<>))
 import Data.Proxy
 import Data.Text as T
 import Data.Time

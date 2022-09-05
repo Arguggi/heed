@@ -279,10 +279,10 @@ userTable =
         "heed_user"
         (pUser
              User
-             { _userId = pUserId (UserId (O.optional "id"))
-             , _userName = O.required "username"
-             , _userPassword = O.required "password"
-             , _userEmail = O.required "email"
+             { _userId = pUserId (UserId (O.optionalTableField "id"))
+             , _userName = O.requiredTableField "username"
+             , _userPassword = O.requiredTableField "password"
+             , _userEmail = O.requiredTableField "email"
              })
 
 -----------------------------------------
@@ -340,13 +340,13 @@ feedInfoTable =
         "feed_info"
         (pFeedInfo
              FeedInfo
-             { _feedInfoId = pFeedInfoId (FeedInfoId (O.optional "id"))
-             , _feedInfoName = O.required "name"
-             , _feedInfoUrl = O.required "url"
-             , _feedInfoUpdateEvery = O.required "update_every"
-             , _feedInfoLastUpdated = O.required "last_updated"
-             , _feedHasItemDate = O.required "has_item_date"
-             , _feedNumberItems = O.required "number_items"
+             { _feedInfoId = pFeedInfoId (FeedInfoId (O.optionalTableField "id"))
+             , _feedInfoName = O.requiredTableField "name"
+             , _feedInfoUrl = O.requiredTableField "url"
+             , _feedInfoUpdateEvery = O.requiredTableField "update_every"
+             , _feedInfoLastUpdated = O.requiredTableField "last_updated"
+             , _feedHasItemDate = O.requiredTableField "has_item_date"
+             , _feedNumberItems = O.requiredTableField "number_items"
              })
 
 ----------------------------
@@ -363,8 +363,8 @@ subscriptionTable =
         "subscription"
         (pSubscription
              Subscription
-             { _subscriptionFeedId = pFeedInfoId (FeedInfoId (O.required "feed_info_id"))
-             , _subscriptionUserId = pUserId (UserId (O.required "user_id"))
+             { _subscriptionFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id"))
+             , _subscriptionUserId = pUserId (UserId (O.requiredTableField "user_id"))
              })
 
 ----------------------------
@@ -401,12 +401,12 @@ feedItemTable =
         "feed_item"
         (pFeedItem
              FeedItem
-             { _feedItemId = pFeedItemId (FeedItemId (O.optional "id"))
-             , _feedItemFeedId = pFeedInfoId (FeedInfoId (O.required "feed_info_id"))
-             , _feedItemTitle = O.required "title"
-             , _feedItemUrl = O.required "url"
-             , _feedItemDate = O.required "pub_date"
-             , _feedItemComments = O.required "comment_url"
+             { _feedItemId = pFeedItemId (FeedItemId (O.optionalTableField "id"))
+             , _feedItemFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id"))
+             , _feedItemTitle = O.requiredTableField "title"
+             , _feedItemUrl = O.requiredTableField "url"
+             , _feedItemDate = O.requiredTableField "pub_date"
+             , _feedItemComments = O.requiredTableField "comment_url"
              })
 
 ----------------------------
@@ -423,8 +423,8 @@ unreadItemTable =
         "unread_item"
         (pUnreadItem
              UnreadItem
-             { _unreadFeedItemId = pFeedItemId (FeedItemId (O.required "feed_item_id"))
-             , _unreadUserId = pUserId (UserId (O.required "user_id"))
+             { _unreadFeedItemId = pFeedItemId (FeedItemId (O.requiredTableField "feed_item_id"))
+             , _unreadUserId = pUserId (UserId (O.requiredTableField "user_id"))
              })
 
 $(makeAdaptorAndInstance "pAuthToken" ''AuthToken)
@@ -439,8 +439,8 @@ authTokenTable =
         "auth_token"
         (pAuthToken
              AuthToken
-             { _authTokenHeedUserId = pUserId (UserId (O.required "user_id"))
-             , _authTokenToken = O.required "token"
+             { _authTokenHeedUserId = pUserId (UserId (O.requiredTableField "user_id"))
+             , _authTokenToken = O.requiredTableField "token"
              })
 
 data UserFeedInfoPref a b c = UserFeedInfoPref
@@ -467,7 +467,7 @@ userPrefTable =
         "user_feed_info_pref"
         (pUserFeedInfoPref
              UserFeedInfoPref
-             { _prefUserId = pUserId (UserId (O.required "user_id"))
-             , _prefFeedId = pFeedInfoId (FeedInfoId (O.required "feed_info_id"))
-             , _prefName = O.required "feed_info_name"
+             { _prefUserId = pUserId (UserId (O.requiredTableField "user_id"))
+             , _prefFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id"))
+             , _prefName = O.requiredTableField "feed_info_name"
              })

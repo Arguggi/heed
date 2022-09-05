@@ -47,7 +47,6 @@ module Heed.Commands
 import Control.Lens
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int (Int64)
-import Data.Monoid ((<>))
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Serialize (Serialize, decode, encode)
 import Data.Serialize.Text ()
@@ -178,8 +177,8 @@ $(makeAdaptorAndInstance "pFeItemInfo" ''FeItemInfo')
 -- | 'FeItemInfo' opaleye type
 type FeItemInfoR = FeItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText)) (O.Column O.PGBool)
 
-instance O.QueryRunnerColumnDefault O.PGBool Seen where
-    queryRunnerColumnDefault = fromBool <$> O.fieldQueryRunnerColumn
+instance O.DefaultFromField O.PGBool Seen where
+    defaultFromField = fromBool <$> O.fieldQueryRunnerColumn
 
 -- | Commands sent from client to server via websocket
 --

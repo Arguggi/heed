@@ -20,7 +20,6 @@ import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
-import Data.Monoid ((<>))
 import Data.Serialize (decode, encode)
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -34,7 +33,7 @@ import Heed.Types (ExitType(..))
 import Heed.Utils (fork_, progName)
 import Heed.Vty.MainWidget
 import Heed.Vty.WidgetStates
-import Network (PortNumber)
+import Network.Socket (PortNumber)
 import Network.HTTP.Simple
        (Request, defaultRequest, getResponseBody, httpLBS,
         setRequestBodyLBS, setRequestHost, setRequestMethod,
@@ -141,7 +140,8 @@ startApp eventChan aliveMVar wsconn = do
         case decode wsdata of
             Left _ -> throwIO InvalidDataOnWs
             Right mess -> BChan.writeBChan eventChan (WsReceive mess)
-    _ <- M.customMain (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
+    vty <- V.mkVty mempty
+    _ <- M.customMain vty (return vty) (Just eventChan) app (defState "" wsconn "Connecting")
     return UserExit
 
 -- Check if connection is alive every 5 seconds

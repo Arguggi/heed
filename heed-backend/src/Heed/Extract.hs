@@ -10,6 +10,7 @@ module Heed.Extract
     , importOPMLTTRSS
     , parseTTRssOPML
     , startUpdateThread
+    , extractInfoFromFeed
     -- * Parse feed MTL
     , MonadParse(parseFeed)
     -- * Parse OPTM MTL
@@ -17,9 +18,9 @@ module Heed.Extract
     ) where
 
 import Control.Concurrent (ThreadId, threadDelay)
-import qualified Control.Concurrent.BroadcastChan as BChan
+import qualified BroadcastChan as BChan
 import Control.Lens
-import Control.Monad (forM_, forever, when)
+import Control.Monad (forM_, forever, when, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Except (MonadError)
 import Control.Monad.IO.Class (MonadIO, liftIO)
@@ -33,8 +34,6 @@ import Data.List (minimumBy)
 import Data.List.NonEmpty (NonEmpty)
 import qualified Data.List.NonEmpty as NonEmpty
 import Data.Maybe (listToMaybe)
-import Data.Monoid ((<>))
-import Data.Ord (compare)
 import qualified Data.Text as T
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Text.Lazy.Encoding (decodeUtf8With)
@@ -44,6 +43,7 @@ import Heed.Database
 import Heed.DbEnums (ItemsDate(..))
 import qualified Heed.Feed.Atom as HAtom
 import qualified Heed.Feed.RSS as RSS
+import qualified Heed.Feed.XML as XML
 import Heed.Query
 import Heed.Types
 import Heed.Utils (fork)
@@ -52,6 +52,7 @@ import Text.Feed.Import (parseFeedSource)
 import Text.Feed.Types (Feed(AtomFeed, RSS1Feed, RSSFeed, XMLFeed))
 import qualified Text.HTML.TagSoup as TS
 import qualified Text.HTML.TagSoup.Match as TS
+import qualified Text.XML
 
 -- | Start a thread for every feed in the db and notify the bchan in the 'BackendConf'
 --   when updates arrive
@@ -78,7 +79,7 @@ startUpdateThread now baConf info =
                     logMsgIO (baConf ^. timedLogger) . T.pack . show $ e
               -- When feeds have new items send the update to the broadcast chan so
               -- then everyone that is listening will receive the update
-                Right newItems -> broadcastUpdate (info, newItems) (baConf ^. updateChan)
+                Right newItems -> void (broadcastUpdate (info, newItems) (baConf ^. updateChan))
             liftIO . threadDelay $ _feedInfoUpdateEvery info * 1000000 * 60
 
 -- | 'UserId' requested an immediate update.
@@ -106,10 +107,10 @@ forceUpdate fid = do
 broadcastUpdate
     :: (FeedInfoHR, Int64) -- ^ (Feed, number of new items)
     -> BChan.BroadcastChan BChan.In ChanUpdates -- ^ New items will be sent here
-    -> IO ()
+    -> IO Bool
 broadcastUpdate (items, new) bchan
-    | new > 0 = BChan.writeBChan bchan (SendItems items new)
-    | otherwise = return ()
+    | new > 0 =  BChan.writeBChan bchan (SendItems items new)
+    | otherwise = return False
 
 -- | Download, parse and add items to db, also add unread items
 updateFeed
@@ -224,9 +225,11 @@ toHW hrs = hrs & feedItemId . getFeedItemId %~ Just & feedItemFeedId . getFeedIn
 extractInfoFromFeed :: UTCTime -> Url -> Feed -> Maybe (FeedInfoHW, [FeedItemHW])
 extractInfoFromFeed now url (AtomFeed feed) = HAtom.extractInfo now url feed
 extractInfoFromFeed now url (RSSFeed feed) = RSS.extractInfo now url feed
+extractInfoFromFeed now url (XMLFeed feed) = case Text.XML.fromXMLElement feed of
+    Left _ -> Nothing
+    Right el -> XML.extractInfo now url el
 -- TODO
 extractInfoFromFeed _ _ (RSS1Feed _) = Nothing
-extractInfoFromFeed _ _ (XMLFeed _) = Nothing
 
 -- | Import OPML exported by tt-rss
 importOPMLTTRSS
@@ -245,7 +248,6 @@ importOPMLTTRSS opml userid = do
                 logMsg . T.pack . show $ e
             Right _ -> logMsg $ "Added: " <> url
         return ()
-    return ()
 
 -- | Parse tags of tt-rss exported OPML
 parseTTRssOPML :: T.Text -> Maybe [T.Text]
