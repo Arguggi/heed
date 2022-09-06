@@ -35,7 +35,7 @@ module Heed.Query
     ) where
 
 import Control.Arrow (returnA)
-import Control.Lens hiding (from, un)
+import Lens.Micro.Platform hiding (from, un)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe)
 import Data.Profunctor.Product (p2)

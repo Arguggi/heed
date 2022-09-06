@@ -18,6 +18,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Loops (iterateM_)
 import Control.Monad.Trans.Except (ExceptT(..), runExceptT)
 import Data.ByteString.Lazy (fromStrict, toStrict)
+import Data.Either (fromRight)
 import Data.Function ((&))
 import Data.Ini (lookupValue, readIniFile)
 import Data.Serialize (decode, encode)
@@ -141,7 +142,7 @@ startApp eventChan aliveMVar wsconn = do
             Left _ -> throwIO InvalidDataOnWs
             Right mess -> BChan.writeBChan eventChan (WsReceive mess)
     vty <- V.mkVty mempty
-    _ <- M.customMain vty (return vty) (Just eventChan) app (defState "" wsconn "Connecting")
+    _ <- M.customMain vty (V.mkVty mempty) (Just eventChan) app (defState "" wsconn "Connecting")
     return UserExit
 
 -- Check if connection is alive every 5 seconds
@@ -177,8 +178,8 @@ authRequest configFolder = do
         user <- lookupValue "auth" "username" ini
         pass <- lookupValue "auth" "password" ini
         -- Assume tls and port 443 by default
-        let secure = either (const True) id $ isSecure <$> lookupValue "server" "tls" ini
-            port = either (const 443) id $ readEither (T.unpack portT)
+        let secure = fromRight True $ isSecure <$> lookupValue "server" "tls" ini
+            port = fromRight 443 $ readEither (T.unpack portT)
         return
             ( defaultRequest & setRequestBodyLBS (fromStrict . encode $ AuthData user pass) &
               setRequestHost (encodeUtf8 host) &

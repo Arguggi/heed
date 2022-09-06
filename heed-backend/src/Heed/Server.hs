@@ -14,7 +14,7 @@ module Heed.Server (genAuthMain) where
 import Control.Concurrent (ThreadId, killThread)
 import qualified BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (TVar, modifyTVar', readTVar)
-import Control.Lens hiding (Context)
+import Lens.Micro.Platform ( (^.))
 import Control.Monad (forM, forM_, forever, join, void)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad.STM (atomically)

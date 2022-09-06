@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Heed.Vty.MainWidget
     ( app
@@ -8,6 +9,7 @@ module Heed.Vty.MainWidget
 
 import qualified Brick.AttrMap as BA
 import qualified Brick.Main as M
+import Brick (attrName)
 import Brick.Types (Widget)
 import qualified Brick.Types as BT
 import qualified Brick.Util as BU
@@ -15,11 +17,11 @@ import qualified Brick.Widgets.Border as B
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core
        (hBox, hLimit, padLeft, padRight, str, txt, vBox, vLimit, withAttr, (<+>),
-        (<=>), txtWrap)
+        (<=>), txtWrap, Padding(..))
 import qualified Brick.Widgets.List as BL
-import Control.Lens
+import Lens.Micro.Platform
 import Control.Monad (forM_, when)
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (liftIO)
 import Data.Maybe (fromMaybe)
 import Data.Serialize (encode)
 import qualified Data.Text as T
@@ -40,11 +42,17 @@ newtype MyEvent =
 
 data Browser = Firefox
 
+selectedAttr :: BA.AttrName
+selectedAttr = attrName "selected"
+
+readAttr :: BA.AttrName
+readAttr = attrName "read"
+
 drawUi :: AppState -> [Widget Name]
 drawUi s = [ui]
   where
     ui = C.center $ vBox [statusBar, B.hBorder, mainInfo]
-    statusBar = txt ("Connected as " <> (s ^. userName)) <+> (padLeft BT.Max . txt $ s ^. status)
+    statusBar = txt ("Connected as " <> (s ^. userName)) <+> (padLeft Max . txt $ s ^. status)
     mainInfo = hBox [feedListVty, B.vBorder, itemInfoVty]
     feedListVty = hLimit feedListWidth $ BL.renderList feedDrawElement True (s ^. feeds)
     itemInfoVty = vBox [itemListVty, B.hBorder, itemDetailVty]
@@ -53,21 +61,21 @@ drawUi s = [ui]
 
 feedDrawElement :: Bool -> FeFeedInfo -> Widget Name
 feedDrawElement sel a = selectedStyle $
-    padRight BT.Max (txtWrap (a ^. feedListName)) <+>
-    (padLeft BT.Max . str . show $ a ^. feedListUnread)
+    padRight Max (txtWrap (a ^. feedListName)) <+>
+    (padLeft Max . str . show $ a ^. feedListUnread)
   where
     selectedStyle =
         if sel
-            then withAttr "selected"
+            then withAttr selectedAttr
             else id
 
 itemDrawElement :: Bool -> FeItemInfo -> Widget Name
 itemDrawElement sel a =
-    selectedStyle $ txtWrap (a ^. itemInfoTitle) <+> (padLeft BT.Max . str . showTime $ a)
+    selectedStyle $ txtWrap (a ^. itemInfoTitle) <+> (padLeft Max . str . showTime $ a)
   where
     selectedStyle
-        | sel = withAttr "selected"
-        | a ^. itemInfoRead == Seen = withAttr "read"
+        | sel = withAttr selectedAttr
+        | a ^. itemInfoRead == Seen = withAttr readAttr
         | otherwise = id
     showTime s = Time.formatTime euTimeLocale "%T %x" $ s ^. itemInfoDate
 
@@ -77,104 +85,97 @@ itemDrawDetail (Just (_, info)) =
     txtWrap (info ^. itemInfoTitle) <=> txtWrap (info ^. itemInfoLink) <=>
     txtWrap (fromMaybe "no comments" $ info ^. itemInfoComments)
 
-appEvent :: AppState -> BT.BrickEvent Name MyEvent -> BT.EventM Name (BT.Next AppState)
+appEvent :: BT.BrickEvent Name MyEvent -> BT.EventM Name AppState ()
 -- Close app
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt s
-appEvent s (BT.VtyEvent (V.EvKey V.KEsc [])) = M.halt s
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'q') [])) = M.halt
+appEvent (BT.VtyEvent (V.EvKey V.KEsc [])) = M.halt
 -- Go down in feed list
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'J') [])) = do
-    let s' = s & feeds %~ BL.listMoveDown
-    getSelFeedItems s'
-    M.continue s'
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'J') [])) = do
+    feeds %= BL.listMoveDown
+    getSelFeedItems
 -- Go up in feed list
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'K') [])) = do
-    let s' = s & feeds %~ BL.listMoveUp
-    getSelFeedItems s'
-    M.continue s'
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'K') [])) = do
+    feeds %= BL.listMoveUp
+    getSelFeedItems
 -- Go down in item list and send read
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'j') [])) = do
-    s' <- updateUnreadCount $ setItemAsRead s
-    M.continue $ s' & items %~ BL.listMoveDown
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'j') [])) = do
+    setItemAsRead >>= updateUnreadCount
+    items %= BL.listMoveDown
 -- Go up in item list and send read
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'k') [])) = do
-    s' <- updateUnreadCount $ setItemAsRead s
-    M.continue $ s' & items %~ BL.listMoveUp
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = openInBrowser s Firefox
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'O') [])) = openInBrowser s Firefox
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'k') [])) = do
+    setItemAsRead >>= updateUnreadCount
+    items %= BL.listMoveUp
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'o') [])) = openInBrowser Firefox
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'O') [])) = openInBrowser Firefox
 -- Set all items as read
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
-    s' <-
-        liftIO $
-        case BL.listSelectedElement (s ^. feeds) of
-            Nothing -> return s
-            Just (i, e) -> do
-                sendAllRead s e
-                return $ s & feeds . BL.listElementsL . ix i . feedListUnread .~ 0
-    let s'' = s' & feeds %~ BL.listMoveDown
-    getSelFeedItems s''
-    M.continue s''
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'n') [])) = M.suspendAndResume $ addVty s
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'e') [])) = do
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'a') [])) = do
+    s <- BT.get
+    _ <- case BL.listSelectedElement (s ^. feeds) of
+        Nothing -> return ()
+        Just (i, e) -> do
+            sendAllRead e
+            (feeds . BL.listElementsL . ix i . feedListUnread) .= 0
+    feeds %= BL.listMoveDown
+    getSelFeedItems
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'n') [])) = do
+    s <- BT.get
+    M.suspendAndResume (addVty s)
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'e') [])) = do
+    s <- BT.get
     let conn = s ^. wsConn
         sel = BL.listSelectedElement (s ^. feeds)
     case sel of
         Nothing -> return ()
         Just (_, e) -> fork_ $ WS.sendBinaryData conn (encode (GetSingleFeedInfo (e ^. feedListId)))
-    M.continue $ s & status .~ "Getting feed info to edit"
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
+    status .= "Getting feed info to edit"
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'r') [])) = do
+    s :: AppState <- BT.get
     let selectedFeedId = s ^. feeds . to BL.listSelectedElement ^? _Just . _2 . feedListId
         conn = s ^. wsConn
-    s' <-
-        case selectedFeedId of
-            Nothing -> return s
-            Just fid -> do
-                fork_ $ WS.sendBinaryData conn (encode (ForceRefresh fid))
-                return $ s & status .~ "Refreshing selected feed"
-    M.continue s'
-appEvent s (BT.VtyEvent (V.EvKey (V.KChar 'c') [])) = do
-    let s' = s & feeds . BL.listElementsL %~ Vec.filter ((/= 0) . _feedListUnread)
-               & feeds %~ BL.listMoveTo 0
-    getSelFeedItems s'
-    M.continue s'
-appEvent s (BT.AppEvent (WsReceive e)) = handleMess s e
-appEvent s _ = M.continue s
+    case selectedFeedId of
+        Nothing -> return ()
+        Just fid -> do
+            fork_ $ WS.sendBinaryData conn (encode (ForceRefresh fid))
+            status .= "Refreshing selected feed"
+appEvent (BT.VtyEvent (V.EvKey (V.KChar 'c') [])) = do
+    feeds . BL.listElementsL %= Vec.filter ((/= 0) . _feedListUnread)
+    feeds %= BL.listMoveTo 0
+    getSelFeedItems
+appEvent (BT.AppEvent (WsReceive e)) = handleMess e
+appEvent _ = return ()
 
-openInBrowser :: AppState -> Browser -> BT.EventM Name (BT.Next AppState)
-openInBrowser s browser = do
+openInBrowser :: Browser -> BT.EventM Name AppState ()
+openInBrowser browser = do
+    s <- BT.get
     liftIO $
         case BL.listSelectedElement (s ^. items) of
             Nothing -> return ()
             Just (_, e) -> openTab browser e
-    s' <- updateUnreadCount $ setItemAsRead s
-    M.continue $ s' & items %~ BL.listMoveDown
+    setItemAsRead >>= updateUnreadCount
+    items %= BL.listMoveDown
 
-sendRead
-    :: (MonadIO m)
-    => AppState -> m ()
-sendRead s =
+sendRead :: BT.EventM Name AppState ()
+sendRead = do
+    s <- BT.get
     let conn = s ^. wsConn
         sel = BL.listSelectedElement (s ^. items)
-    in case sel of
+    case sel of
            Nothing -> return ()
            Just (_, e) -> fork_ $ WS.sendBinaryData conn (encode (ItemRead (e ^. itemInfoId)))
 
-sendAllRead
-    :: (MonadIO m)
-    => AppState -> FeFeedInfo -> m ()
-sendAllRead s f = fork_ $ WS.sendBinaryData conn (encode (FeedRead (f ^. feedListId)))
-  where
-    conn = s ^. wsConn
+sendAllRead :: FeFeedInfo -> BT.EventM Name AppState ()
+sendAllRead f = do
+    s <- BT.get
+    fork_ $ WS.sendBinaryData (s ^. wsConn) (encode (FeedRead (f ^. feedListId)))
 
-updateUnreadCount
-    :: MonadIO m
-    => (Seen, AppState) -> m AppState
-updateUnreadCount (Seen, s) = return s
-updateUnreadCount (Unseen, s) = do
-    sendRead s
-    return $
-        case s ^. feeds . BL.listSelectedL of
-            Nothing -> s
-            Just i -> s & feeds . BL.listElementsL . ix i . feedListUnread -~ 1
+updateUnreadCount :: Seen -> BT.EventM Name AppState ()
+updateUnreadCount Seen = return ()
+updateUnreadCount Unseen = do
+    sendRead
+    s <- BT.get
+    case s ^. feeds . BL.listSelectedL of
+        Nothing -> return ()
+        Just i -> feeds . BL.listElementsL . ix i . feedListUnread -= 1
 
 openTab :: Browser -> FeItemInfo -> IO ()
 openTab browser e = do
@@ -196,41 +197,45 @@ openTab browser e = do
             then Nothing
             else Just comments
 
-setItemAsRead :: AppState -> (Seen, AppState)
-setItemAsRead s =
+setItemAsRead :: BT.EventM Name AppState Seen
+setItemAsRead = do
+    s <- BT.get
     let ind = s ^. items . BL.listSelectedL
-        s' =
+        (seen, s')  =
             case ind of
                 Nothing -> (Seen, s)
                 Just i -> s & items . BL.listElementsL . ix i . itemInfoRead <<.~ Seen
-    in s'
+    BT.put s'
+    return seen
 
-handleMess :: AppState -> Down -> BT.EventM Name (BT.Next AppState)
-handleMess s (Feeds fi) = do
-    let s' = s & feeds .~ BL.list FeedList (Vec.fromList fi) 1
-    getSelFeedItems s'
-    M.continue s'
-handleMess s (FeedItems fi) =
-    M.continue $ s & items .~ BL.list ItemList (Vec.fromList fi) 1 & feeds .~ newCount
-  where
-    newCount = BL.listModify (feedListUnread .~ (fromIntegral . length) fi) (s ^. feeds)
-handleMess s (Status name) = M.continue $ s & userName .~ name
-handleMess s (FeedAdded url) = M.continue $ s & status .~ ("Added " <> url)
-handleMess s (BackendError text) = M.continue $ s & status .~ ("Error: " <> text)
-handleMess s (NewItems feed) = do
-    when (needUpdate && sameAsSelected) (getSelFeedItems s)
-    M.continue newState
-  where
-    (newState, needUpdate) =
-        case Vec.elemIndex feed (s ^. feeds . BL.listElementsL) of
-            Nothing -> (s & feeds %~ insertInOrder feed, False)
-            Just i ->
-                ( s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread)
-                , True)
-    sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
-handleMess s (EditableFeedInfo feed) = M.suspendAndResume $ editVty s feed
-handleMess s (FeedInfoUpdated (fid, name)) = M.continue $ updateName s name fid
-handleMess s InvalidSent = M.continue s
+handleMess :: Down -> BT.EventM Name AppState ()
+handleMess (Feeds fi) = do
+    feeds .= BL.list FeedList (Vec.fromList fi) 1
+    getSelFeedItems
+handleMess (FeedItems fi) = do
+    s <- BT.get
+    let newCount = BL.listModify (feedListUnread .~ (fromIntegral . length) fi) (s ^. feeds)
+    items .= BL.list ItemList (Vec.fromList fi) 1
+    feeds .= newCount
+handleMess (Status name) = userName .= name
+handleMess (FeedAdded url) = status .= ("Added " <> url)
+handleMess (BackendError text) = status .= ("Error: " <> text)
+handleMess (NewItems feed) = do
+    s <- BT.get
+    let
+        (_, needUpdate) =
+            case Vec.elemIndex feed (s ^. feeds . BL.listElementsL) of
+                Nothing -> (s & feeds %~ insertInOrder feed, False)
+                Just i ->
+                    ( s & feeds . BL.listElementsL . ix i . feedListUnread +~ (feed ^. feedListUnread)
+                    , True)
+        sameAsSelected = Just feed == (s ^. feeds . to BL.listSelectedElement ^? _Just . _2)
+    when (needUpdate && sameAsSelected) getSelFeedItems
+handleMess (EditableFeedInfo feed) = do
+    s <- BT.get
+    M.suspendAndResume $ editVty s feed
+handleMess (FeedInfoUpdated (fid, name)) = BT.modify $ \s -> updateName s name fid
+handleMess InvalidSent = return ()
 
 updateName :: AppState -> T.Text -> Int -> AppState
 updateName s name fid =
@@ -245,10 +250,9 @@ insertInOrder newFeed feedList = BL.listInsert pos newFeed feedList
   where
     pos = length $ Vec.takeWhile (< newFeed) (feedList ^. BL.listElementsL)
 
-getSelFeedItems
-    :: (MonadIO m)
-    => AppState -> m ()
-getSelFeedItems s = do
+getSelFeedItems :: BT.EventM Name AppState ()
+getSelFeedItems = do
+    s <- BT.get
     let conn = s ^. wsConn
         sel = BL.listSelectedElement (s ^. feeds)
     case sel of
@@ -256,11 +260,11 @@ getSelFeedItems s = do
         Just (_, e) -> fork_ $ WS.sendBinaryData conn (encode (GetFeedItems (e ^. feedListId)))
     return ()
 
-getInfo :: AppState -> BT.EventM Name AppState
-getInfo s = do
-    let conn = _wsConn s
-    fork_ $ WS.sendBinaryData conn (encode Initialized)
-    return $ s & status .~ "Connected to server"
+getInfo :: BT.EventM Name AppState ()
+getInfo = do
+    s <- BT.get
+    fork_ $ WS.sendBinaryData (s ^. wsConn) (encode Initialized)
+    status .= "Connected to server"
 
 app :: M.App AppState MyEvent Name
 app =
@@ -273,7 +277,7 @@ app =
     }
 
 myAttrs :: [(BA.AttrName, V.Attr)]
-myAttrs = [("selected", BU.fg V.white), ("read", BU.fg V.red)]
+myAttrs = [(selectedAttr, BU.fg V.white), (readAttr, BU.fg V.red)]
 
 euTimeLocale :: Time.TimeLocale
 euTimeLocale = Time.defaultTimeLocale {Time.dateFmt = "%d/%m/%y"}

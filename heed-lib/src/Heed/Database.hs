@@ -118,14 +118,14 @@ module Heed.Database
     , prefName
     ) where
 
-import Control.Lens
+import Lens.Micro.Platform ( (^.), makeLenses )
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Serialize (Serialize)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
-import GHC.Generics
-import Heed.DbEnums
+import GHC.Generics ( Generic )
+import Heed.DbEnums ( PGItemsDate, ItemsDate(Missing) )
 import Heed.Orphans ()
 import qualified Opaleye as O
 

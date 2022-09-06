@@ -7,7 +7,7 @@ module Heed
 
 import qualified BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (newTVarIO)
-import Control.Lens ((&), (.~), (^..))
+import Lens.Micro.Platform ((&), (.~), (^..))
 import Control.Monad (forM, forM_)
 import qualified Data.Ini as Ini
 import qualified Data.Map.Strict as Map

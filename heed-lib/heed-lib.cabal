@@ -26,7 +26,7 @@ library
                      , fast-logger >=2.4
                      , http-api-data >=0.3.3
                      , http-client >=0.5.5
-                     , lens >=4.15.1
+                     , microlens-platform
                      , mtl >=2.2.1
                      , opaleye >=0.5.2.2
                      , opaleye-trans >=0.3.4

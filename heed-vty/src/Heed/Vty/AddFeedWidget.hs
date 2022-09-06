@@ -13,7 +13,7 @@ import Brick.Util (fg, on)
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core (hLimit, txt, withAttr, (<+>), (<=>))
 import qualified Brick.Widgets.Edit as E
-import Control.Lens
+import Lens.Micro.Platform
 import Control.Monad.IO.Class (MonadIO)
 import Data.Serialize (encode)
 import Data.Text (Text, unpack)
@@ -42,13 +42,14 @@ drawUI st = [ui]
         txt "Enter to confirm information"
 
 errorMsg :: Text -> T.Widget S.AddName
-errorMsg = withAttr "error" . txt
+errorMsg = withAttr (A.attrName "error") . txt
 
-appEvent :: S.AddState -> T.BrickEvent S.AddName e -> T.EventM S.AddName (T.Next S.AddState)
-appEvent st (T.VtyEvent ev) =
+appEvent :: T.BrickEvent S.AddName () -> T.EventM S.AddName S.AddState ()
+appEvent event@(T.VtyEvent ev) = do
+    st <- T.get
     case ev of
-        V.EvKey V.KEsc [] -> M.halt st
-        V.EvKey (V.KChar '\t') [] -> M.continue $ st & S.addFocusRing %~ F.focusNext
+        V.EvKey V.KEsc [] -> M.halt
+        V.EvKey (V.KChar '\t') [] -> S.addFocusRing %= F.focusNext
         V.EvKey V.KEnter [] -> do
             let url = headDef "" . E.getEditContents $ st ^. urlEdit
                 update = headDef "" . E.getEditContents $ st ^. S.addUpdateEdit
@@ -56,18 +57,20 @@ appEvent st (T.VtyEvent ev) =
             case validate of
                 S.Valid -> do
                     sendNewFeedData (st ^. S.addWsConn) url (read . unpack $ update)
-                    M.halt $ st & S.addAdding .~ True
-                S.InvalidLeft e -> M.continue $ st & urlMessage .~ e
-                S.InvalidRight e -> M.continue $ st & S.addUpdateMessage .~ e
-                S.BothInvalid u up -> M.continue $ st & urlMessage .~ u & S.addUpdateMessage .~ up
-        V.EvKey V.KBackTab [] -> M.continue $ st & S.addFocusRing %~ F.focusPrev
+                    S.addAdding .= True
+                    M.halt
+                S.InvalidLeft e -> urlMessage .= e
+                S.InvalidRight e -> S.addUpdateMessage .= e
+                S.BothInvalid u up -> do
+                    urlMessage .= u 
+                    S.addUpdateMessage .= up
+        V.EvKey V.KBackTab [] -> S.addFocusRing %= F.focusPrev
         _ ->
-            M.continue =<<
             case F.focusGetCurrent (st ^. S.addFocusRing) of
-                Just S.UrlEdit -> T.handleEventLensed st S.urlEdit E.handleEditorEvent ev
-                Just S.UpdateEdit -> T.handleEventLensed st S.addUpdateEdit E.handleEditorEvent ev
-                Nothing -> return st
-appEvent st _ = M.continue st
+                Just S.UrlEdit -> zoom S.urlEdit $ E.handleEditorEvent event
+                Just S.UpdateEdit -> zoom S.addUpdateEdit $ E.handleEditorEvent event
+                Nothing -> return ()
+appEvent _ = return ()
 
 sendNewFeedData
     :: (MonadIO m)
@@ -112,19 +115,19 @@ theMap =
         V.defAttr
         [ (E.editAttr, V.white `on` V.blue)
         , (E.editFocusedAttr, V.black `on` V.yellow)
-        , ("error", fg V.red)
+        , (A.attrName "error", fg V.red)
         ]
 
 appCursor :: S.AddState -> [T.CursorLocation S.AddName] -> Maybe (T.CursorLocation S.AddName)
 appCursor = F.focusRingCursor (^. S.addFocusRing)
 
-theApp :: M.App S.AddState e S.AddName
+theApp :: M.App S.AddState () S.AddName
 theApp =
     M.App
     { M.appDraw = drawUI
     , M.appChooseCursor = appCursor
     , M.appHandleEvent = appEvent
-    , M.appStartEvent = return
+    , M.appStartEvent = return ()
     , M.appAttrMap = const theMap
     }
 

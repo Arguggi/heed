@@ -44,7 +44,7 @@ module Heed.Commands
     , feEditUpdateEvery
     ) where
 
-import Control.Lens
+import Lens.Micro.Platform
 import Data.ByteString.Lazy (fromStrict, toStrict)
 import Data.Int (Int64)
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)

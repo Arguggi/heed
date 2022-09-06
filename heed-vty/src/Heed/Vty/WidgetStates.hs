@@ -42,7 +42,7 @@ import qualified Brick.Focus as F
 import qualified Brick.Widgets.Edit as E
 import qualified Brick.Widgets.List as BL
 import Control.Exception (Exception)
-import Control.Lens
+import Lens.Micro.Platform (makeLenses)
 import qualified Data.Text as T
 import Data.Typeable (Typeable)
 import qualified Data.Vector as Vec

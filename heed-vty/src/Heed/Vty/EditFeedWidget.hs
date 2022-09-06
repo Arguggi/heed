@@ -13,7 +13,7 @@ import Brick.Util (fg, on)
 import qualified Brick.Widgets.Center as C
 import Brick.Widgets.Core (hLimit, txt, withAttr, (<+>), (<=>))
 import qualified Brick.Widgets.Edit as E
-import Control.Lens
+import Lens.Micro.Platform
 import Control.Monad.IO.Class (MonadIO)
 import Data.Serialize (encode)
 import Data.Text (Text)
@@ -42,14 +42,15 @@ drawUI st = [ui]
         txt "Enter to confirm information"
 
 errorMsg :: Text -> T.Widget S.EditName
-errorMsg = withAttr "error" . txt
+errorMsg = withAttr (A.attrName "error") . txt
 
 --
-appEvent :: S.EditState -> T.BrickEvent S.EditName e -> T.EventM S.EditName (T.Next S.EditState)
-appEvent st (T.VtyEvent ev) =
+appEvent :: T.BrickEvent S.EditName () -> T.EventM S.EditName S.EditState ()
+appEvent event@(T.VtyEvent ev) = do
+    st <- T.get
     case ev of
-        V.EvKey V.KEsc [] -> M.halt st
-        V.EvKey (V.KChar '\t') [] -> M.continue $ st & editFocusRing %~ F.focusNext
+        V.EvKey V.KEsc [] -> M.halt
+        V.EvKey (V.KChar '\t') [] -> editFocusRing %= F.focusNext
         V.EvKey V.KEnter [] -> do
             let name = headDef "" . E.getEditContents $ st ^. S.nameEdit
                 update = headDef "" . E.getEditContents $ st ^. S.editUpdateEdit
@@ -61,19 +62,20 @@ appEvent st (T.VtyEvent ev) =
                         (st ^. editFeedId)
                         name
                         (read . Text.unpack $ update)
-                    M.halt $ st & S.editAdding .~ True
-                S.InvalidLeft e -> M.continue $ st & nameMessage .~ e
-                S.InvalidRight e -> M.continue $ st & editUpdateMessage .~ e
-                S.BothInvalid u up -> M.continue $ st & nameMessage .~ u & editUpdateMessage .~ up
-        V.EvKey V.KBackTab [] -> M.continue $ st & S.editFocusRing %~ F.focusPrev
+                    S.editAdding .= True
+                    M.halt
+                S.InvalidLeft e -> nameMessage .= e
+                S.InvalidRight e -> editUpdateMessage .= e
+                S.BothInvalid u up -> do
+                    nameMessage .= u 
+                    editUpdateMessage .= up
+        V.EvKey V.KBackTab [] -> S.editFocusRing %= F.focusPrev
         _ ->
-            M.continue =<<
             case F.focusGetCurrent (st ^. S.editFocusRing) of
-                Just S.NameEdit -> T.handleEventLensed st S.nameEdit E.handleEditorEvent ev
-                Just S.UpdateEveryEdit ->
-                    T.handleEventLensed st S.editUpdateEdit E.handleEditorEvent ev
-                Nothing -> return st
-appEvent st _ = M.continue st
+                Just S.NameEdit -> zoom S.nameEdit $ E.handleEditorEvent event
+                Just S.UpdateEveryEdit -> zoom S.editUpdateEdit $ E.handleEditorEvent event
+                Nothing -> return ()
+appEvent _ = return ()
 
 isValidName :: Text -> Maybe Text
 isValidName text
@@ -112,19 +114,19 @@ theMap =
         V.defAttr
         [ (E.editAttr, V.white `on` V.blue)
         , (E.editFocusedAttr, V.black `on` V.yellow)
-        , ("error", fg V.red)
+        , (A.attrName "error", fg V.red)
         ]
 
 appCursor :: S.EditState -> [T.CursorLocation S.EditName] -> Maybe (T.CursorLocation S.EditName)
 appCursor = F.focusRingCursor (^. editFocusRing)
 
-theApp :: M.App S.EditState e S.EditName
+theApp :: M.App S.EditState () S.EditName
 theApp =
     M.App
     { M.appDraw = drawUI
     , M.appChooseCursor = appCursor
     , M.appHandleEvent = appEvent
-    , M.appStartEvent = return
+    , M.appStartEvent = return ()
     , M.appAttrMap = const theMap
     }
 

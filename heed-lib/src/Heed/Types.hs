@@ -40,7 +40,7 @@ module Heed.Types
 import Control.Concurrent (ThreadId)
 import qualified BroadcastChan as BChan
 import Control.Concurrent.STM (TVar)
-import Control.Lens
+import Lens.Micro.Platform (makeLenses)
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Reader

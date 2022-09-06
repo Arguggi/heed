@@ -19,7 +19,7 @@ module Heed.Extract
 
 import Control.Concurrent (ThreadId, threadDelay)
 import qualified BroadcastChan as BChan
-import Control.Lens
+import Lens.Micro.Platform
 import Control.Monad (forM_, forever, when, void)
 import Control.Monad.Catch (MonadCatch)
 import Control.Monad.Except (MonadError)

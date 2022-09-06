@@ -8,7 +8,7 @@ module Main
     ) where
 
 import qualified Brick.Widgets.List as BL
-import Control.Lens
+import Lens.Micro.Platform
 import qualified Data.Vector as Vec
 import GHC.Generics (Generic)
 import Heed.Commands (FeFeedInfo)
