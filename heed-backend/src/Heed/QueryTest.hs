@@ -1,15 +1,15 @@
-{-| Moduled used when testing to check if the sql file matches the haskell definitions
-    and if the current heed database also matches.
--}
+-- | Moduled used when testing to check if the sql file matches the haskell definitions
+--    and if the current heed database also matches.
 module Heed.QueryTest
-    ( checkAuthTokenTable
-    , checkFeedInfoTable
-    , checkFeedItemTable
-    , checkPrefTable
-    , checkSubscriptionTable
-    , checkUnreadItemTable
-    , checkUserTable
-    ) where
+  ( checkAuthTokenTable,
+    checkFeedInfoTable,
+    checkFeedItemTable,
+    checkPrefTable,
+    checkSubscriptionTable,
+    checkUnreadItemTable,
+    checkUserTable,
+  )
+where
 
 import Data.Int (Int64)
 import qualified Heed.Database as DB

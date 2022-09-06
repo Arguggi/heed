@@ -1,8 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Heed.Feed.Atom
-    ( extractInfo
-    ) where
+  ( extractInfo,
+  )
+where
 
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
@@ -13,27 +14,30 @@ import Heed.Feed.HtmlEntities (decodeHtmlEnt)
 import qualified Safe
 import qualified Text.Atom.Feed as Atom
 
-extractInfo
-    :: UTCTime -- ^ Current time
-    -> DB.Url -- ^ Feed 'DB.URL'
-    -> Atom.Feed -- ^ 'Atom.Feed' with information
-    -> Maybe (DB.FeedInfoHW, [DB.FeedItemHW])
+extractInfo ::
+  -- | Current time
+  UTCTime ->
+  -- | Feed 'DB.URL'
+  DB.Url ->
+  -- | 'Atom.Feed' with information
+  Atom.Feed ->
+  Maybe (DB.FeedInfoHW, [DB.FeedItemHW])
 extractInfo now url feed = Just (feedInfo, feedItems)
   where
     feedInfo =
-        DB.defFeedInfo
+      DB.defFeedInfo
         { DB._feedInfoName =
-              T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed
-        , DB._feedInfoUrl = url
-        , DB._feedInfoUpdateEvery = 60
-        , DB._feedInfoLastUpdated = fromMaybe now (parseISO8601 . T.unpack . Atom.feedUpdated $ feed)
+            T.strip . decodeHtmlEnt . T.pack . Atom.txtToString . Atom.feedTitle $ feed,
+          DB._feedInfoUrl = url,
+          DB._feedInfoUpdateEvery = 60,
+          DB._feedInfoLastUpdated = fromMaybe now (parseISO8601 . T.unpack . Atom.feedUpdated $ feed)
         }
     feedItems = entryToItem now <$> Atom.feedEntries feed
 
 entryToItem :: UTCTime -> Atom.Entry -> DB.FeedItemHW
 entryToItem now entry =
-    DB.defFeedItem
-    { DB._feedItemTitle = decodeHtmlEnt . T.pack . Atom.txtToString . Atom.entryTitle $ entry
-    , DB._feedItemUrl = Safe.headDef "" (Atom.linkHref <$> Atom.entryLinks entry)
-    , DB._feedItemDate = fromMaybe now . parseISO8601 . T.unpack $ Atom.entryUpdated entry
+  DB.defFeedItem
+    { DB._feedItemTitle = decodeHtmlEnt . T.pack . Atom.txtToString . Atom.entryTitle $ entry,
+      DB._feedItemUrl = Safe.headDef "" (Atom.linkHref <$> Atom.entryLinks entry),
+      DB._feedItemDate = fromMaybe now . parseISO8601 . T.unpack $ Atom.entryUpdated entry
     }

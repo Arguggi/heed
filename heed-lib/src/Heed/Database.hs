@@ -7,129 +7,149 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-{-| Database definitions
--}
+-- | Database definitions
 module Heed.Database
-    ( Url
-    -- * User info info
-    , User(..)
-    , UserH
-    , UserW
-    , UserR
-    , userTable
-    -- ** User Lenses
-    , userId
-    , userName
-    , userPassword
-    , userEmail
-    -- * UserId newtype
-    , UserId(..)
-    , UserIdColumnWO
-    , UserIdColumnW
-    , UserIdColumnR
-    -- ** UserId lenses
-    , getUserId
-    -- * Feed Info info
-    , FeedInfo(..)
-    , FeedInfoHW
-    , FeedInfoHR
-    , FeedInfoW
-    , FeedInfoR
-    , afterDefTime
-    , defTime
-    , setTime
-    , defFeedInfo
-    , defUpdateEvery
-    , feedInfoTable
-    -- * Feed Info lenses
-    , feedInfoId
-    , feedInfoName
-    , feedInfoUrl
-    , feedInfoUpdateEvery
-    , feedInfoLastUpdated
-    , feedHasItemDate
-    , feedNumberItems
-    -- * FeedItem info
-    , FeedItem(..)
-    , FeedItemHR
-    , FeedItemHW
-    , FeedItemW
-    , FeedItemR
-    -- ** FeedItem lenses
-    , feedItemId
-    , feedItemFeedId
-    , feedItemTitle
-    , feedItemUrl
-    , feedItemDate
-    , feedItemComments
-    , defFeedItem
-    , feedItemTable
-    -- * FeedItemId newtype
-    , FeedItemId(..)
-    , FeedItemIdH
-    , FeedItemIdColumnWO
-    , FeedItemIdColumnW
-    , FeedItemIdColumnR
-    -- ** FeedItemId lenses
-    , getFeedItemId
-    -- * FeedInfoId newtype
-    , FeedInfoId(..)
-    , FeedInfoIdH
-    , FeedInfoIdColumnWO
-    , FeedInfoIdColumnW
-    , FeedInfoIdColumnR
-    -- ** FeedInfoId lenses
-    , getFeedInfoId
-    -- * UnreadItem info
-    , UnreadItem(..)
-    , UnreadItemW
-    , UnreadItemR
-    , unreadItemTable
-    -- ** UnreadItem lenses
-    , unreadFeedItemId
-    , unreadUserId
-    -- * Authtoken info
-    , AuthToken(..)
-    , AuthTokenW
-    , AuthTokenR
-    , authTokenTable
-    -- ** Authtoken Lenses
-    , authTokenHeedUserId
-    , authTokenToken
-    -- * Subscription info
-    , Subscription(..)
-    , subscriptionTable
-    -- ** Subscription lenses
-    , subscriptionFeedId
-    , subscriptionUserId
-    -- * UserFeedInfoPref info
-    , UserFeedInfoPref(..)
-    , UserFeedInfoPrefHW
-    , UserFeedInfoPrefHR
-    , UserFeedInfoPrefW
-    , UserFeedInfoPrefR
-    , userPrefTable
-    -- ** UserFeedInfoPref lenses
-    , prefUserId
-    , prefFeedId
-    , prefName
-    ) where
+  ( Url,
 
-import Lens.Micro.Platform ( (^.), makeLenses )
+    -- * User info info
+    User (..),
+    UserH,
+    UserW,
+    UserR,
+    userTable,
+
+    -- ** User Lenses
+    userId,
+    userName,
+    userPassword,
+    userEmail,
+
+    -- * UserId newtype
+    UserId (..),
+    UserIdColumnWO,
+    UserIdColumnW,
+    UserIdColumnR,
+
+    -- ** UserId lenses
+    getUserId,
+
+    -- * Feed Info info
+    FeedInfo (..),
+    FeedInfoHW,
+    FeedInfoHR,
+    FeedInfoW,
+    FeedInfoR,
+    afterDefTime,
+    defTime,
+    setTime,
+    defFeedInfo,
+    defUpdateEvery,
+    feedInfoTable,
+
+    -- * Feed Info lenses
+    feedInfoId,
+    feedInfoName,
+    feedInfoUrl,
+    feedInfoUpdateEvery,
+    feedInfoLastUpdated,
+    feedHasItemDate,
+    feedNumberItems,
+
+    -- * FeedItem info
+    FeedItem (..),
+    FeedItemHR,
+    FeedItemHW,
+    FeedItemW,
+    FeedItemR,
+
+    -- ** FeedItem lenses
+    feedItemId,
+    feedItemFeedId,
+    feedItemTitle,
+    feedItemUrl,
+    feedItemDate,
+    feedItemComments,
+    defFeedItem,
+    feedItemTable,
+
+    -- * FeedItemId newtype
+    FeedItemId (..),
+    FeedItemIdH,
+    FeedItemIdColumnWO,
+    FeedItemIdColumnW,
+    FeedItemIdColumnR,
+
+    -- ** FeedItemId lenses
+    getFeedItemId,
+
+    -- * FeedInfoId newtype
+    FeedInfoId (..),
+    FeedInfoIdH,
+    FeedInfoIdColumnWO,
+    FeedInfoIdColumnW,
+    FeedInfoIdColumnR,
+
+    -- ** FeedInfoId lenses
+    getFeedInfoId,
+
+    -- * UnreadItem info
+    UnreadItem (..),
+    UnreadItemW,
+    UnreadItemR,
+    unreadItemTable,
+
+    -- ** UnreadItem lenses
+    unreadFeedItemId,
+    unreadUserId,
+
+    -- * Authtoken info
+    AuthToken (..),
+    AuthTokenW,
+    AuthTokenR,
+    authTokenTable,
+
+    -- ** Authtoken Lenses
+    authTokenHeedUserId,
+    authTokenToken,
+
+    -- * Subscription info
+    Subscription (..),
+    subscriptionTable,
+
+    -- ** Subscription lenses
+    subscriptionFeedId,
+    subscriptionUserId,
+
+    -- * UserFeedInfoPref info
+    UserFeedInfoPref (..),
+    UserFeedInfoPrefHW,
+    UserFeedInfoPrefHR,
+    UserFeedInfoPrefW,
+    UserFeedInfoPrefR,
+    userPrefTable,
+
+    -- ** UserFeedInfoPref lenses
+    prefUserId,
+    prefFeedId,
+    prefName,
+  )
+where
+
 import Data.Profunctor.Product.TH (makeAdaptorAndInstance)
 import Data.Serialize (Serialize)
 import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime(..), secondsToDiffTime)
-import GHC.Generics ( Generic )
-import Heed.DbEnums ( PGItemsDate, ItemsDate(Missing) )
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import GHC.Generics (Generic)
+import Heed.DbEnums (ItemsDate (Missing), PGItemsDate)
 import Heed.Orphans ()
+import Lens.Micro.Platform (makeLenses, (^.))
 import qualified Opaleye as O
 
 -- * Define database types
+
 -- Type name guide:
 -- W = Write
 -- R = Read
@@ -140,18 +160,23 @@ type Url = Text
 
 -- | PostgreSQL User Table
 data User a b c d = User
-    { _userId :: a -- ^ PGInt4
-    , _userName :: b -- ^ Text
-    , _userPassword :: c -- ^ Bytestring
-    , _userEmail :: c -- ^ Text
-    }
+  { -- | PGInt4
+    _userId :: a,
+    -- | Text
+    _userName :: b,
+    -- | Bytestring
+    _userPassword :: c,
+    -- | Text
+    _userEmail :: c
+  }
 
 makeLenses ''User
 
 -- | For additional typesafety
 newtype UserId a = UserId
-    { _getUserId :: a
-    } deriving (Functor)
+  { _getUserId :: a
+  }
+  deriving (Functor)
 
 makeLenses ''UserId
 
@@ -160,30 +185,43 @@ type UserH = User (UserId Int) Text Text Text
 
 -- | PostgreSQL Feeds Table
 data FeedInfo a b c d e f g = FeedInfo
-    { _feedInfoId :: a -- ^ Autogenerated PGInt4
-    , _feedInfoName :: b -- ^ Feed Name
-    , _feedInfoUrl :: c -- ^ Feed url
-    , _feedInfoUpdateEvery :: d -- ^ Update every minutes
-    , _feedInfoLastUpdated :: e -- ^ Last time the feed was downloaded and items added to the db
-    , _feedHasItemDate :: f -- ^ If the items in the feed have a publication date
-    , _feedNumberItems :: g -- ^ If no publication date is present we download the last
-      -- x items to check so we can check which items in the feed are new
-    } deriving (Show, Generic)
+  { -- | Autogenerated PGInt4
+    _feedInfoId :: a,
+    -- | Feed Name
+    _feedInfoName :: b,
+    -- | Feed url
+    _feedInfoUrl :: c,
+    -- | Update every minutes
+    _feedInfoUpdateEvery :: d,
+    -- | Last time the feed was downloaded and items added to the db
+    _feedInfoLastUpdated :: e,
+    -- | If the items in the feed have a publication date
+    _feedHasItemDate :: f,
+    -- | If no publication date is present we download the last
+    -- x items to check so we can check which items in the feed are new
+    _feedNumberItems :: g
+  }
+  deriving (Show, Generic)
 
 makeLenses ''FeedInfo
 
-instance (Eq b) =>
-         Eq (FeedInfo a b c d e f g) where
-    f1 == f2 = (f1 ^. feedInfoName) == (f2 ^. feedInfoName)
+instance
+  (Eq b) =>
+  Eq (FeedInfo a b c d e f g)
+  where
+  f1 == f2 = (f1 ^. feedInfoName) == (f2 ^. feedInfoName)
 
-instance (Ord b) =>
-         Ord (FeedInfo a b c d e f g) where
-    f1 `compare` f2 = (f1 ^. feedInfoName) `compare` (f2 ^. feedInfoName)
+instance
+  (Ord b) =>
+  Ord (FeedInfo a b c d e f g)
+  where
+  f1 `compare` f2 = (f1 ^. feedInfoName) `compare` (f2 ^. feedInfoName)
 
 -- | For additional typesafety
 newtype FeedInfoId a = FeedInfoId
-    { _getFeedInfoId :: a
-    } deriving (Functor, Show, Generic, Eq, Ord)
+  { _getFeedInfoId :: a
+  }
+  deriving (Functor, Show, Generic, Eq, Ord)
 
 makeLenses ''FeedInfoId
 
@@ -200,35 +238,45 @@ type FeedInfoHW = FeedInfo (FeedInfoId (Maybe Int)) Text Text Int UTCTime ItemsD
 
 instance Serialize FeedInfoHR
 
-instance (Serialize a) =>
-         Serialize (FeedInfoId (Maybe a))
+instance
+  (Serialize a) =>
+  Serialize (FeedInfoId (Maybe a))
 
 instance Serialize FeedInfoHW
 
 -- | PostgreSQL Feeds <-> Users (Subscriptions) Table
 data Subscription a b = Subscription
-    { _subscriptionFeedId :: a -- ^ Foreign key on FeedInfoId
-    , _subscriptionUserId :: b -- ^ Foreign key on UserId
-    }
+  { -- | Foreign key on FeedInfoId
+    _subscriptionFeedId :: a,
+    -- | Foreign key on UserId
+    _subscriptionUserId :: b
+  }
 
 makeLenses ''Subscription
 
 -- | PostgreSQL Feed items Table
 data FeedItem a b c d e f = FeedItem
-    { _feedItemId :: a -- ^ Autogenerated PGInt4
-    , _feedItemFeedId :: b -- ^ Foreign Key to FeedInfoId PGInt4
-    , _feedItemTitle :: c -- ^ Item title Text
-    , _feedItemUrl :: d -- ^ Item url Url
-    , _feedItemDate :: e -- ^ Item date
-    , _feedItemComments :: f -- ^ Comment url if available (ala HN)
-    }
+  { -- | Autogenerated PGInt4
+    _feedItemId :: a,
+    -- | Foreign Key to FeedInfoId PGInt4
+    _feedItemFeedId :: b,
+    -- | Item title Text
+    _feedItemTitle :: c,
+    -- | Item url Url
+    _feedItemUrl :: d,
+    -- | Item date
+    _feedItemDate :: e,
+    -- | Comment url if available (ala HN)
+    _feedItemComments :: f
+  }
 
 makeLenses ''FeedItem
 
 -- | For additional typesafety
 newtype FeedItemId a = FeedItemId
-    { _getFeedItemId :: a
-    } deriving (Functor, Show, Generic)
+  { _getFeedItemId :: a
+  }
+  deriving (Functor, Show, Generic)
 
 makeLenses ''FeedItemId
 
@@ -245,17 +293,21 @@ type FeedItemHW = FeedItem (FeedItemId (Maybe Int)) (FeedInfoId (Maybe Int)) Tex
 
 -- | Unread items
 data UnreadItem a b = UnreadItem
-    { _unreadFeedItemId :: a -- ^ Foreign key on FeedItemId -- PGInt4
-    , _unreadUserId :: b -- ^ Foreign key on UserId -- PGInt4
-    }
+  { -- | Foreign key on FeedItemId -- PGInt4
+    _unreadFeedItemId :: a,
+    -- | Foreign key on UserId -- PGInt4
+    _unreadUserId :: b
+  }
 
 makeLenses ''UnreadItem
 
 -- | PostgreSQL Authentication token table
 data AuthToken a b = AuthToken
-    { _authTokenHeedUserId :: a -- ^ Foreign key on UserId -- PGInt4
-    , _authTokenToken :: b -- ^ Randomly generated token -- Text
-    }
+  { -- | Foreign key on UserId -- PGInt4
+    _authTokenHeedUserId :: a,
+    -- | Randomly generated token -- Text
+    _authTokenToken :: b
+  }
 
 makeLenses ''AuthToken
 
@@ -275,15 +327,16 @@ type UserIdColumnR = UserId (O.Column O.PGInt4)
 
 userTable :: O.Table UserW UserR
 userTable =
-    O.Table
-        "heed_user"
-        (pUser
-             User
-             { _userId = pUserId (UserId (O.optionalTableField "id"))
-             , _userName = O.requiredTableField "username"
-             , _userPassword = O.requiredTableField "password"
-             , _userEmail = O.requiredTableField "email"
-             })
+  O.Table
+    "heed_user"
+    ( pUser
+        User
+          { _userId = pUserId (UserId (O.optionalTableField "id")),
+            _userName = O.requiredTableField "username",
+            _userPassword = O.requiredTableField "password",
+            _userEmail = O.requiredTableField "email"
+          }
+    )
 
 -----------------------------------------
 -- Feeds Table
@@ -304,22 +357,22 @@ type FeedInfoIdColumnR = FeedInfoId (O.Column O.PGInt4)
 -- Update timestamp on feed read from DB and make it writable to DB
 setTime :: UTCTime -> FeedInfoR -> FeedInfoW
 setTime utc feedInfo =
-    feedInfo
-    { _feedInfoId = FeedInfoId $ Just (_getFeedInfoId . _feedInfoId $ feedInfo)
-    , _feedInfoLastUpdated = O.pgUTCTime utc
+  feedInfo
+    { _feedInfoId = FeedInfoId $ Just (_getFeedInfoId . _feedInfoId $ feedInfo),
+      _feedInfoLastUpdated = O.pgUTCTime utc
     }
 
 -- Default 'FeedInfoHW'
 defFeedInfo :: FeedInfoHW
 defFeedInfo =
-    FeedInfo
-    { _feedInfoId = FeedInfoId Nothing
-    , _feedInfoName = ""
-    , _feedInfoUrl = ""
-    , _feedInfoUpdateEvery = defUpdateEvery
-    , _feedInfoLastUpdated = defTime
-    , _feedHasItemDate = Missing
-    , _feedNumberItems = 20
+  FeedInfo
+    { _feedInfoId = FeedInfoId Nothing,
+      _feedInfoName = "",
+      _feedInfoUrl = "",
+      _feedInfoUpdateEvery = defUpdateEvery,
+      _feedInfoLastUpdated = defTime,
+      _feedHasItemDate = Missing,
+      _feedNumberItems = 20
     }
 
 -- | Default Time ( == 0 seconds absolute)
@@ -336,18 +389,19 @@ defUpdateEvery = 60
 
 feedInfoTable :: O.Table FeedInfoW FeedInfoR
 feedInfoTable =
-    O.Table
-        "feed_info"
-        (pFeedInfo
-             FeedInfo
-             { _feedInfoId = pFeedInfoId (FeedInfoId (O.optionalTableField "id"))
-             , _feedInfoName = O.requiredTableField "name"
-             , _feedInfoUrl = O.requiredTableField "url"
-             , _feedInfoUpdateEvery = O.requiredTableField "update_every"
-             , _feedInfoLastUpdated = O.requiredTableField "last_updated"
-             , _feedHasItemDate = O.requiredTableField "has_item_date"
-             , _feedNumberItems = O.requiredTableField "number_items"
-             })
+  O.Table
+    "feed_info"
+    ( pFeedInfo
+        FeedInfo
+          { _feedInfoId = pFeedInfoId (FeedInfoId (O.optionalTableField "id")),
+            _feedInfoName = O.requiredTableField "name",
+            _feedInfoUrl = O.requiredTableField "url",
+            _feedInfoUpdateEvery = O.requiredTableField "update_every",
+            _feedInfoLastUpdated = O.requiredTableField "last_updated",
+            _feedHasItemDate = O.requiredTableField "has_item_date",
+            _feedNumberItems = O.requiredTableField "number_items"
+          }
+    )
 
 ----------------------------
 -- Feeds <-> Users (Subscriptions)
@@ -359,13 +413,14 @@ type SubscriptionR = Subscription FeedInfoIdColumnR UserIdColumnR
 
 subscriptionTable :: O.Table SubscriptionW SubscriptionR
 subscriptionTable =
-    O.Table
-        "subscription"
-        (pSubscription
-             Subscription
-             { _subscriptionFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id"))
-             , _subscriptionUserId = pUserId (UserId (O.requiredTableField "user_id"))
-             })
+  O.Table
+    "subscription"
+    ( pSubscription
+        Subscription
+          { _subscriptionFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id")),
+            _subscriptionUserId = pUserId (UserId (O.requiredTableField "user_id"))
+          }
+    )
 
 ----------------------------
 -- Feed items
@@ -386,28 +441,29 @@ type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
 -- | Default feed item
 defFeedItem :: FeedItemHW
 defFeedItem =
-    FeedItem
-    { _feedItemId = FeedItemId Nothing
-    , _feedItemFeedId = FeedInfoId Nothing
-    , _feedItemTitle = ""
-    , _feedItemUrl = ""
-    , _feedItemDate = defTime
-    , _feedItemComments = Nothing
+  FeedItem
+    { _feedItemId = FeedItemId Nothing,
+      _feedItemFeedId = FeedInfoId Nothing,
+      _feedItemTitle = "",
+      _feedItemUrl = "",
+      _feedItemDate = defTime,
+      _feedItemComments = Nothing
     }
 
 feedItemTable :: O.Table FeedItemW FeedItemR
 feedItemTable =
-    O.Table
-        "feed_item"
-        (pFeedItem
-             FeedItem
-             { _feedItemId = pFeedItemId (FeedItemId (O.optionalTableField "id"))
-             , _feedItemFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id"))
-             , _feedItemTitle = O.requiredTableField "title"
-             , _feedItemUrl = O.requiredTableField "url"
-             , _feedItemDate = O.requiredTableField "pub_date"
-             , _feedItemComments = O.requiredTableField "comment_url"
-             })
+  O.Table
+    "feed_item"
+    ( pFeedItem
+        FeedItem
+          { _feedItemId = pFeedItemId (FeedItemId (O.optionalTableField "id")),
+            _feedItemFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id")),
+            _feedItemTitle = O.requiredTableField "title",
+            _feedItemUrl = O.requiredTableField "url",
+            _feedItemDate = O.requiredTableField "pub_date",
+            _feedItemComments = O.requiredTableField "comment_url"
+          }
+    )
 
 ----------------------------
 -- Unread items
@@ -419,13 +475,14 @@ type UnreadItemR = UnreadItem FeedItemIdColumnR UserIdColumnR
 
 unreadItemTable :: O.Table UnreadItemW UnreadItemR
 unreadItemTable =
-    O.Table
-        "unread_item"
-        (pUnreadItem
-             UnreadItem
-             { _unreadFeedItemId = pFeedItemId (FeedItemId (O.requiredTableField "feed_item_id"))
-             , _unreadUserId = pUserId (UserId (O.requiredTableField "user_id"))
-             })
+  O.Table
+    "unread_item"
+    ( pUnreadItem
+        UnreadItem
+          { _unreadFeedItemId = pFeedItemId (FeedItemId (O.requiredTableField "feed_item_id")),
+            _unreadUserId = pUserId (UserId (O.requiredTableField "user_id"))
+          }
+    )
 
 $(makeAdaptorAndInstance "pAuthToken" ''AuthToken)
 
@@ -435,19 +492,23 @@ type AuthTokenR = AuthToken UserIdColumnR (O.Column O.PGText)
 
 authTokenTable :: O.Table AuthTokenW AuthTokenR
 authTokenTable =
-    O.Table
-        "auth_token"
-        (pAuthToken
-             AuthToken
-             { _authTokenHeedUserId = pUserId (UserId (O.requiredTableField "user_id"))
-             , _authTokenToken = O.requiredTableField "token"
-             })
+  O.Table
+    "auth_token"
+    ( pAuthToken
+        AuthToken
+          { _authTokenHeedUserId = pUserId (UserId (O.requiredTableField "user_id")),
+            _authTokenToken = O.requiredTableField "token"
+          }
+    )
 
 data UserFeedInfoPref a b c = UserFeedInfoPref
-    { _prefUserId :: a -- ^ Foreign key on UserId -- PGInt4
-    , _prefFeedId :: b -- ^ Foreign key on FeedInfoId -- PGInt4
-    , _prefName :: c -- ^ User Feed Name
-    }
+  { -- | Foreign key on UserId -- PGInt4
+    _prefUserId :: a,
+    -- | Foreign key on FeedInfoId -- PGInt4
+    _prefFeedId :: b,
+    -- | User Feed Name
+    _prefName :: c
+  }
 
 makeLenses ''UserFeedInfoPref
 
@@ -463,11 +524,12 @@ $(makeAdaptorAndInstance "pUserFeedInfoPref" ''UserFeedInfoPref)
 
 userPrefTable :: O.Table UserFeedInfoPrefW UserFeedInfoPrefR
 userPrefTable =
-    O.Table
-        "user_feed_info_pref"
-        (pUserFeedInfoPref
-             UserFeedInfoPref
-             { _prefUserId = pUserId (UserId (O.requiredTableField "user_id"))
-             , _prefFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id"))
-             , _prefName = O.requiredTableField "feed_info_name"
-             })
+  O.Table
+    "user_feed_info_pref"
+    ( pUserFeedInfoPref
+        UserFeedInfoPref
+          { _prefUserId = pUserId (UserId (O.requiredTableField "user_id")),
+            _prefFeedId = pFeedInfoId (FeedInfoId (O.requiredTableField "feed_info_id")),
+            _prefName = O.requiredTableField "feed_info_name"
+          }
+    )

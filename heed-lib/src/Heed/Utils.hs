@@ -1,11 +1,12 @@
 module Heed.Utils
-    ( fork
-    , fork_
-    , progName
-    , Port
-    , defPort
-    , silentProc
-    ) where
+  ( fork,
+    fork_,
+    progName,
+    Port,
+    defPort,
+    silentProc,
+  )
+where
 
 import Control.Concurrent (ThreadId)
 import Control.Monad (void)
@@ -14,16 +15,18 @@ import qualified SlaveThread as ST
 import qualified System.Process as Process
 
 -- | Lift 'ST.fork' to 'MonadIO'
-fork
-    :: (MonadIO m)
-    => IO a -> m ThreadId
+fork ::
+  (MonadIO m) =>
+  IO a ->
+  m ThreadId
 fork = liftIO . ST.fork
 
 -- | 'ST.fork' that ignores 'ThreadId'
-fork_
-    :: (MonadIO m)
-    => IO a -- ^ Action
-    -> m ()
+fork_ ::
+  (MonadIO m) =>
+  -- | Action
+  IO a ->
+  m ()
 fork_ = void . fork
 
 -- | Program name
@@ -40,8 +43,8 @@ defPort = 8090
 --   we need this since vty doens't handle stdout well
 silentProc :: FilePath -> [String] -> Process.CreateProcess
 silentProc fp command =
-    (Process.proc fp command)
-    { Process.std_in = Process.NoStream
-    , Process.std_out = Process.NoStream
-    , Process.std_err = Process.NoStream
+  (Process.proc fp command)
+    { Process.std_in = Process.NoStream,
+      Process.std_out = Process.NoStream,
+      Process.std_err = Process.NoStream
     }
