@@ -11,14 +11,14 @@ import Data.Char (chr)
 import Data.Text (Text, pack)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Vector.Unboxed (replicateM, toList)
-import System.Random.MWC (asGenIO, uniformR, withSystemRandom)
+import System.Random.MWC (uniformR, withSystemRandomST)
 
 -- | Generate random token for user auth
 generateToken ::
   (MonadIO m) =>
   m Text
 generateToken = do
-  randoms <- liftIO (withSystemRandom . asGenIO $ \gen -> replicateM 32 (uniformR (65, 122) gen))
+  randoms <- liftIO (withSystemRandomST $ \gen -> replicateM 32 (uniformR (65, 122) gen))
   liftIO . return . pack $ (chr <$> toList randoms)
 
 -- | Useful for generating password hashes in ghci

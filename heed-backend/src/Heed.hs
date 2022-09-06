@@ -9,10 +9,7 @@ where
 import qualified BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (newTVarIO)
 import Control.Monad (forM)
-import Data.Either (fromRight)
-import qualified Data.Ini as Ini
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as T
 import Data.Time.Clock (getCurrentTime)
 import Data.Version (showVersion)
 import Database.PostgreSQL.Simple as PG (connectPostgreSQL)
@@ -36,15 +33,13 @@ import Options.Applicative
     long,
   )
 import Paths_heed_backend (version)
-import System.Environment (setEnv)
 import System.Exit (die)
 import qualified System.Log.FastLogger as Log
 import qualified System.Log.FastLogger.Date as LogDate
-import Text.Read (readEither)
 
 -- | List of Environment variables to setup for PostgreSQL
-pgEnvVar :: [String]
-pgEnvVar = ["PGUSER", "PGDATABASE"]
+-- pgEnvVar :: [String]
+-- pgEnvVar = ["PGUSER", "PGDATABASE"]
 
 -- | Connect to PostgreSQL and start rest backend
 main :: IO ()
@@ -83,11 +78,11 @@ setupEnvGetPort = return defPort
 --         return $ getPort ini
 
 -- | Get port fron ini or 'defPort'
-getPort :: Ini.Ini -> Port
-getPort ini =
-  fromRight defPort $ do
-    port <- Ini.lookupValue "websocket" "port" ini
-    readEither . T.unpack $ port
+-- getPort :: Ini.Ini -> Port
+-- getPort ini =
+--   fromRight defPort $ do
+--     port <- Ini.lookupValue "websocket" "port" ini
+--     readEither . T.unpack $ port
 
 -- | Create 'BackendConf' for the server
 setupBackendConf :: Log.TimedFastLogger -> IO BackendConf

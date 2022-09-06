@@ -12,7 +12,7 @@ import Data.Time.ISO8601 (parseISO8601)
 import qualified Heed.Database as DB
 import Safe (headDef)
 import qualified Text.XML
-import Text.XML.Cursor (Cursor, attribute, child, content, fromDocument, laxElement, node, ($/), (&//), (&|))
+import Text.XML.Cursor (Cursor, attribute, content, fromDocument, laxElement, ($/), (&//), (&|))
 
 -- Tested with youtube xml format for the moment
 extractInfo ::
