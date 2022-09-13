@@ -15,7 +15,7 @@
           (final: prev: {
             heed-vty = final.haskell-nix.project' {
               src = ./.;
-              compiler-nix-name = "ghc8107";
+              compiler-nix-name = "ghc924";
               shell.tools = {
                 cabal = { };
                 haskell-language-server = { };

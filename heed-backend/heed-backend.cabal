@@ -11,7 +11,7 @@ cabal-version:       >=1.10
 
 executable heed-backend
   main-is:             Main.hs
-  build-depends:       base >= 4.9
+  build-depends:       base
                      , heed-backend
   hs-source-dirs:      exe
   default-language:    Haskell2010
@@ -30,49 +30,48 @@ library
                      , Heed.QueryTest
                      , Heed.Server
                      , Paths_heed_backend
-  build-depends:       base >= 4.9
-                     , broadcast-chan >=0.1.1
-                     , bytestring >=0.10.8.1
-                     , cereal >=0.5
-                     , containers >=0.5
-                     , cryptonite >=0.21
-                     , exceptions >=0.8.3
+  build-depends:       base
+                     , broadcast-chan
+                     , bytestring
+                     , cereal
+                     , containers
+                     , cryptonite
+                     , exceptions
                      , directory
-                     , fast-logger >=2.4
-                     , feed >= 1.0
-                     , gitrev >=1.0
-                     , hashable >=1.2
-                     , heed-lib >=0.1.0.0
-                     , html-entities >=1.1.2
-                     , http-client >=0.5.5
-                     , http-client-tls >=0.3.3
-                     , http-types >=0.9.1
-                     , ini >=0.3.5
-                     , iso8601-time >=0.1.4
+                     , fast-logger
+                     , feed
+                     , gitrev
+                     , hashable
+                     , heed-lib
+                     , html-entities
+                     , http-client
+                     , http-client-tls
+                     , http-types
+                     , ini
+                     , iso8601-time
                      , microlens-platform
-                     , mtl >=2.2.1
-                     , mwc-random >=0.13.5.0
-                     , optparse-applicative >=0.12
-                     , opaleye >=0.5.2.2
-                     , opaleye-trans >=0.3.4
-                     , postgresql-simple >=0.5.2.1
-                     , product-profunctors >=0.7.1.0
-                     , safe >=0.3.10
-                     , servant >=0.11
-                     , servant-server >=0.11
-                     , slave-thread >=1.0
-                     , stm >=2.4
-                     , tagsoup >=0.14
-                     , text >=1.2.2.1
-                     , time >=1.6.0.1
-                     , unordered-containers >=0.2
-                     , vector >=0.11
-                     , wai >=3.2.1.1
-                     , wai-websockets >=3.0.1.1
-                     , warp >=3.2.9
-                     , websockets >=0.11
-                     , xml-conduit >=1.9
-                     , xml-types >=0.3
+                     , mtl
+                     , mwc-random
+                     , optparse-applicative
+                     , opaleye
+                     , postgresql-simple
+                     , product-profunctors
+                     , safe
+                     , servant
+                     , servant-server
+                     , slave-thread
+                     , stm
+                     , tagsoup
+                     , text
+                     , time
+                     , unordered-containers
+                     , vector
+                     , wai
+                     , wai-websockets
+                     , warp
+                     , websockets
+                     , xml-conduit
+                     , xml-types
   hs-source-dirs:      src
   default-language:    Haskell2010
   ghc-options:         -Wall -fwarn-tabs -fwarn-incomplete-uni-patterns -fwarn-incomplete-record-updates
@@ -81,18 +80,17 @@ Test-Suite heed-backend-tests
   type:                exitcode-stdio-1.0
   main-is:             Main.hs
   build-depends:       base
-                     , bytestring >=0.10.8.1
+                     , bytestring
                      , heed-backend
                      , heed-lib
-                     , hspec >=2.3
-                     , opaleye >=0.5.2.2
-                     , opaleye-trans >=0.3.4
-                     , raw-strings-qq >= 1.1
-                     , process >=1.4
-                     , text >=1.2.2.1
+                     , hspec
+                     , opaleye
+                     , raw-strings-qq
+                     , process
+                     , text
                      , time
-                     , xml-conduit >=1.9
-                     , xml-types >=0.3
+                     , xml-conduit
+                     , xml-types
                      , directory
   hs-source-dirs:      test
   default-language:    Haskell2010
