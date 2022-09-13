@@ -143,7 +143,7 @@ import Data.Text (Text)
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import GHC.Generics (Generic)
-import Heed.DbEnums (ItemsDate (Missing), PGItemsDate)
+import Heed.DbEnums (ItemsDate (Missing), SqlItemsDate)
 import Heed.Orphans ()
 import Lens.Micro.Platform (makeLenses, (^.))
 import qualified Opaleye as O
@@ -344,9 +344,9 @@ $(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
 
 $(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId)
 
-type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlInt4) (O.Field O.SqlTimestamptz) (O.Field PGItemsDate) (O.Field O.SqlInt4)
+type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlInt4) (O.Field O.SqlTimestamptz) (O.Field SqlItemsDate) (O.Field O.SqlInt4)
 
-type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlInt4) (O.Field O.SqlTimestamptz) (O.Field PGItemsDate) (O.Field O.SqlInt4)
+type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlInt4) (O.Field O.SqlTimestamptz) (O.Field SqlItemsDate) (O.Field O.SqlInt4)
 
 type FeedInfoIdColumnWO = FeedInfoId (Maybe (O.Field O.SqlInt4))
 

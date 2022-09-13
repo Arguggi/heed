@@ -3,23 +3,20 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Heed.DbEnums
   ( ItemsDate (Missing, Present),
-    PGItemsDate,
+    SqlItemsDate,
   )
 where
 
-import qualified Data.ByteString.Char8 as B8
-import qualified Data.Profunctor as Pro
 import qualified Data.Profunctor.Product.Default as ProDef
 import Data.Serialize (Serialize)
-import qualified Data.Text as Text
-import qualified Data.Text.Encoding as Text
 import Data.Typeable (Typeable)
-import qualified Database.PostgreSQL.Simple.FromField as PG
 import GHC.Generics (Generic)
 import qualified Opaleye as O
+import qualified Opaleye.Experimental.Enum as Enum
 
 -- | Iso to Bool, only to avoid boolean blindness
 data ItemsDate
@@ -32,52 +29,22 @@ data ItemsDate
 instance Serialize ItemsDate
 
 -- | Postgres type
-data PGItemsDate
+data SqlItemsDate
 
-missing, present, unexpected :: Text.Text
-missing = "missing"
-present = "present"
-unexpected = "Unexpected itemsdate:"
+fromSqlItemDatesString :: String -> Maybe ItemsDate
+fromSqlItemDatesString "missing" = Just Missing
+fromSqlItemDatesString "present" = Just Present
+fromSqlItemDatesString _ = Nothing
 
-instance PG.FromField ItemsDate where
-  fromField f itemsDate = pgTextFromFieldNoTypeCheck f itemsDate >>= parseItemsDate
-    where
-      parseItemsDate itemsDateString
-        | itemsDateString == missing = return Missing
-        | itemsDateString == present = return Present
-        | otherwise =
-          PG.returnError PG.ConversionFailed f (Text.unpack $ unexpected <> itemsDateString)
+toSqlItemDatesString :: ItemsDate -> String
+toSqlItemDatesString Missing = "missing"
+toSqlItemDatesString Present = "present"
 
-instance O.DefaultFromField PGItemsDate ItemsDate where
-  defaultFromField = O.fromPGSFromField
+sqlItemsDateMapper :: Enum.EnumMapper SqlItemsDate ItemsDate
+sqlItemsDateMapper = Enum.enumMapper "itemdates" fromSqlItemDatesString toSqlItemDatesString
 
-constantColumnUsing ::
-  O.ToFields haskell (O.Field pgType) ->
-  (haskell' -> haskell) ->
-  O.ToFields haskell' (O.Field pgType')
-constantColumnUsing oldConstant f = Pro.dimap f O.unsafeCoerceColumn oldConstant
+instance O.DefaultFromField SqlItemsDate ItemsDate where
+  defaultFromField = Enum.enumFromField sqlItemsDateMapper
 
-instance ProDef.Default O.ToFields ItemsDate (O.Field PGItemsDate) where
-  def =
-    constantColumnUsing (ProDef.def :: O.ToFields String (O.Field O.SqlText)) itemsDateToString
-    where
-      itemsDateToString :: ItemsDate -> String
-      itemsDateToString Missing = "missing"
-      itemsDateToString Present = "present"
-
-pgGuardNotNull :: PG.FieldParser B8.ByteString
-pgGuardNotNull f mb =
-  case mb of
-    Nothing -> PG.returnError PG.UnexpectedNull f ""
-    Just b -> return b
-{-# INLINEABLE pgGuardNotNull #-}
-
--- | Like the 'Pg.FromField' instance for 'Text.Text' but doesn't check the
--- 'Pg.Field' type. ENUMS WON'T WORK OTHERWISE! thanks to k0001 for the tip.
-pgTextFromFieldNoTypeCheck :: PG.FieldParser Text.Text
-pgTextFromFieldNoTypeCheck f mb = do
-  b <- pgGuardNotNull f mb
-  case Text.decodeUtf8' b of
-    Left e -> PG.conversionError e
-    Right t -> return t
-{-# INLINEABLE pgTextFromFieldNoTypeCheck #-}
+instance ProDef.Default O.ToFields ItemsDate (O.Field SqlItemsDate) where
+  def = Enum.enumToFields sqlItemsDateMapper
