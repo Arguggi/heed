@@ -18,7 +18,7 @@ import Heed.Database (feedInfoId)
 import Heed.Extract (startUpdateThread)
 import Heed.Query (allFeeds)
 import Heed.Server (genAuthMain)
-import Heed.Types (BackendConf (..), execQuery, runBe, threadMap)
+import Heed.Types (BackendConf (..), execSelect, runBe, threadMap)
 import Heed.Utils (Port, defPort)
 import Lens.Micro.Platform ((&), (.~), (^..))
 import Network.HTTP.Client (newManager)
@@ -50,7 +50,7 @@ main = do
     putStrLn "Starting heed-backend"
     port <- setupEnvGetPort
     baConf <- setupBackendConf logger
-    feedsE <- runBe baConf $ execQuery allFeeds
+    feedsE <- runBe baConf $ execSelect allFeeds
     now <- getCurrentTime
     threads <-
       case feedsE of

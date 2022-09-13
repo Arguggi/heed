@@ -13,7 +13,7 @@ module Heed.Query
     feedUpdateInterval,
     getRecentItems,
     getSubs,
-    getUserDb,
+    getUser,
     getUserFeeds,
     getUserItems,
     getUserUnreadFeedInfo,
@@ -23,7 +23,6 @@ module Heed.Query
     insertUserPrefName,
     printSql,
     readFeed,
-    runFeedInfoQuery,
     saveTokenDb,
     showSql,
     setFeedLastUpdated,
@@ -36,17 +35,18 @@ module Heed.Query
 where
 
 import Control.Arrow (returnA)
+import Control.Monad.IO.Class (MonadIO (liftIO), liftIO)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import Data.Profunctor.Product (p2)
 import Data.Profunctor.Product.Default (Default)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
+import qualified Database.PostgreSQL.Simple as PG
 import Heed.Commands
-  ( FeFeedInfo,
+  ( FeFeedInfo (..),
     FeFeedInfo' (..),
-    FeFeedInfoR,
-    FeItemInfo,
+    FeFeedInfoR (..),
     FeItemInfo' (..),
     FeItemInfoR,
     feedListId,
@@ -55,14 +55,8 @@ import Heed.Commands
 import Heed.Database
   ( AuthToken (_authTokenHeedUserId, _authTokenToken),
     AuthTokenR,
-    FeedInfo
-      ( _feedHasItemDate,
-        _feedInfoId,
-        _feedInfoName,
-        _feedInfoUpdateEvery,
-        _feedInfoUrl
-      ),
-    FeedInfoHR,
+    FeedInfo (..),
+    FeedInfoHR (..),
     FeedInfoHW,
     FeedInfoId (..),
     FeedInfoIdColumnR,
@@ -89,7 +83,6 @@ import Heed.Database
       ),
     UnreadItem (UnreadItem, _unreadFeedItemId, _unreadUserId),
     User (_userId, _userName),
-    UserFeedInfoPrefHR,
     UserFeedInfoPrefHW,
     UserFeedInfoPrefR,
     UserH,
@@ -115,26 +108,26 @@ import Heed.Database
     userTable,
   )
 import Heed.DbEnums (ItemsDate (..))
+import Heed.Types (MonadDb (..), execSelect)
 import Lens.Micro.Platform ((&), (.~), (^.))
 import qualified Opaleye as O
 import qualified Opaleye.FunctionalJoin as JOIN
-import qualified Opaleye.Trans as OT
 
 showSql ::
   Default O.Unpackspec a a =>
-  O.Query a ->
+  O.Select a ->
   String
 showSql = fromMaybe "Empty query" . O.showSql
 
 -- | Print a sql query, for debugging only
 printSql ::
-  Default O.Unpackspec a a =>
-  O.Query a ->
-  IO ()
-printSql = putStrLn . showSql
+  (Default O.Unpackspec a a, MonadIO m) =>
+  O.Select a ->
+  m ()
+printSql = liftIO . putStrLn . showSql
 
 -- | Query used in 'getRecentItems'
-getItemsFromQ :: FeedInfoId Int -> UTCTime -> O.Query FeedItemR
+getItemsFromQ :: FeedInfoId Int -> UTCTime -> O.Select FeedItemR
 getItemsFromQ feedId from =
   proc () -> do
     items <- O.selectTable feedItemTable -< ()
@@ -142,12 +135,12 @@ getItemsFromQ feedId from =
       -<
         _feedItemFeedId items O..=== O.toFields feedId
           O..&& _feedItemDate items
-          O..>= O.pgUTCTime from
+          O..>= O.sqlUTCTime from
     returnA -< items
 
 -- | Query used in 'getRecentItems' when items don't have dates
 -- We sort by descending time inserted and only return the last x rows
-getLastItemsQ :: FeedInfoId Int -> Int -> O.Query FeedItemR
+getLastItemsQ :: FeedInfoId Int -> Int -> O.Select FeedItemR
 getLastItemsQ feedId number =
   O.limit number . O.orderBy (O.descNullsLast _feedItemDate) $
     proc () -> do
@@ -162,19 +155,27 @@ getRecentItems ::
   FeedInfoHR ->
   -- | Start time if the feed has dates
   UTCTime ->
-  OT.Transaction [FeedItemHR]
+  -- | DbConnection
+  O.Select FeedItemR
 getRecentItems feed time =
   case _feedHasItemDate feed of
-    Present -> OT.query $ getItemsFromQ (_feedInfoId feed) time
+    Present -> getItemsFromQ (_feedInfoId feed) time
     -- Get last 200
-    Missing -> reverse <$> OT.query (getLastItemsQ (_feedInfoId feed) 200)
+    Missing -> getLastItemsQ (_feedInfoId feed) 200
 
 -- | Insert new feed
 insertFeed ::
   -- | Feed information
   FeedInfoHW ->
-  OT.Transaction [FeedInfoHR]
-insertFeed newFeed = OT.insertManyReturning feedInfoTable [O.toFields newFeed] id
+  -- | Connection
+  O.Insert [FeedInfoHR]
+insertFeed newFeed =
+  O.Insert
+    { O.iTable = feedInfoTable,
+      O.iRows = [O.toFields newFeed],
+      O.iReturning = O.rReturning id,
+      O.iOnConflict = Nothing
+    }
 
 -- | Insert new items
 insertItems ::
@@ -182,12 +183,14 @@ insertItems ::
   [FeedItemHW] ->
   -- | Feed id
   FeedInfoId Int ->
-  OT.Transaction [FeedItemHR]
+  O.Insert [FeedItemHR]
 insertItems newItems feedId =
-  OT.insertManyReturning
-    feedItemTable
-    (O.toFields <$> (newItems & traverse . feedItemFeedId .~ feedId))
-    id
+  O.Insert
+    { O.iTable = feedItemTable,
+      O.iRows = O.toFields <$> (newItems & traverse . feedItemFeedId .~ feedId),
+      O.iReturning = O.rReturning id,
+      O.iOnConflict = Nothing
+    }
 
 -- | Update Feed last updated field, so we can schedule updates
 setFeedLastUpdated ::
@@ -196,11 +199,16 @@ setFeedLastUpdated ::
   -- | Updated 'UTCTime'
   UTCTime ->
   -- | Number of updated feeds, should always be 1
-  OT.Transaction Int64
+  O.Update Int64
 setFeedLastUpdated feedId time =
-  OT.update feedInfoTable (setTime time) (\row -> _feedInfoId row O..=== O.toFields feedId)
+  O.Update
+    { O.uTable = feedInfoTable,
+      O.uUpdateWith = setTime time,
+      O.uWhere = \row -> _feedInfoId row O..=== O.toFields feedId,
+      O.uReturning = O.rCount
+    }
 
-thisFeed :: FeedInfoHW -> O.Query FeedInfoR
+thisFeed :: FeedInfoHW -> O.Select FeedInfoR
 thisFeed fresh =
   proc () -> do
     feeds <- O.selectTable feedInfoTable -< ()
@@ -209,35 +217,29 @@ thisFeed fresh =
         _feedInfoUrl feeds O..== O.toFields (_feedInfoUrl fresh)
     returnA -< feeds
 
-runFeedInfoQuery :: O.Query FeedInfoR -> OT.Transaction [FeedInfoHR]
-runFeedInfoQuery = OT.query
-
-getUser :: T.Text -> O.Query UserR
+getUser :: T.Text -> O.Select UserR
 getUser un =
   proc () -> do
     user <- O.selectTable userTable -< ()
     O.restrict -< _userName user O..=== O.toFields un
     returnA -< user
 
-getUserDb :: T.Text -> OT.Transaction (Maybe UserH)
-getUserDb un = OT.queryFirst (getUser un)
-
---saveTokenDb :: T.Text -> UserId Int -> OT.Transaction Int64
-saveTokenDb :: T.Text -> UserId Int -> OT.Transaction Int64
---saveTokenDb token uid = OT.update authTokenTable (setToken token) (filterUser uid)
+saveTokenDb :: T.Text -> UserId Int -> O.Update Int64
 saveTokenDb token uid =
-  OT.update authTokenTable (\x -> x & authTokenToken .~ O.pgStrictText token) (filterUser uid)
+  O.Update
+    { O.uTable = authTokenTable,
+      O.uUpdateWith = (\x -> x & authTokenToken .~ O.sqlStrictText token),
+      O.uWhere = filterUser uid,
+      O.uReturning = O.rCount
+    }
 
-filterUser :: UserId Int -> AuthTokenR -> O.Column O.PGBool
+filterUser :: UserId Int -> AuthTokenR -> O.Field O.SqlBool
 filterUser userid auth = _authTokenHeedUserId auth O..=== O.toFields userid
 
-verifyToken :: T.Text -> OT.Transaction (Maybe UserH)
-verifyToken token =
-  if token == "invalid"
-    then return Nothing
-    else OT.queryFirst (tokenToUser token)
+verifyToken :: T.Text -> O.Select UserR
+verifyToken token = O.limit 1 (tokenToUser token)
 
-tokenToUser :: T.Text -> O.Query UserR
+tokenToUser :: T.Text -> O.Select UserR
 tokenToUser token =
   proc () -> do
     users <- O.selectTable userTable -< ()
@@ -248,7 +250,7 @@ tokenToUser token =
           O..&& (_authTokenToken tokens O..=== O.toFields token)
     returnA -< users
 
-getUserFeedsQ :: UserId Int -> O.Query FeedInfoR
+getUserFeedsQ :: UserId Int -> O.Select FeedInfoR
 getUserFeedsQ userid =
   proc () -> do
     sub <- O.selectTable subscriptionTable -< ()
@@ -263,11 +265,11 @@ getUserFeedsQ userid =
     unite info pref = info & feedInfoName .~ (pref ^. prefName)
     joinOn info pref = (info ^. feedInfoId) O..=== (pref ^. prefFeedId)
 
-type FeedInfoIdGrouped = O.Column O.PGInt4
+type FeedInfoIdGrouped = O.Field O.SqlInt4
 
-type Count = O.Column O.PGInt8
+type Count = O.Field O.SqlInt8
 
-getUserUnreadItems :: UserId Int -> O.Query (FeedInfoIdGrouped, Count)
+getUserUnreadItems :: UserId Int -> O.Select (FeedInfoIdGrouped, Count)
 getUserUnreadItems userid =
   O.aggregate (p2 (O.groupBy, O.count)) $
     proc () -> do
@@ -275,10 +277,10 @@ getUserUnreadItems userid =
       item <- O.selectTable feedItemTable -< ()
       O.restrict -< _unreadUserId unread O..=== O.toFields userid
       O.restrict -< _feedItemId item O..=== _unreadFeedItemId unread
-      returnA -< (item ^. feedItemFeedId . getFeedInfoId, O.pgInt8 1)
+      returnA -< (item ^. feedItemFeedId . getFeedInfoId, O.sqlInt8 1)
 
 -- Sort after in haskell land since we don't want to use sql's sorting function
-getAllUserFeedInfo :: UserId Int -> O.Query FeFeedInfoR
+getAllUserFeedInfo :: UserId Int -> O.Select FeFeedInfoR
 getAllUserFeedInfo uid =
   proc () -> do
     allfeeds <- getUserFeedsQ uid -< ()
@@ -287,45 +289,57 @@ getAllUserFeedInfo uid =
     O.restrict -< fIId O..=== (_getFeedInfoId . _feedInfoId $ allfeeds)
     returnA -< FeFeedInfo' fIId fIName unreadCount
 
-getAllUserPref :: UserId Int -> O.Query UserFeedInfoPrefR
+getAllUserPref :: UserId Int -> O.Select UserFeedInfoPrefR
 getAllUserPref uid =
   proc () -> do
     pref <- O.selectTable userPrefTable -< ()
     O.restrict -< O.toFields uid O..=== (pref ^. prefUserId)
     returnA -< pref
 
-getUserUnreadFeedInfo :: UserId Int -> OT.Transaction [FeFeedInfo]
+getUserUnreadFeedInfo :: UserId Int -> O.Select FeFeedInfoR
 getUserUnreadFeedInfo userid =
-  OT.query $ JOIN.leftJoinF unite id joinOn (getAllUserFeedInfo userid) (getAllUserPref userid)
+  JOIN.leftJoinF unite id joinOn (getAllUserFeedInfo userid) (getAllUserPref userid)
   where
     unite info pref = info & feedListName .~ (pref ^. prefName)
     joinOn info pref = (FeedInfoId $ info ^. feedListId) O..=== pref ^. prefFeedId
 
-getUserFeeds :: UserId Int -> OT.Transaction [FeedInfoHR]
-getUserFeeds uid = OT.query $ getUserFeedsQ uid
+getUserFeeds :: UserId Int -> O.Select FeedInfoR
+getUserFeeds uid = getUserFeedsQ uid
 
-getFeedItemsIds :: FeedInfoId Int -> O.Query FeedItemIdColumnR
+getFeedItemsIds :: FeedInfoId Int -> O.Select FeedItemIdColumnR
 getFeedItemsIds fid =
   proc () -> do
     allItems <- O.selectTable feedItemTable -< ()
     O.restrict -< O.toFields fid O..=== _feedItemFeedId allItems
     returnA -< (_feedItemId allItems)
 
-insertUnread :: [FeedItemHR] -> [UserId Int] -> OT.Transaction Int64
-insertUnread newItems uids = OT.insertMany unreadItemTable $ O.toFields <$> pairings
+insertUnread :: [FeedItemHR] -> [UserId Int] -> O.Insert Int64
+insertUnread newItems uids =
+  O.Insert
+    { O.iTable = unreadItemTable,
+      O.iRows = O.toFields <$> pairings,
+      O.iReturning = O.rCount,
+      O.iOnConflict = Nothing
+    }
   where
     pairings = do
       item <- newItems
       user <- uids
       return $ UnreadItem (_feedItemId item) user
 
-addSubscription :: UserId Int -> FeedInfoId Int -> OT.Transaction Int64
-addSubscription uid fid = OT.insertMany subscriptionTable [O.toFields $ Subscription fid uid]
+addSubscription :: UserId Int -> FeedInfoId Int -> O.Insert Int64
+addSubscription uid fid =
+  O.Insert
+    { O.iTable = subscriptionTable,
+      O.iRows = [O.toFields $ Subscription fid uid],
+      O.iReturning = O.rCount,
+      O.iOnConflict = Nothing
+    }
 
-getUserItems :: UserId Int -> FeedInfoId Int -> OT.Transaction [FeItemInfo]
-getUserItems uid fid = OT.query (getUserItemsQ (O.toFields uid) (O.toFields fid))
+getUserItems :: UserId Int -> FeedInfoId Int -> O.Select FeItemInfoR
+getUserItems uid fid = getUserItemsQ (O.toFields uid) (O.toFields fid)
 
-getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Query FeItemInfoR
+getUserItemsQ :: UserIdColumnR -> FeedInfoIdColumnR -> O.Select FeItemInfoR
 getUserItemsQ uid fid =
   O.orderBy (O.asc _itemInfoDate) $
     proc () -> do
@@ -349,68 +363,85 @@ getUserItemsQ uid fid =
             unreadLink
             unreadDate
             unreadComments
-            (O.pgBool False)
+            (O.sqlBool False)
 
-readFeed :: UserId Int -> FeedItemId Int -> OT.Transaction Int64
+readFeed :: UserId Int -> FeedItemId Int -> O.Delete Int64
 readFeed userid itemid =
-  OT.delete unreadItemTable $ \cols ->
-    (_unreadUserId cols O..=== O.toFields userid)
-      O..&& (_unreadFeedItemId cols O..=== O.toFields itemid)
+  O.Delete
+    { O.dTable = unreadItemTable,
+      O.dWhere = \cols ->
+        (_unreadUserId cols O..=== O.toFields userid)
+          O..&& (_unreadFeedItemId cols O..=== O.toFields itemid),
+      O.dReturning = O.rCount
+    }
 
-allFeeds :: OT.Transaction [FeedInfoHR]
-allFeeds = OT.query $ O.selectTable feedInfoTable
+allFeeds :: O.Select FeedInfoR
+allFeeds = O.selectTable feedInfoTable
 
-getSubs :: FeedInfoId Int -> OT.Transaction [UserId Int]
-getSubs fid =
-  OT.query $
-    proc () -> do
-      allSubs <- O.selectTable subscriptionTable -< ()
-      O.restrict -< O.toFields fid O..=== _subscriptionFeedId allSubs
-      returnA -< _subscriptionUserId allSubs
+getSubs :: FeedInfoId Int -> O.Select UserIdColumnR
+getSubs fid = proc () -> do
+  allSubs <- O.selectTable subscriptionTable -< ()
+  O.restrict -< O.toFields fid O..=== _subscriptionFeedId allSubs
+  returnA -< _subscriptionUserId allSubs
 
-allItemsRead :: FeedInfoId Int -> UserId Int -> OT.Transaction Int64
+allItemsRead :: MonadDb m => FeedInfoId Int -> UserId Int -> m Int64
 allItemsRead fid uid = do
-  itemsIds :: [FeedItemIdH] <- OT.query $ getFeedItemsIds fid
+  itemsIds :: [FeedItemIdH] <- execSelect $ getFeedItemsIds fid
   let feedUnreadFilter (UnreadItem unreadIid unreadUid) =
         unreadUid O..=== O.toFields uid
           O..&& O.in_ (fmap (O.toFields . _getFeedItemId) itemsIds) (_getFeedItemId unreadIid)
-  OT.delete unreadItemTable feedUnreadFilter
+   in execDelete
+        O.Delete
+          { O.dTable = unreadItemTable,
+            O.dWhere = feedUnreadFilter,
+            O.dReturning = O.rCount
+          }
 
-allFeedInfo :: FeedInfoIdH -> OT.Transaction [FeedInfoHR]
-allFeedInfo fid =
-  OT.query $
-    proc () -> do
-      feed <- O.selectTable feedInfoTable -< ()
-      O.restrict -< (feed ^. feedInfoId) O..=== O.toFields fid
-      returnA -< feed
+allFeedInfo :: FeedInfoIdH -> O.Select FeedInfoR
+allFeedInfo fid = proc () -> do
+  feed <- O.selectTable feedInfoTable -< ()
+  O.restrict -< (feed ^. feedInfoId) O..=== O.toFields fid
+  returnA -< feed
 
-userFeedName :: FeedInfoIdH -> UserId Int -> OT.Transaction [UserFeedInfoPrefHR]
-userFeedName fid userid =
-  OT.query $
-    proc () -> do
-      pref <- O.selectTable userPrefTable -< ()
-      O.restrict
-        -<
-          ((pref ^. prefUserId) O..=== O.toFields userid)
-            O..&& ((pref ^. prefFeedId) O..=== O.toFields fid)
-      returnA -< pref
+userFeedName :: FeedInfoIdH -> UserId Int -> O.Select UserFeedInfoPrefR
+userFeedName fid userid = proc () -> do
+  pref <- O.selectTable userPrefTable -< ()
+  O.restrict
+    -<
+      ((pref ^. prefUserId) O..=== O.toFields userid)
+        O..&& ((pref ^. prefFeedId) O..=== O.toFields fid)
+  returnA -< pref
 
-insertUserPrefName :: UserFeedInfoPrefHW -> OT.Transaction Int64
-insertUserPrefName pref = OT.insertMany userPrefTable [O.toFields pref]
+insertUserPrefName :: UserFeedInfoPrefHW -> O.Insert Int64
+insertUserPrefName pref =
+  O.Insert
+    { O.iTable = userPrefTable,
+      O.iRows = [O.toFields pref],
+      O.iReturning = O.rCount,
+      O.iOnConflict = Nothing
+    }
 
-updateUserPrefName :: UserFeedInfoPrefHW -> OT.Transaction Int64
-updateUserPrefName pref = OT.update userPrefTable (const (O.toFields pref)) correctRow
+updateUserPrefName :: UserFeedInfoPrefHW -> O.Update Int64
+updateUserPrefName pref =
+  O.Update
+    { O.uTable = userPrefTable,
+      O.uUpdateWith = (const (O.toFields pref)),
+      O.uWhere = correctRow,
+      O.uReturning = O.rCount
+    }
   where
     correctRow row =
       row ^. prefUserId O..=== O.toFields (pref ^. prefUserId) O..&& row ^. prefFeedId
         O..=== O.toFields (pref ^. prefFeedId)
 
-feedUpdateInterval :: FeedInfoIdH -> OT.Transaction [Int]
-feedUpdateInterval fid = fmap _feedInfoUpdateEvery <$> allFeedInfo fid
+feedUpdateInterval :: FeedInfoIdH -> O.Select (O.Field O.SqlInt4)
+feedUpdateInterval fid = _feedInfoUpdateEvery <$> allFeedInfo fid
 
-updateFeedInterval :: FeedInfoIdH -> Int -> OT.Transaction [FeedInfoHR]
-updateFeedInterval fid interval = OT.updateReturning feedInfoTable rToW correctRow id
-  where
-    correctRow row = row ^. feedInfoId O..=== O.toFields fid
-    rToW x =
-      x & feedInfoUpdateEvery .~ O.toFields interval & feedInfoId .~ O.toFields (Just <$> fid)
+updateFeedInterval :: FeedInfoIdH -> Int -> O.Update [FeedInfoHR]
+updateFeedInterval fid interval =
+  O.Update
+    { O.uTable = feedInfoTable,
+      O.uUpdateWith = \x -> x & feedInfoUpdateEvery .~ O.toFields interval & feedInfoId .~ O.toFields (Just <$> fid),
+      O.uWhere = \row -> row ^. feedInfoId O..=== O.toFields fid,
+      O.uReturning = O.rReturning (\x -> x :: FeedInfoR)
+    }

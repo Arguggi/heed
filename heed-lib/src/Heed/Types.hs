@@ -19,16 +19,17 @@ module Heed.Types
     ThreadState,
     catchHttp,
     downloadUrl,
-    execQuery,
     getTime,
     liftJust,
     logMsg,
     logMsgIO,
     runBe,
-    runQueryNoT,
     runTest,
-    runTransaction,
     showUserHeedError,
+    execSelect,
+    execInsert,
+    execUpdate,
+    execDelete,
 
     -- * 'BackendConf' Lenses
     updateChan,
@@ -57,6 +58,7 @@ import Control.Monad.Reader (MonadReader (ask), ReaderT (..), asks)
 import Data.ByteString.Lazy as BSL (ByteString)
 import Data.Int (Int64)
 import qualified Data.Map.Strict as Map
+import Data.Profunctor.Product.Default (Default)
 import Data.Proxy (Proxy (..))
 import Data.Text as T (Text, unpack)
 import Data.Time (UTCTime, getCurrentTime)
@@ -72,7 +74,7 @@ import Network.HTTP.Client
     newManager,
     parseRequest,
   )
-import qualified Opaleye.Trans as OT
+import qualified Opaleye as O
 import qualified System.Log.FastLogger as Log
 
 data HeedError where
@@ -191,21 +193,45 @@ instance MonadHttp Backend where
     catchHttp DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
 
 -- | mtl class for interacting with the database
-class
-  Monad m =>
-  MonadDb m
-  where
-  execQuery :: OT.Transaction a -> m a
+class Monad m => MonadDb m where
+  execSelect :: Default O.FromFields fields haskells => O.Select fields -> m [haskells]
+  execInsert :: O.Insert a -> m a
+  execUpdate :: O.Update a -> m a
+  execDelete :: O.Delete a -> m a
 
 instance MonadDb Backend where
-  execQuery query = do
-    db <- asks _dbConnection
-    catchSql HSqlException $ runTransaction db query
+  execSelect select = do
+    conn <- asks _dbConnection
+    catchSql HSqlException $ liftIO $ O.runSelect conn select
+
+  execInsert insert = do
+    conn <- asks _dbConnection
+    catchSql HSqlException $ liftIO $ O.runInsert conn insert
+
+  execUpdate update = do
+    conn <- asks _dbConnection
+    catchSql HSqlException $ liftIO $ O.runUpdate conn update
+
+  execDelete delete = do
+    conn <- asks _dbConnection
+    catchSql HSqlException $ liftIO $ O.runDelete conn delete
 
 instance MonadDb Testing where
-  execQuery query = do
-    db <- ask
-    runTransaction db query
+  execSelect select = do
+    conn <- ask
+    liftIO $ O.runSelect conn select
+
+  execInsert insert = do
+    conn <- ask
+    liftIO $ O.runInsert conn insert
+
+  execUpdate update = do
+    conn <- ask
+    liftIO $ O.runUpdate conn update
+
+  execDelete delete = do
+    conn <- ask
+    liftIO $ O.runDelete conn delete
 
 -- | Catch exceptions and transform them into a 'HeedError'
 catchExcep ::
@@ -275,19 +301,3 @@ liftJust ::
   m a
 liftJust e Nothing = throwError e
 liftJust _ (Just a) = return a
-
--- | Run all queries in a transaction
-runTransaction ::
-  (MonadIO m) =>
-  PG.Connection ->
-  OT.Transaction a ->
-  m a
-runTransaction conn trans = OT.runOpaleyeT conn $ OT.transaction trans
-
--- | Run all queries without starting a transaction
-runQueryNoT ::
-  (MonadIO m) =>
-  PG.Connection ->
-  OT.Transaction a ->
-  m a
-runQueryNoT conn trans = OT.runOpaleyeT conn $ OT.run trans

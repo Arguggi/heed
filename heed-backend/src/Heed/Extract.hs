@@ -81,7 +81,6 @@ import Heed.Query
     insertFeed,
     insertItems,
     insertUnread,
-    runFeedInfoQuery,
     setFeedLastUpdated,
     thisFeed,
   )
@@ -163,7 +162,7 @@ forceUpdate ::
   FeedInfoIdH ->
   m (FeedInfoHR, Int64)
 forceUpdate fid = do
-  feedInfoList <- execQuery $ allFeedInfo fid
+  feedInfoList <- execSelect $ allFeedInfo fid
   -- The list should always have a valid FeedInfo from the DB, but someone may send
   -- an invalid id
   feedInfo <- liftJust InvalidFeedQuery $ Safe.headMay feedInfoList
@@ -219,7 +218,7 @@ addFeed url every uid = do
   logMsg $ "Adding: " <> url
   feed <- downloadUrl url
   (feedInfo, feedItems) <- parseFeed feed url every
-  oldFeeds <- execQuery $ runFeedInfoQuery (thisFeed feedInfo)
+  oldFeeds <- execSelect (thisFeed feedInfo)
   case listToMaybe oldFeeds of
     -- We don't have this feed in the common database, insert it
 
@@ -236,14 +235,13 @@ addNewFeed ::
   NonEmpty FeedItemHW ->
   UserId Int ->
   m (FeedInfoHR, Int64)
-addNewFeed feedInfo feedItems uid =
-  execQuery $ do
-    insertedFeed <- insertFeed feedInfo
-    let newFeedId = _feedInfoId . head $ insertedFeed
-    insertedItems <- insertItems (NonEmpty.toList feedItems) newFeedId
-    num <- insertUnread insertedItems [uid]
-    _ <- addSubscription uid newFeedId
-    return (head insertedFeed, num)
+addNewFeed feedInfo feedItems uid = do
+  insertedFeed <- execInsert $ insertFeed feedInfo
+  let newFeedId = _feedInfoId . head $ insertedFeed
+  insertedItems <- execInsert $ insertItems (NonEmpty.toList feedItems) newFeedId
+  num <- execInsert $ insertUnread insertedItems [uid]
+  _ <- execInsert $ addSubscription uid newFeedId
+  return (head insertedFeed, num)
 
 -- What we consider "new"
 newtype FeedItemEq = FeedItemEq
@@ -280,19 +278,18 @@ updateFeedItems ::
 updateFeedItems feed feedItems = do
   now <- getTime
   -- Get items from db (and transform them to HW)
-  recentItems <- fmap (fmap toHW) . execQuery $ getRecentItems feed firstDate
+  recentItems <- fmap (fmap toHW) . execSelect $ getRecentItems feed firstDate
   --recentItemsSet = Set.fromList $ fmap (FeedItemEq . applyJust) recentItems
   let newItems :: [FeedItemHW]
       --newItems = fmap runFeedItemEq . Set.toList $ newItemsSet `Set.difference` recentItemsSet
       newItems = filterNew (NonEmpty.toList feedItems) recentItems
-  execQuery $ do
-    _ <- setFeedLastUpdated feedId now
-    if not (null newItems)
-      then do
-        insertedItems <- insertItems newItems feedId
-        feedSubs <- getSubs feedId
-        insertUnread insertedItems feedSubs
-      else return 0
+  _ <- execUpdate $ setFeedLastUpdated feedId now
+  if not (null newItems)
+    then do
+      insertedItems <- execInsert $ insertItems newItems feedId
+      feedSubs <- execSelect $ getSubs feedId
+      execInsert $ insertUnread insertedItems feedSubs
+    else return 0
   where
     feedId = feed ^. feedInfoId
     firstDate = _feedItemDate . runFeedItemEq . minimumBy compareDate . fmap FeedItemEq $ feedItems

@@ -17,7 +17,6 @@ import qualified Data.ByteString.Lazy
 -- import qualified Heed.QueryTest as QT
 -- import Heed.Types (execQuery, runTest)
 -- import Heed.Utils (silentProc)
--- import qualified Opaleye.Trans as OT
 -- import System.Process (createProcess, waitForProcess)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Heed.Database (FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
