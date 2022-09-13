@@ -208,15 +208,15 @@ instance
 $(makeAdaptorAndInstance "pFeFeedInfo" ''FeFeedInfo')
 
 -- | 'FeFeedInfo' opaleye type
-type FeFeedInfoR = FeFeedInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGInt8)
+type FeFeedInfoR = FeFeedInfo' (O.Field O.SqlInt4) (O.Field O.SqlText) (O.Field O.SqlInt8)
 
 $(makeAdaptorAndInstance "pFeItemInfo" ''FeItemInfo')
 
 -- | 'FeItemInfo' opaleye type
-type FeItemInfoR = FeItemInfo' (O.Column O.PGInt4) (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText)) (O.Column O.PGBool)
+type FeItemInfoR = FeItemInfo' (O.Field O.SqlInt4) (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlTimestamptz) (O.FieldNullable O.SqlText) (O.Field O.SqlBool)
 
-instance O.DefaultFromField O.PGBool Seen where
-  defaultFromField = fromBool <$> O.fieldQueryRunnerColumn
+instance O.DefaultFromField O.SqlBool Seen where
+  defaultFromField = fromBool <$> O.fromPGSFromField
 
 -- | Commands sent from client to server via websocket
 --
@@ -284,8 +284,8 @@ instance FromForm AuthData
 
 instance Serialize AuthData
 
---instance MimeRender OctetStream AuthData where
---mimeRender _ = fromStrict . encode
+-- instance MimeRender OctetStream AuthData where
+-- mimeRender _ = fromStrict . encode
 instance MimeUnrender OctetStream AuthData where
   mimeUnrender _ a =
     case decode . toStrict $ a of

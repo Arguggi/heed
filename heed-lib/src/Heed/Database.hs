@@ -315,19 +315,19 @@ $(makeAdaptorAndInstance "pUser" ''User)
 
 $(makeAdaptorAndInstance "pUserId" ''UserId)
 
-type UserW = User UserIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGText)
+type UserW = User UserIdColumnWO (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlText)
 
-type UserR = User UserIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGText)
+type UserR = User UserIdColumnR (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlText)
 
-type UserIdColumnWO = UserId (Maybe (O.Column O.PGInt4))
+type UserIdColumnWO = UserId (Maybe (O.Field O.SqlInt4))
 
-type UserIdColumnW = UserId (O.Column O.PGInt4)
+type UserIdColumnW = UserId (O.Field O.SqlInt4)
 
-type UserIdColumnR = UserId (O.Column O.PGInt4)
+type UserIdColumnR = UserId (O.Field O.SqlInt4)
 
 userTable :: O.Table UserW UserR
 userTable =
-  O.Table
+  O.table
     "heed_user"
     ( pUser
         User
@@ -344,22 +344,22 @@ $(makeAdaptorAndInstance "pFeedInfo" ''FeedInfo)
 
 $(makeAdaptorAndInstance "pFeedInfoId" ''FeedInfoId)
 
-type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4) (O.Column O.PGTimestamptz) (O.Column PGItemsDate) (O.Column O.PGInt4)
+type FeedInfoW = FeedInfo FeedInfoIdColumnWO (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlInt4) (O.Field O.SqlTimestamptz) (O.Field PGItemsDate) (O.Field O.SqlInt4)
 
-type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGInt4) (O.Column O.PGTimestamptz) (O.Column PGItemsDate) (O.Column O.PGInt4)
+type FeedInfoR = FeedInfo FeedInfoIdColumnR (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlInt4) (O.Field O.SqlTimestamptz) (O.Field PGItemsDate) (O.Field O.SqlInt4)
 
-type FeedInfoIdColumnWO = FeedInfoId (Maybe (O.Column O.PGInt4))
+type FeedInfoIdColumnWO = FeedInfoId (Maybe (O.Field O.SqlInt4))
 
-type FeedInfoIdColumnW = FeedInfoId (O.Column O.PGInt4)
+type FeedInfoIdColumnW = FeedInfoId (O.Field O.SqlInt4)
 
-type FeedInfoIdColumnR = FeedInfoId (O.Column O.PGInt4)
+type FeedInfoIdColumnR = FeedInfoId (O.Field O.SqlInt4)
 
 -- Update timestamp on feed read from DB and make it writable to DB
 setTime :: UTCTime -> FeedInfoR -> FeedInfoW
 setTime utc feedInfo =
   feedInfo
     { _feedInfoId = FeedInfoId $ Just (_getFeedInfoId . _feedInfoId $ feedInfo),
-      _feedInfoLastUpdated = O.pgUTCTime utc
+      _feedInfoLastUpdated = O.sqlUTCTime utc
     }
 
 -- Default 'FeedInfoHW'
@@ -389,7 +389,7 @@ defUpdateEvery = 60
 
 feedInfoTable :: O.Table FeedInfoW FeedInfoR
 feedInfoTable =
-  O.Table
+  O.table
     "feed_info"
     ( pFeedInfo
         FeedInfo
@@ -413,7 +413,7 @@ type SubscriptionR = Subscription FeedInfoIdColumnR UserIdColumnR
 
 subscriptionTable :: O.Table SubscriptionW SubscriptionR
 subscriptionTable =
-  O.Table
+  O.table
     "subscription"
     ( pSubscription
         Subscription
@@ -428,15 +428,15 @@ $(makeAdaptorAndInstance "pFeedItem" ''FeedItem)
 
 $(makeAdaptorAndInstance "pFeedItemId" ''FeedItemId)
 
-type FeedItemW = FeedItem FeedItemIdColumnWO FeedInfoIdColumnW (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
+type FeedItemW = FeedItem FeedItemIdColumnWO FeedInfoIdColumnW (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlTimestamptz) (O.FieldNullable O.SqlText)
 
-type FeedItemR = FeedItem FeedItemIdColumnR FeedInfoIdColumnR (O.Column O.PGText) (O.Column O.PGText) (O.Column O.PGTimestamptz) (O.Column (O.Nullable O.PGText))
+type FeedItemR = FeedItem FeedItemIdColumnR FeedInfoIdColumnR (O.Field O.SqlText) (O.Field O.SqlText) (O.Field O.SqlTimestamptz) (O.FieldNullable O.SqlText)
 
-type FeedItemIdColumnWO = FeedItemId (Maybe (O.Column O.PGInt4))
+type FeedItemIdColumnWO = FeedItemId (Maybe (O.Field O.SqlInt4))
 
-type FeedItemIdColumnW = FeedItemId (O.Column O.PGInt4)
+type FeedItemIdColumnW = FeedItemId (O.Field O.SqlInt4)
 
-type FeedItemIdColumnR = FeedItemId (O.Column O.PGInt4)
+type FeedItemIdColumnR = FeedItemId (O.Field O.SqlInt4)
 
 -- | Default feed item
 defFeedItem :: FeedItemHW
@@ -452,7 +452,7 @@ defFeedItem =
 
 feedItemTable :: O.Table FeedItemW FeedItemR
 feedItemTable =
-  O.Table
+  O.table
     "feed_item"
     ( pFeedItem
         FeedItem
@@ -475,7 +475,7 @@ type UnreadItemR = UnreadItem FeedItemIdColumnR UserIdColumnR
 
 unreadItemTable :: O.Table UnreadItemW UnreadItemR
 unreadItemTable =
-  O.Table
+  O.table
     "unread_item"
     ( pUnreadItem
         UnreadItem
@@ -486,13 +486,13 @@ unreadItemTable =
 
 $(makeAdaptorAndInstance "pAuthToken" ''AuthToken)
 
-type AuthTokenW = AuthToken UserIdColumnW (O.Column O.PGText)
+type AuthTokenW = AuthToken UserIdColumnW (O.Field O.SqlText)
 
-type AuthTokenR = AuthToken UserIdColumnR (O.Column O.PGText)
+type AuthTokenR = AuthToken UserIdColumnR (O.Field O.SqlText)
 
 authTokenTable :: O.Table AuthTokenW AuthTokenR
 authTokenTable =
-  O.Table
+  O.table
     "auth_token"
     ( pAuthToken
         AuthToken
@@ -516,15 +516,15 @@ type UserFeedInfoPrefHR = UserFeedInfoPref (UserId Int) FeedInfoIdH Text
 
 type UserFeedInfoPrefHW = UserFeedInfoPref (UserId Int) FeedInfoIdH Text
 
-type UserFeedInfoPrefW = UserFeedInfoPref UserIdColumnW FeedInfoIdColumnW (O.Column O.PGText)
+type UserFeedInfoPrefW = UserFeedInfoPref UserIdColumnW FeedInfoIdColumnW (O.Field O.SqlText)
 
-type UserFeedInfoPrefR = UserFeedInfoPref UserIdColumnR FeedInfoIdColumnR (O.Column O.PGText)
+type UserFeedInfoPrefR = UserFeedInfoPref UserIdColumnR FeedInfoIdColumnR (O.Field O.SqlText)
 
 $(makeAdaptorAndInstance "pUserFeedInfoPref" ''UserFeedInfoPref)
 
 userPrefTable :: O.Table UserFeedInfoPrefW UserFeedInfoPrefR
 userPrefTable =
-  O.Table
+  O.table
     "user_feed_info_pref"
     ( pUserFeedInfoPref
         UserFeedInfoPref

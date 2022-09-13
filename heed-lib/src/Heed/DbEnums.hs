@@ -49,17 +49,17 @@ instance PG.FromField ItemsDate where
           PG.returnError PG.ConversionFailed f (Text.unpack $ unexpected <> itemsDateString)
 
 instance O.DefaultFromField PGItemsDate ItemsDate where
-  defaultFromField = O.fieldQueryRunnerColumn
+  defaultFromField = O.fromPGSFromField
 
 constantColumnUsing ::
-  O.ToFields haskell (O.Column pgType) ->
+  O.ToFields haskell (O.Field pgType) ->
   (haskell' -> haskell) ->
-  O.ToFields haskell' (O.Column pgType')
+  O.ToFields haskell' (O.Field pgType')
 constantColumnUsing oldConstant f = Pro.dimap f O.unsafeCoerceColumn oldConstant
 
-instance ProDef.Default O.ToFields ItemsDate (O.Column PGItemsDate) where
+instance ProDef.Default O.ToFields ItemsDate (O.Field PGItemsDate) where
   def =
-    constantColumnUsing (ProDef.def :: O.ToFields String (O.Column O.PGText)) itemsDateToString
+    constantColumnUsing (ProDef.def :: O.ToFields String (O.Field O.SqlText)) itemsDateToString
     where
       itemsDateToString :: ItemsDate -> String
       itemsDateToString Missing = "missing"
