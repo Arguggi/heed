@@ -82,17 +82,18 @@ Test-Suite heed-backend-tests
   main-is:             Main.hs
   build-depends:       base
                      , bytestring
+                     , directory
                      , heed-backend
                      , heed-lib
                      , hspec
+                     , iso8601-time
                      , opaleye
-                     , raw-strings-qq
                      , process
+                     , raw-strings-qq
                      , text
                      , time
                      , xml-conduit
                      , xml-types
-                     , directory
   hs-source-dirs:      test
   default-language:    Haskell2010
   ghc-options:         -threaded -with-rtsopts=-N -Wall -fwarn-tabs -fwarn-incomplete-uni-patterns -fwarn-incomplete-record-updates

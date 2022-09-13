@@ -268,7 +268,7 @@ data FeedItem a b c d e f = FeedItem
     _feedItemDate :: e,
     -- | Comment url if available (ala HN)
     _feedItemComments :: f
-  }
+  } deriving (Show, Eq)
 
 makeLenses ''FeedItem
 
@@ -276,7 +276,7 @@ makeLenses ''FeedItem
 newtype FeedItemId a = FeedItemId
   { _getFeedItemId :: a
   }
-  deriving (Functor, Show, Generic)
+  deriving (Functor, Show, Generic, Eq)
 
 makeLenses ''FeedItemId
 

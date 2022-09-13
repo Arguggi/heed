@@ -3,8 +3,8 @@
 
 module Main where
 
---import Control.Exception (bracket)
---import Data.ByteString (ByteString)
+-- import Control.Exception (bracket)
+-- import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy
 -- import Data.Int (Int64)
 -- import Data.Monoid ((<>))
@@ -17,8 +17,11 @@ import qualified Data.ByteString.Lazy
 -- import Heed.Types (execQuery, runTest)
 -- import Heed.Utils (silentProc)
 -- import System.Process (createProcess, waitForProcess)
+
+import Data.Maybe (fromMaybe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
-import Heed.Database (FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
+import Data.Time.ISO8601 (parseISO8601)
+import Heed.Database (FeedInfo (..), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
 import Heed.Extract (filterNew)
 import Heed.Feed.XML (extractInfo)
 import Test.Hspec (describe, hspec, it, shouldBe)
@@ -45,8 +48,8 @@ import qualified Text.XML.Stream.Parse
 
 main :: IO ()
 main = do
-  --connect testingDB (runSQLTests "SQL tables should match haskell")
-  --withTmpDB $ \(DBInfo tempName tempRole) -> do
+  -- connect testingDB (runSQLTests "SQL tables should match haskell")
+  -- withTmpDB $ \(DBInfo tempName tempRole) -> do
   --    let tempDB = encodeUtf8 $ "dbname='" <> tempName <> "' user='" <> tempRole <> "'"
   --    (_, _, _, p) <-
   --        createProcess $
@@ -92,17 +95,25 @@ runTests now el = hspec $ do
   describe "Parses XML feeds" $ do
     it "Gets the current node" $ do
       -- show (Text.XML.Cursor.child >=> Text.XML.Cursor.element "link" $ cursor) `shouldBe` "1"
-      --show (elementName $ child >=> hasAttribute "rel" $ cursor) `shouldBe` "1"
+      -- show (elementName $ child >=> hasAttribute "rel" $ cursor) `shouldBe` "1"
       let parsed = Heed.Feed.XML.extractInfo now "Url" el
       case parsed of
         Nothing -> return ()
         Just (info, items) -> do
           length items `shouldBe` 1
-          info `shouldBe` defFeedInfo
-          return ()
+          info `shouldBe` defFeedInfo {_feedInfoName = "Veritasium"}
+          items `shouldBe` [veritasiumEntry now ]
 
---length (extractInfohow (cursor $/ element "{http://www.w3.org/2005/Atom}title" &// content) `shouldBe` 1
---show cursor `shouldBe` "1"
+veritasiumEntry :: UTCTime -> FeedItemHW
+veritasiumEntry now =
+  defFeedItem
+    { _feedItemTitle = "I Asked Bill Gates What's The Next Crisis?",
+      _feedItemUrl = "https://www.youtube.com/watch?v=Grv1RJkdyqI",
+      _feedItemDate = fromMaybe now $ parseISO8601 "2021-02-04T14:00:03+00:00"
+    }
+
+-- length (extractInfohow (cursor $/ element "{http://www.w3.org/2005/Atom}title" &// content) `shouldBe` 1
+-- show cursor `shouldBe` "1"
 
 filterRep :: FeedItemHW -> FeedItemHW -> [FeedItemHW]
 filterRep new db = filterNew (replicate 10 new) (replicate 10 db)

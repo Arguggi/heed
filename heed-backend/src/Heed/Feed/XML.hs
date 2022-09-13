@@ -12,7 +12,7 @@ import Data.Time.ISO8601 (parseISO8601)
 import qualified Heed.Database as DB
 import Safe (headDef)
 import qualified Text.XML
-import Text.XML.Cursor (Cursor, attribute, content, fromDocument, laxElement, ($/), (&//), (&|))
+import Text.XML.Cursor (Cursor, content, fromDocument, laxElement, ($/), (&//), (&|), element)
 
 -- Tested with youtube xml format for the moment
 extractInfo ::
@@ -41,6 +41,10 @@ entryToItem :: UTCTime -> Cursor -> DB.FeedItemHW
 entryToItem now cursor =
   DB.defFeedItem
     { DB._feedItemTitle = headDef "Unknown title" (cursor $/ laxElement "title" &// content),
-      DB._feedItemUrl = headDef "Unknown url" (cursor $/ laxElement "link" &// attribute "href"),
+      DB._feedItemUrl = url,
       DB._feedItemDate = fromMaybe now . parseISO8601 . T.unpack . headDef "" $ (cursor $/ laxElement "published" &// content)
     }
+  where
+    url = case cursor $/ element "{http://www.youtube.com/xml/schemas/2015}videoId"  &// content of
+        [] -> "Unknown url"
+        a : _ -> T.append "https://www.youtube.com/watch?v=" a

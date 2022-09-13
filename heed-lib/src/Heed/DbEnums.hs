@@ -27,7 +27,7 @@ data ItemsDate
     Missing
   | -- | Feed has dates on items
     Present
-  deriving (Typeable, Show, Generic)
+  deriving (Typeable, Show, Generic, Eq)
 
 instance Serialize ItemsDate
 
