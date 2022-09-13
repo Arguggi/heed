@@ -32,9 +32,9 @@ module Heed.Types
     execDelete,
 
     -- * 'BackendConf' Lenses
+    dbPool,
     updateChan,
     timedLogger,
-    dbConnection,
     httpManager,
     threadMap,
   )
@@ -76,6 +76,7 @@ import Network.HTTP.Client
   )
 import qualified Opaleye as O
 import qualified System.Log.FastLogger as Log
+import Data.Pool (Pool, withResource)
 
 data HeedError where
   InvalidFeedQuery :: HeedError
@@ -114,7 +115,7 @@ type ThreadState = Map.Map FeedInfoIdH ThreadId
 
 data BackendConf = BackendConf
   { -- | Common postgresql connection
-    _dbConnection :: PG.Connection,
+    _dbPool :: Pool PG.Connection,
     -- | Commond download Manager
     _httpManager :: Manager,
     -- | Common 'BChan.BroadcastChan'.
@@ -201,20 +202,20 @@ class Monad m => MonadDb m where
 
 instance MonadDb Backend where
   execSelect select = do
-    conn <- asks _dbConnection
-    catchSql HSqlException $ liftIO $ O.runSelect conn select
+    pool <- asks _dbPool
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runSelect conn select
 
   execInsert insert = do
-    conn <- asks _dbConnection
-    catchSql HSqlException $ liftIO $ O.runInsert conn insert
+    pool <- asks _dbPool
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runInsert conn insert
 
   execUpdate update = do
-    conn <- asks _dbConnection
-    catchSql HSqlException $ liftIO $ O.runUpdate conn update
+    pool <- asks _dbPool
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runUpdate conn update
 
   execDelete delete = do
-    conn <- asks _dbConnection
-    catchSql HSqlException $ liftIO $ O.runDelete conn delete
+    pool <- asks _dbPool
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runDelete conn delete
 
 instance MonadDb Testing where
   execSelect select = do

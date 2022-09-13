@@ -8,11 +8,13 @@ where
 
 import qualified BroadcastChan as BChan
 import Control.Concurrent.STM.TVar (newTVarIO)
+import Control.Exception (bracket)
 import Control.Monad (forM)
 import qualified Data.Map.Strict as Map
+import Data.Pool as Pool (Pool, PoolConfig (..), destroyAllResources, newPool)
 import Data.Time.Clock (getCurrentTime)
 import Data.Version (showVersion)
-import Database.PostgreSQL.Simple as PG (connectPostgreSQL)
+import Database.PostgreSQL.Simple as PG (Connection, close, connectPostgreSQL)
 import Development.GitRev (gitHash)
 import Heed.Database (feedInfoId)
 import Heed.Extract (startUpdateThread)
@@ -49,18 +51,19 @@ main = do
   Log.withTimedFastLogger timeCache (Log.LogStdout Log.defaultBufSize) $ \logger -> do
     putStrLn "Starting heed-backend"
     port <- setupEnvGetPort
-    baConf <- setupBackendConf logger
-    feedsE <- runBe baConf $ execSelect allFeeds
-    now <- getCurrentTime
-    threads <-
-      case feedsE of
-        Left _ -> die "Can't get feed list from db"
-        Right feeds -> do
-          threadIds <- forM feeds (startUpdateThread now baConf)
-          let nameThreadList = zip (feeds ^.. traverse . feedInfoId) threadIds
-          return $ Map.fromList nameThreadList
-    tvarThreads <- newTVarIO threads
-    genAuthMain (baConf & (threadMap .~ tvarThreads)) port
+    withPool $ \pool -> do
+      baConf <- setupBackendConf pool logger
+      feedsE <- runBe baConf $ execSelect allFeeds
+      now <- getCurrentTime
+      threads <-
+        case feedsE of
+          Left _ -> die "Can't get feed list from db"
+          Right feeds -> do
+            threadIds <- forM feeds (startUpdateThread now baConf)
+            let nameThreadList = zip (feeds ^.. traverse . feedInfoId) threadIds
+            return $ Map.fromList nameThreadList
+      tvarThreads <- newTVarIO threads
+      genAuthMain (baConf & (threadMap .~ tvarThreads)) port
 
 -- | Read ini file and setup 'pgEnvVar' variables
 setupEnvGetPort :: IO Port
@@ -85,12 +88,26 @@ setupEnvGetPort = return defPort
 --     readEither . T.unpack $ port
 
 -- | Create 'BackendConf' for the server
-setupBackendConf :: Log.TimedFastLogger -> IO BackendConf
-setupBackendConf logger =
-  BackendConf <$> PG.connectPostgreSQL "" <*> newManager tlsManagerSettings
+setupBackendConf :: Pool.Pool PG.Connection -> Log.TimedFastLogger -> IO BackendConf
+setupBackendConf pool logger =
+  BackendConf
+    <$> pure pool
+    <*> newManager tlsManagerSettings
     <*> BChan.newBroadcastChan
     <*> pure logger
     <*> newTVarIO Map.empty
+
+poolConfig :: Pool.PoolConfig PG.Connection
+poolConfig =
+  Pool.PoolConfig
+    { createResource = PG.connectPostgreSQL "",
+      freeResource = PG.close,
+      poolCacheTTL = 600,
+      poolMaxResources = 10
+    }
+
+withPool :: (Pool.Pool PG.Connection -> IO ()) -> IO ()
+withPool = bracket (Pool.newPool poolConfig) Pool.destroyAllResources
 
 -- | Only parse --version and --help
 optsParser :: ParserInfo String

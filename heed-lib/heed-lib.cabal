@@ -26,14 +26,15 @@ library
                      , fast-logger
                      , http-api-data
                      , http-client
+                     , QuickCheck
                      , microlens-platform
                      , mtl
                      , opaleye
+                     , postgresql-simple
                      , process
                      , product-profunctors
                      , profunctors
-                     , postgresql-simple
-                     , QuickCheck
+                     , resource-pool
                      , servant
                      , slave-thread
                      , stm

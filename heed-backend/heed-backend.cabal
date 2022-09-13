@@ -36,8 +36,8 @@ library
                      , cereal
                      , containers
                      , cryptonite
-                     , exceptions
                      , directory
+                     , exceptions
                      , fast-logger
                      , feed
                      , gitrev
@@ -52,10 +52,11 @@ library
                      , microlens-platform
                      , mtl
                      , mwc-random
-                     , optparse-applicative
                      , opaleye
+                     , optparse-applicative
                      , postgresql-simple
                      , product-profunctors
+                     , resource-pool
                      , safe
                      , servant
                      , servant-server
