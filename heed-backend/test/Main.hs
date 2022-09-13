@@ -4,7 +4,6 @@
 module Main where
 
 --import Control.Exception (bracket)
-import Control.Monad ((>=>))
 --import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy
 -- import Data.Int (Int64)
@@ -22,13 +21,10 @@ import Data.Time.Clock (UTCTime, getCurrentTime)
 import Heed.Database (FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
 import Heed.Extract (filterNew)
 import Heed.Feed.XML (extractInfo)
-import qualified System.Directory
 import Test.Hspec (describe, hspec, it, shouldBe)
 import qualified Text.RawString.QQ
-import Text.XML (Node, documentRoot, elementName, parseLBS_)
+import Text.XML (documentRoot, parseLBS_)
 import qualified Text.XML
-import Text.XML.Cursor (attribute, child, content, descendant, element, fromDocument, hasAttribute, laxElement, node, ($/), ($//), (&/), (&//), (&|))
-import qualified Text.XML.Cursor.Generic
 import qualified Text.XML.Stream.Parse
 
 -- testingDB :: ByteString

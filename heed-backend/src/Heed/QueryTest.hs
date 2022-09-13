@@ -13,9 +13,9 @@ where
 -- checkUnreadItemTable,
 -- checkUserTable,
 
-import Data.Int (Int64)
-import qualified Heed.Database as DB
-import qualified Opaleye as O
+-- import Data.Int (Int64)
+-- import qualified Heed.Database as DB
+-- import qualified Opaleye as O
 
 -- | Query 'DB.authTokenTable'
 -- checkAuthTokenTable :: IO [Int64]

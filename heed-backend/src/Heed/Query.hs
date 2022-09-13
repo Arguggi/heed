@@ -37,16 +37,14 @@ where
 import Control.Arrow (returnA)
 import Control.Monad.IO.Class (MonadIO (liftIO), liftIO)
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, listToMaybe)
+import Data.Maybe (fromMaybe)
 import Data.Profunctor.Product (p2)
 import Data.Profunctor.Product.Default (Default)
 import qualified Data.Text as T
 import Data.Time (UTCTime)
-import qualified Database.PostgreSQL.Simple as PG
 import Heed.Commands
-  ( FeFeedInfo (..),
-    FeFeedInfo' (..),
-    FeFeedInfoR (..),
+  ( FeFeedInfo' (..),
+    FeFeedInfoR,
     FeItemInfo' (..),
     FeItemInfoR,
     feedListId,
@@ -56,7 +54,7 @@ import Heed.Database
   ( AuthToken (_authTokenHeedUserId, _authTokenToken),
     AuthTokenR,
     FeedInfo (..),
-    FeedInfoHR (..),
+    FeedInfoHR,
     FeedInfoHW,
     FeedInfoId (..),
     FeedInfoIdColumnR,
@@ -85,7 +83,6 @@ import Heed.Database
     User (_userId, _userName),
     UserFeedInfoPrefHW,
     UserFeedInfoPrefR,
-    UserH,
     UserId,
     UserIdColumnR,
     UserR,
