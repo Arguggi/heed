@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Heed.Feed.RSS
   ( extractInfo,
@@ -6,11 +7,12 @@ module Heed.Feed.RSS
 where
 
 import Control.Applicative ((<|>))
-import Control.Monad (join)
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
-import Data.Time (defaultTimeLocale, parseTimeM, rfc822DateFormat)
+import Data.Time (ZonedTime, defaultTimeLocale, parseTimeM, rfc822DateFormat)
 import Data.Time.Clock (UTCTime)
+import Data.Time.Format.ISO8601 (iso8601ParseM)
+import Data.Time.LocalTime (zonedTimeToUTC)
 import qualified Heed.Database as DB
 import Heed.Feed.HtmlEntities (decodeHtmlEnt)
 import qualified Network.URI as URI
@@ -44,14 +46,21 @@ rssEntryToItem now baseUrl entry =
   DB.defFeedItem
     { DB._feedItemTitle = T.strip . fromMaybe "No Title" . RSS.rssItemTitle $ entry,
       DB._feedItemUrl = itemUrl,
-      DB._feedItemDate = fromMaybe now $ join (parseRfc822 . T.unpack <$> RSS.rssItemPubDate entry),
+      DB._feedItemDate = fromMaybe now $ (parseRfc822 =<< pubDate) <|> (parseZonedTime pubDate),
       DB._feedItemComments = RSS.rssItemComments entry
     }
   where
+    pubDate = T.unpack <$> RSS.rssItemPubDate entry
     itemUrl = fromMaybe "No Url" . fmap (buildUrl baseUrl . T.strip) . RSS.rssItemLink $ entry
 
 parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
+
+parseZonedTime :: Maybe String -> Maybe UTCTime
+parseZonedTime pubDateM = do
+  pubDate <- pubDateM
+  zonedTime :: ZonedTime <- iso8601ParseM pubDate
+  return $ zonedTimeToUTC zonedTime
 
 buildUrl :: T.Text -> T.Text -> T.Text
 buildUrl baseUrl itemUrl =

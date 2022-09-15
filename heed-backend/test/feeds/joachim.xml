@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:bib="http://joachim-breitner.de/2004/Website/Bibliography"
+    xmlns:content="http://purl.org/rss/1.0/modules/content/"
+    xmlns:atom="http://www.w3.org/2005/Atom"
+    version="2.0">
+<channel>
+    <title>nomeata’s mind shares</title>
+    <link>http://www.joachim-breitner.de//blog</link>
+    <atom:link rel="self" type="application/rss+xml"
+        href="http://www.joachim-breitner.de/blog_feed.rss"/>
+    <description>Joachim Breitners Denkblogade</description>
+    <image>
+        <url>http://joachim-breitner.de/avatars/avatar_128.png</url>
+        <title>nomeata’s mind shares</title>
+        <link>http://www.joachim-breitner.de//blog</link>
+        <width>128</width>
+        <height>128</height>
+    </image>
+    <item>
+        <title>rec-def: Dominators case study</title>
+        <link>http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study</link>
+        <guid>http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study</guid>
+        <comments>http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study#comments</comments>
+        <author>mail@joachim-breitner.de (Joachim Breitner)</author>
+        <description></description>
+        <pubDate>Thu, 15 Sep 2022 10:27:19 +0200</pubDate>
+    </item>
+</channel>
+</rss>
