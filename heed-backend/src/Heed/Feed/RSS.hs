@@ -46,7 +46,13 @@ rssEntryToItem now baseUrl entry =
   DB.defFeedItem
     { DB._feedItemTitle = T.strip . fromMaybe "No Title" . RSS.rssItemTitle $ entry,
       DB._feedItemUrl = itemUrl,
-      DB._feedItemDate = fromMaybe now $ (parseRfc822 =<< pubDate) <|> (parseZonedTime pubDate),
+      DB._feedItemDate =
+        fromMaybe
+          now
+          ( (parseRfc822 =<< pubDate)
+              <|> (parseZonedTime =<< pubDate)
+              <|> (iso8601ParseM =<< pubDate)
+          ),
       DB._feedItemComments = RSS.rssItemComments entry
     }
   where
@@ -56,9 +62,8 @@ rssEntryToItem now baseUrl entry =
 parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
 
-parseZonedTime :: Maybe String -> Maybe UTCTime
-parseZonedTime pubDateM = do
-  pubDate <- pubDateM
+parseZonedTime :: String -> Maybe UTCTime
+parseZonedTime pubDate = do
   zonedTime :: ZonedTime <- iso8601ParseM pubDate
   return $ zonedTimeToUTC zonedTime
 

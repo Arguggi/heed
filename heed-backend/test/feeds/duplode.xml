@@ -16,5 +16,14 @@
         <guid>https://duplode.github.io/posts/every-distributive-is-representable.html</guid>
         <dc:creator>Daniel Mlot</dc:creator>
     </item>
+    <item>
+        <title>Traversable: A Remix</title>
+        <link>https://duplode.github.io/posts/traversable-a-remix.html</link>
+        <description></description>
+        <pubDate>2017-05-19T07:30:00Z</pubDate>
+        <guid>https://duplode.github.io/posts/traversable-a-remix.html</guid>
+        <dc:creator>Daniel Mlot</dc:creator>
+    </item>
+
 </channel>
 </rss>

@@ -55,7 +55,7 @@ main = do
           Nothing -> return ()
           Just (info, items) -> do
             info `shouldBe` defFeedInfo {_feedInfoName = "The Life Monadic"}
-            items `shouldBe` [duplodeentry]
+            items `shouldBe` [duplodeentry1, duplodeentry2]
     describe "Parses XML feeds" $ do
       it "Youtube xml" $ do
         let parsed = Heed.Extract.extractInfoFromFeed now "Url" veritasiumparsed
@@ -90,12 +90,20 @@ joachimentry =
       _feedItemComments = Just "http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study#comments"
     }
 
-duplodeentry :: FeedItemHW
-duplodeentry =
+duplodeentry1 :: FeedItemHW
+duplodeentry1 =
   defFeedItem
     { _feedItemTitle = "Every Distributive is Representable",
       _feedItemUrl = "https://duplode.github.io/posts/every-distributive-is-representable.html",
       _feedItemDate = fromJust $ parseISO8601 "2022-02-07T19:55:00+00:00"
+    }
+
+duplodeentry2 :: FeedItemHW
+duplodeentry2 =
+  defFeedItem
+    { _feedItemTitle = "Traversable: A Remix",
+      _feedItemUrl = "https://duplode.github.io/posts/traversable-a-remix.html",
+      _feedItemDate = fromJust $ parseISO8601 "2017-05-19T07:30:00+00:00"
     }
 
 filterRep :: FeedItemHW -> FeedItemHW -> [FeedItemHW]
