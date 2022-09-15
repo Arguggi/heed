@@ -3,25 +3,11 @@
 
 module Main where
 
--- import Control.Exception (bracket)
--- import Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy
--- import Data.Int (Int64)
--- import Data.Monoid ((<>))
--- import qualified Data.Text as T
--- import Data.Text.Encoding (encodeUtf8)
--- import qualified Database.PostgreSQL.Simple as PG
--- import Database.PostgreSQL.Tmp (DBInfo(..), withTmpDB)
-
--- import qualified Heed.QueryTest as QT
--- import Heed.Types (execQuery, runTest)
--- import Heed.Utils (silentProc)
--- import System.Process (createProcess, waitForProcess)
-
-import Data.Maybe (fromJust, fromMaybe)
-import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Maybe (fromJust)
+import Data.Time.Clock (getCurrentTime)
 import Data.Time.ISO8601 (parseISO8601)
-import Heed.Database (FeedInfo (..), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl, FeedItem (_feedItemComments))
+import Heed.Database (FeedInfo (..), FeedItem (_feedItemComments), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
 import Heed.Extract (filterNew)
 import qualified Heed.Extract
 import Heed.Feed.XML (extractInfo)
@@ -31,40 +17,8 @@ import qualified Text.RawString.QQ
 import Text.XML (documentRoot, parseLBS_)
 import qualified Text.XML.Stream.Parse
 
--- testingDB :: ByteString
--- testingDB = "dbname='heed' user='heed'"
---
--- tables :: [(OT.Transaction [Int64], String)]
--- tables =
---     [ (QT.checkAuthTokenTable, "Auth token Table")
---     , (QT.checkFeedInfoTable, "Feed Info Table")
---     , (QT.checkFeedItemTable, "Feed Items Table")
---     , (QT.checkPrefTable, "User Pref Tables")
---     , (QT.checkSubscriptionTable, "Subscriptions Table")
---     , (QT.checkUserTable, "User Tables")
---     ]
-
--- connect :: ByteString -> (PG.Connection -> IO ()) -> IO ()
--- connect connString = bracket (PG.connectPostgreSQL connString) PG.close
-
 main :: IO ()
 main = do
-  -- connect testingDB (runSQLTests "SQL tables should match haskell")
-  -- withTmpDB $ \(DBInfo tempName tempRole) -> do
-  --    let tempDB = encodeUtf8 $ "dbname='" <> tempName <> "' user='" <> tempRole <> "'"
-  --    (_, _, _, p) <-
-  --        createProcess $
-  --        silentProc
-  --            "/usr/bin/psql"
-  --            [ "-d"
-  --            , T.unpack tempName
-  --            , "-U"
-  --            , T.unpack tempRole
-  --            , "-f"
-  --            , "/home/arguggi/projects/heed/confs/db/tables.sql"
-  --            ]
-  --    _ <- waitForProcess p
-  --    connect tempDB $ runSQLTests "SQL file should match haskell"
   let veritasiumparsed = Text.XML.documentRoot $ Text.XML.parseLBS_ Text.XML.Stream.Parse.def veritasiumxml
   let laurenceparsed = fromJust $ parseFeedSource laurencejonesxml
   let joachimparsed = fromJust $ parseFeedSource joachimxml
@@ -129,18 +83,8 @@ joachimentry =
     { _feedItemTitle = "rec-def: Dominators case study",
       _feedItemUrl = "http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study",
       _feedItemDate = fromJust $ parseISO8601 "2022-09-15T10:27:19+02:00",
-      _feedItemComments  = Just "http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study#comments"
+      _feedItemComments = Just "http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study#comments"
     }
-
--- runSQLTests :: String -> PG.Connection -> IO ()
--- runSQLTests desc conn =
---     hspec $
---     describe desc $
---     forM_ tables $ \(trans, message) ->
---         it message $ runTest conn (execQuery trans) >>= (`shouldSatisfy` (\x -> head x >= 0))
-
--- length (extractInfohow (cursor $/ element "{http://www.w3.org/2005/Atom}title" &// content) `shouldBe` 1
--- show cursor `shouldBe` "1"
 
 filterRep :: FeedItemHW -> FeedItemHW -> [FeedItemHW]
 filterRep new db = filterNew (replicate 10 new) (replicate 10 db)
