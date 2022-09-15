@@ -18,16 +18,17 @@ import qualified Data.ByteString.Lazy
 -- import Heed.Utils (silentProc)
 -- import System.Process (createProcess, waitForProcess)
 
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromJust, fromMaybe)
 import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.ISO8601 (parseISO8601)
-import Heed.Database (FeedInfo (..), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
+import Heed.Database (FeedInfo (..), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl, FeedItem (_feedItemComments))
 import Heed.Extract (filterNew)
+import qualified Heed.Extract
 import Heed.Feed.XML (extractInfo)
 import Test.Hspec (describe, hspec, it, shouldBe)
+import Text.Feed.Import (parseFeedSource)
 import qualified Text.RawString.QQ
 import Text.XML (documentRoot, parseLBS_)
-import qualified Text.XML
 import qualified Text.XML.Stream.Parse
 
 -- testingDB :: ByteString
@@ -64,10 +65,72 @@ main = do
   --            ]
   --    _ <- waitForProcess p
   --    connect tempDB $ runSQLTests "SQL file should match haskell"
-  let root = Text.XML.documentRoot $ Text.XML.parseLBS_ Text.XML.Stream.Parse.def veritasiumxml
+  let veritasiumparsed = Text.XML.documentRoot $ Text.XML.parseLBS_ Text.XML.Stream.Parse.def veritasiumxml
+  let laurenceparsed = fromJust $ parseFeedSource laurencejonesxml
+  let joachimparsed = fromJust $ parseFeedSource joachimxml
   now <- getCurrentTime
-  -- let cursor = Text.XML.Cursor.fromDocument (Text.XML.Document (Text.XML.Prologue [] Nothing []) root [])
-  runTests now root
+  hspec $ do
+    describe "Filter new items" $ do
+      it "Removes duplicates" $
+        length (filterNew (replicate 10 defFeedItem) []) `shouldBe` 1
+      it "Removes same items" $
+        length (filterNew differentList [differentTitle]) `shouldBe` 2
+      it "Removes the same duplicate items" $
+        length (filterRep defFeedItem defFeedItem) `shouldBe` 0
+      it "Removes items with only different dates" $
+        length (filterRep defFeedItem differentTime) `shouldBe` 0
+      it "Keeps items with different titles" $
+        length (filterRep defFeedItem differentTitle) `shouldBe` 1
+      it "Keeps items with different urls" $
+        length (filterRep defFeedItem differentUrl) `shouldBe` 1
+    describe "Parses RSS feeds" $ do
+      it "Builds the correct url for items with relative urls" $ do
+        let parsed = Heed.Extract.extractInfoFromFeed now "Url" laurenceparsed
+        case parsed of
+          Nothing -> return ()
+          Just (info, items) -> do
+            info `shouldBe` defFeedInfo {_feedInfoName = "Lawrence Jones"}
+            items `shouldBe` [laurenceEntry]
+      it "Builds the correct url for items with absolute urls" $ do
+        let parsed = Heed.Extract.extractInfoFromFeed now "Url" joachimparsed
+        case parsed of
+          Nothing -> return ()
+          Just (info, items) -> do
+            info `shouldBe` defFeedInfo {_feedInfoName = "nomeata\EMs mind shares"}
+            items `shouldBe` [joachimentry]
+    describe "Parses XML feeds" $ do
+      it "Gets the current node" $ do
+        let parsed = Heed.Feed.XML.extractInfo now "Url" veritasiumparsed
+        case parsed of
+          Nothing -> return ()
+          Just (info, items) -> do
+            info `shouldBe` defFeedInfo {_feedInfoName = "Veritasium"}
+            items `shouldBe` [veritasiumEntry]
+
+veritasiumEntry :: FeedItemHW
+veritasiumEntry =
+  defFeedItem
+    { _feedItemTitle = "I Asked Bill Gates What's The Next Crisis?",
+      _feedItemUrl = "https://www.youtube.com/watch?v=Grv1RJkdyqI",
+      _feedItemDate = fromJust $ parseISO8601 "2021-02-04T14:00:03+00:00"
+    }
+
+laurenceEntry :: FeedItemHW
+laurenceEntry =
+  defFeedItem
+    { _feedItemTitle = "Building workflows: technical deep-dive and evaluation",
+      _feedItemUrl = "https://blog.lawrencejones.dev/workflows/",
+      _feedItemDate = fromJust $ parseISO8601 "2022-09-14T12:00:00+00:00"
+    }
+
+joachimentry :: FeedItemHW
+joachimentry =
+  defFeedItem
+    { _feedItemTitle = "rec-def: Dominators case study",
+      _feedItemUrl = "http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study",
+      _feedItemDate = fromJust $ parseISO8601 "2022-09-15T10:27:19+02:00",
+      _feedItemComments  = Just "http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study#comments"
+    }
 
 -- runSQLTests :: String -> PG.Connection -> IO ()
 -- runSQLTests desc conn =
@@ -75,42 +138,6 @@ main = do
 --     describe desc $
 --     forM_ tables $ \(trans, message) ->
 --         it message $ runTest conn (execQuery trans) >>= (`shouldSatisfy` (\x -> head x >= 0))
-
--- runTests :: Text.XML.Cursor.Generic.Cursor Text.XML.Node -> IO ()
-runTests :: UTCTime -> Text.XML.Element -> IO ()
-runTests now el = hspec $ do
-  describe "Filter new items" $ do
-    it "Removes duplicates" $
-      length (filterNew (replicate 10 defFeedItem) []) `shouldBe` 1
-    it "Removes same items" $
-      length (filterNew differentList [differentTitle]) `shouldBe` 2
-    it "Removes the same duplicate items" $
-      length (filterRep defFeedItem defFeedItem) `shouldBe` 0
-    it "Removes items with only different dates" $
-      length (filterRep defFeedItem differentTime) `shouldBe` 0
-    it "Keeps items with different titles" $
-      length (filterRep defFeedItem differentTitle) `shouldBe` 1
-    it "Keeps items with different urls" $
-      length (filterRep defFeedItem differentUrl) `shouldBe` 1
-  describe "Parses XML feeds" $ do
-    it "Gets the current node" $ do
-      -- show (Text.XML.Cursor.child >=> Text.XML.Cursor.element "link" $ cursor) `shouldBe` "1"
-      -- show (elementName $ child >=> hasAttribute "rel" $ cursor) `shouldBe` "1"
-      let parsed = Heed.Feed.XML.extractInfo now "Url" el
-      case parsed of
-        Nothing -> return ()
-        Just (info, items) -> do
-          length items `shouldBe` 1
-          info `shouldBe` defFeedInfo {_feedInfoName = "Veritasium"}
-          items `shouldBe` [veritasiumEntry now ]
-
-veritasiumEntry :: UTCTime -> FeedItemHW
-veritasiumEntry now =
-  defFeedItem
-    { _feedItemTitle = "I Asked Bill Gates What's The Next Crisis?",
-      _feedItemUrl = "https://www.youtube.com/watch?v=Grv1RJkdyqI",
-      _feedItemDate = fromMaybe now $ parseISO8601 "2021-02-04T14:00:03+00:00"
-    }
 
 -- length (extractInfohow (cursor $/ element "{http://www.w3.org/2005/Atom}title" &// content) `shouldBe` 1
 -- show cursor `shouldBe` "1"
@@ -173,4 +200,59 @@ Thanks to Petr Lebedev for early edits and Jonny Hyman for feedback</media:descr
   </media:group>
  </entry>
 </feed>
+|]
+
+laurencejonesxml :: Data.ByteString.Lazy.ByteString
+laurencejonesxml =
+  [Text.RawString.QQ.r|<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>Lawrence Jones</title>
+    <atom:link href="/feed.xml" rel="self" type="application/rss+xml"/>
+    <link>https://blog.lawrencejones.dev/</link>
+    <description>Building reliable infrastructure for GoCardless, a fast-growing fintech based in London. Focused on tackling infrastructure problems with a software engineering mindset.
+</description>
+    <pubDate>Wed, 14 Sep 2022 09:36:29 +0000</pubDate>
+      <item>
+        <title>Building workflows: technical deep-dive and evaluation</title>
+        <link>/workflows/</link>
+        <guid isPermaLink="true">/workflows/</guid>
+        <description>description</description>
+        <pubDate>Wed, 14 Sep 2022 12:00:00 +0000</pubDate>
+      </item>
+  </channel>
+</rss>
+|]
+
+joachimxml :: Data.ByteString.Lazy.ByteString
+joachimxml =
+  [Text.RawString.QQ.r|<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:bib="http://joachim-breitner.de/2004/Website/Bibliography"
+     xmlns:content="http://purl.org/rss/1.0/modules/content/"
+     xmlns:atom="http://www.w3.org/2005/Atom"
+     version="2.0">
+   <channel>
+      <title>nomeata’s mind shares</title>
+      <link>http://www.joachim-breitner.de//blog</link>
+      <atom:link rel="self" type="application/rss+xml"
+                 href="http://www.joachim-breitner.de/blog_feed.rss"/>
+      <description>Joachim Breitners Denkblogade</description>
+      <image>
+         <url>http://joachim-breitner.de/avatars/avatar_128.png</url>
+         <title>nomeata’s mind shares</title>
+         <link>http://www.joachim-breitner.de//blog</link>
+         <width>128</width>
+         <height>128</height>
+      </image>
+      <item>
+         <title>rec-def: Dominators case study</title>
+         <link>http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study</link>
+         <guid>http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study</guid>
+         <comments>http://www.joachim-breitner.de/blog/795-rec-def__Dominators_case_study#comments</comments>
+         <author>mail@joachim-breitner.de (Joachim Breitner)</author>
+         <description></description>
+         <pubDate>Thu, 15 Sep 2022 10:27:19 +0200</pubDate>
+      </item>
+   </channel>
+</rss>
 |]

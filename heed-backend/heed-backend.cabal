@@ -52,6 +52,7 @@ library
                      , microlens-platform
                      , mtl
                      , mwc-random
+                     , network-uri
                      , opaleye
                      , optparse-applicative
                      , postgresql-simple
@@ -83,6 +84,7 @@ Test-Suite heed-backend-tests
   build-depends:       base
                      , bytestring
                      , directory
+                     , feed
                      , heed-backend
                      , heed-lib
                      , hspec

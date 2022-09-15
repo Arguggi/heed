@@ -13,6 +13,7 @@ import Data.Time (defaultTimeLocale, parseTimeM, rfc822DateFormat)
 import Data.Time.Clock (UTCTime)
 import qualified Heed.Database as DB
 import Heed.Feed.HtmlEntities (decodeHtmlEnt)
+import qualified Network.URI as URI
 import qualified Text.RSS.Syntax as RSS
 
 extractInfo ::
@@ -26,6 +27,7 @@ extractInfo ::
 extractInfo now url feed = Just (feedInfo, feedItems)
   where
     channel = RSS.rssChannel feed
+    baseUrl = RSS.rssLink channel
     feedInfo =
       DB.defFeedInfo
         { DB._feedInfoName = T.strip . decodeHtmlEnt . RSS.rssTitle $ channel,
@@ -35,16 +37,26 @@ extractInfo now url feed = Just (feedInfo, feedItems)
             fromMaybe now $
               (parseRfc822 . T.unpack) =<< (RSS.rssPubDate channel <|> RSS.rssLastUpdate channel)
         }
-    feedItems = rssEntryToItem now <$> RSS.rssItems channel
+    feedItems = rssEntryToItem now baseUrl <$> RSS.rssItems channel
 
-rssEntryToItem :: UTCTime -> RSS.RSSItem -> DB.FeedItemHW
-rssEntryToItem now entry =
+rssEntryToItem :: UTCTime -> T.Text -> RSS.RSSItem -> DB.FeedItemHW
+rssEntryToItem now baseUrl entry =
   DB.defFeedItem
-    { DB._feedItemTitle = fromMaybe "No Title" . RSS.rssItemTitle $ entry,
-      DB._feedItemUrl = fromMaybe "No Url" . RSS.rssItemLink $ entry,
+    { DB._feedItemTitle = T.strip . fromMaybe "No Title" . RSS.rssItemTitle $ entry,
+      DB._feedItemUrl = itemUrl,
       DB._feedItemDate = fromMaybe now $ join (parseRfc822 . T.unpack <$> RSS.rssItemPubDate entry),
       DB._feedItemComments = RSS.rssItemComments entry
     }
+  where
+    itemUrl = fromMaybe "No Url" . fmap (buildUrl baseUrl . T.strip) . RSS.rssItemLink $ entry
 
 parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
+
+buildUrl :: T.Text -> T.Text -> T.Text
+buildUrl baseUrl itemUrl =
+  if URI.isURI itemUrlStr
+    then itemUrl
+    else (T.dropWhileEnd (== '/') baseUrl) <> "/" <> (T.dropWhile (== '/') itemUrl)
+  where
+    itemUrlStr = T.unpack itemUrl
