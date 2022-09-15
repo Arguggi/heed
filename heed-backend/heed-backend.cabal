@@ -70,6 +70,7 @@ library
                      , vector
                      , wai
                      , wai-websockets
+                     , wai-middleware-prometheus
                      , warp
                      , websockets
                      , xml-conduit

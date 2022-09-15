@@ -94,10 +94,12 @@ import Servant.Server.Experimental.Auth
     mkAuthHandler,
   )
 
+import Network.Wai.Middleware.Prometheus ( def, prometheus)
+
 -- | run our server
 genAuthMain :: BackendConf -> Port -> IO ()
 genAuthMain conf port =
-  run port (serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
+  run port (prometheus def $ serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
 
 data UserName = UserName
   { unUserName :: Text,
