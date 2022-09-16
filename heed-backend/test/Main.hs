@@ -7,19 +7,25 @@ import qualified Data.ByteString.Lazy
 import Data.Maybe (fromJust)
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.ISO8601 (parseISO8601)
-import Heed.Database (FeedInfo (..), FeedItem (_feedItemComments), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
+import Heed.Database (FeedInfo (..), FeedInfoHW, FeedItem (_feedItemComments), FeedItemHW, afterDefTime, defFeedInfo, defFeedItem, _feedItemDate, _feedItemTitle, _feedItemUrl)
 import Heed.Extract (filterNew)
 import qualified Heed.Extract
 import Test.Hspec (describe, hspec, it, shouldBe)
 import Text.Feed.Import (parseFeedSource)
 
+parseXml :: String -> IO (FeedInfoHW, [FeedItemHW])
+parseXml file = do
+  content <- Data.ByteString.Lazy.readFile file
+  now <- getCurrentTime
+  let parsed = parseFeedSource content >>= Heed.Extract.extractInfoFromFeed now "Url"
+  return $ fromJust parsed
+
 main :: IO ()
 main = do
-  veritasiumparsed <- fromJust . parseFeedSource <$> Data.ByteString.Lazy.readFile "test/feeds/veritasium.xml"
-  laurenceparsed <- fromJust . parseFeedSource <$> Data.ByteString.Lazy.readFile "test/feeds/laurencejones.xml"
-  joachimparsed <- fromJust . parseFeedSource <$> Data.ByteString.Lazy.readFile "test/feeds/joachim.xml"
-  duplodeparsed <- fromJust . parseFeedSource <$> Data.ByteString.Lazy.readFile "test/feeds/duplode.xml"
-  now <- getCurrentTime
+  veritasiumparsed <- parseXml "test/feeds/veritasium.xml"
+  laurenceparsed <- parseXml "test/feeds/laurencejones.xml"
+  joachimparsed <- parseXml "test/feeds/joachim.xml"
+  duplodeparsed <- parseXml "test/feeds/duplode.xml"
   hspec $ do
     describe "Filter new items" $ do
       it "Removes duplicates" $
@@ -36,34 +42,26 @@ main = do
         length (filterRep defFeedItem differentUrl) `shouldBe` 1
     describe "Parses RSS feeds" $ do
       it "Builds the correct url for items with relative urls" $ do
-        let parsed = Heed.Extract.extractInfoFromFeed now "Url" laurenceparsed
-        case parsed of
-          Nothing -> return ()
-          Just (info, items) -> do
-            info `shouldBe` defFeedInfo {_feedInfoName = "Lawrence Jones"}
-            items `shouldBe` [laurenceEntry]
+        let info = fst laurenceparsed
+            items = snd laurenceparsed
+        info `shouldBe` defFeedInfo {_feedInfoName = "Lawrence Jones"}
+        items `shouldBe` [laurenceEntry]
       it "Builds the correct url for items with absolute urls" $ do
-        let parsed = Heed.Extract.extractInfoFromFeed now "Url" joachimparsed
-        case parsed of
-          Nothing -> return ()
-          Just (info, items) -> do
-            info `shouldBe` defFeedInfo {_feedInfoName = "nomeata’s mind shares"}
-            items `shouldBe` [joachimentry]
+        let info = fst joachimparsed
+            items = snd joachimparsed
+        info `shouldBe` defFeedInfo {_feedInfoName = "nomeata’s mind shares"}
+        items `shouldBe` [joachimentry]
       it "Parses dates correctly" $ do
-        let parsed = Heed.Extract.extractInfoFromFeed now "Url" duplodeparsed
-        case parsed of
-          Nothing -> return ()
-          Just (info, items) -> do
-            info `shouldBe` defFeedInfo {_feedInfoName = "The Life Monadic"}
-            items `shouldBe` [duplodeentry1, duplodeentry2]
+        let info = fst duplodeparsed
+            items = snd duplodeparsed
+        info `shouldBe` defFeedInfo {_feedInfoName = "The Life Monadic"}
+        items `shouldBe` [duplodeentry1, duplodeentry2, duplodeentry3, duplodeentry4]
     describe "Parses XML feeds" $ do
-      it "Youtube xml" $ do
-        let parsed = Heed.Extract.extractInfoFromFeed now "Url" veritasiumparsed
-        case parsed of
-          Nothing -> return ()
-          Just (info, items) -> do
-            info `shouldBe` defFeedInfo {_feedInfoName = "Veritasium"}
-            items `shouldBe` [veritasiumEntry]
+      it "Parses youtube xml correctly" $ do
+        let info = fst veritasiumparsed
+            items = snd veritasiumparsed
+        info `shouldBe` defFeedInfo {_feedInfoName = "Veritasium"}
+        items `shouldBe` [veritasiumEntry]
 
 veritasiumEntry :: FeedItemHW
 veritasiumEntry =
@@ -104,6 +102,22 @@ duplodeentry2 =
     { _feedItemTitle = "Traversable: A Remix",
       _feedItemUrl = "https://duplode.github.io/posts/traversable-a-remix.html",
       _feedItemDate = fromJust $ parseISO8601 "2017-05-19T07:30:00+00:00"
+    }
+
+duplodeentry3 :: FeedItemHW
+duplodeentry3 =
+  defFeedItem
+    { _feedItemTitle = "date3",
+      _feedItemUrl = "http://example.com",
+      _feedItemDate = fromJust $ parseISO8601 "2019-12-04T12:00:00+00:00"
+    }
+
+duplodeentry4 :: FeedItemHW
+duplodeentry4 =
+  defFeedItem
+    { _feedItemTitle = "date4",
+      _feedItemUrl = "http://example2.com",
+      _feedItemDate = fromJust $ parseISO8601 "2011-04-03T19:30:30+00:00"
     }
 
 filterRep :: FeedItemHW -> FeedItemHW -> [FeedItemHW]

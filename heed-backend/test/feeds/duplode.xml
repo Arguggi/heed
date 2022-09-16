@@ -25,5 +25,21 @@
         <dc:creator>Daniel Mlot</dc:creator>
     </item>
 
+    <item>
+        <title>date3</title>
+        <link>http://example.com</link>
+        <description></description>
+        <pubDate>Wed, 04 Dec 2019 12:00:00 GMT</pubDate>
+        <guid>guid</guid>
+    </item>
+
+    <item>
+        <title>date4</title>
+        <link>http://example2.com</link>
+        <description></description>
+        <pubDate>03 Apr 2011 19:30:30 GMT</pubDate>
+        <guid>guid2</guid>
+    </item>
+
 </channel>
 </rss>

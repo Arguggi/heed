@@ -6,7 +6,7 @@ module Heed.Feed.RSS
   )
 where
 
-import Control.Applicative ((<|>))
+import Control.Applicative (asum, (<|>))
 import Data.Maybe (fromMaybe)
 import qualified Data.Text as T
 import Data.Time (ZonedTime, defaultTimeLocale, parseTimeM, rfc822DateFormat)
@@ -49,10 +49,12 @@ rssEntryToItem now baseUrl entry =
       DB._feedItemDate =
         fromMaybe
           now
-          ( (parseRfc822 =<< pubDate)
-              <|> (parseZonedTime =<< pubDate)
-              <|> (iso8601ParseM =<< pubDate)
-          ),
+          $ asum
+            [ parseRfc822 =<< pubDate,
+              parseAlmostRfc822 =<< pubDate,
+              parseZonedTime =<< pubDate,
+              iso8601ParseM =<< pubDate
+            ],
       DB._feedItemComments = RSS.rssItemComments entry
     }
   where
@@ -61,6 +63,9 @@ rssEntryToItem now baseUrl entry =
 
 parseRfc822 :: String -> Maybe UTCTime
 parseRfc822 = parseTimeM True defaultTimeLocale rfc822DateFormat
+
+parseAlmostRfc822 :: String -> Maybe UTCTime
+parseAlmostRfc822 = parseTimeM True defaultTimeLocale "%d %b %Y %H:%M:%S %Z"
 
 parseZonedTime :: String -> Maybe UTCTime
 parseZonedTime pubDate = do
