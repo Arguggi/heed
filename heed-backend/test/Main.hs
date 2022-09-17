@@ -26,6 +26,7 @@ main = do
   laurenceparsed <- parseXml "test/feeds/laurencejones.xml"
   joachimparsed <- parseXml "test/feeds/joachim.xml"
   duplodeparsed <- parseXml "test/feeds/duplode.xml"
+  determinateparsed <- parseXml "test/feeds/determinate.xml"
   hspec $ do
     describe "Filter new items" $ do
       it "Removes duplicates" $
@@ -42,24 +43,25 @@ main = do
         length (filterRep defFeedItem differentUrl) `shouldBe` 1
     describe "Parses RSS feeds" $ do
       it "Builds the correct url for items with relative urls" $ do
-        let info = fst laurenceparsed
-            items = snd laurenceparsed
+        let (info, items) = laurenceparsed
         info `shouldBe` defFeedInfo {_feedInfoName = "Lawrence Jones"}
         items `shouldBe` [laurenceEntry]
       it "Builds the correct url for items with absolute urls" $ do
-        let info = fst joachimparsed
-            items = snd joachimparsed
+        let (info, items) = joachimparsed
         info `shouldBe` defFeedInfo {_feedInfoName = "nomeata’s mind shares"}
         items `shouldBe` [joachimentry]
       it "Parses dates correctly" $ do
-        let info = fst duplodeparsed
-            items = snd duplodeparsed
+        let (info, items) = duplodeparsed
         info `shouldBe` defFeedInfo {_feedInfoName = "The Life Monadic"}
         items `shouldBe` [duplodeentry1, duplodeentry2, duplodeentry3, duplodeentry4]
+      it "Parses determinate feed" $ do
+        let (info, items) = determinateparsed
+        info `shouldBe` defFeedInfo {_feedInfoName = "Blog - Determinate Systems"}
+        length items `shouldBe` 5
+        head items `shouldBe` determinateentry
     describe "Parses XML feeds" $ do
       it "Parses youtube xml correctly" $ do
-        let info = fst veritasiumparsed
-            items = snd veritasiumparsed
+        let (info, items) = veritasiumparsed
         info `shouldBe` defFeedInfo {_feedInfoName = "Veritasium"}
         items `shouldBe` [veritasiumEntry]
 
@@ -118,6 +120,14 @@ duplodeentry4 =
     { _feedItemTitle = "date4",
       _feedItemUrl = "http://example2.com",
       _feedItemDate = fromJust $ parseISO8601 "2011-04-03T19:30:30+00:00"
+    }
+
+determinateentry :: FeedItemHW
+determinateentry =
+  defFeedItem
+    { _feedItemTitle = "Building a highly optimized home environment with Nix",
+      _feedItemUrl = "https://determinate.systems/posts/nix-home-env",
+      _feedItemDate = fromJust $ parseISO8601 "2022-09-15T14:00:00+00:00"
     }
 
 filterRep :: FeedItemHW -> FeedItemHW -> [FeedItemHW]

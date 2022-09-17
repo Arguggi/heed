@@ -208,7 +208,9 @@ wsApp conf uname pending_conn = do
         HC.NewFeed url updateEvery -> do
           newFeed <- runBe conf $ addFeed url updateEvery uid
           case newFeed of
-            Left e -> sendError conn e
+            Left e -> do
+                print e
+                sendError conn e
             Right (feed, num) -> do
               now <- getCurrentTime
               _ <- BChan.writeBChan (conf ^. updateChan) (UpdateFeedList feed)
