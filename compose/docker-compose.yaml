@@ -1,0 +1,16 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:14.5
+    restart: always
+    environment:
+      - POSTGRES_USER=heed
+      - POSTGRES_PASSWORD=heed
+    ports:
+      - '5432:5432'
+    volumes: 
+      - db:/var/lib/postgresql/data
+      - ./scripts:/docker-entrypoint-initdb.d
+volumes:
+  db:
+    driver: local
