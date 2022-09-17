@@ -33,6 +33,7 @@ library
                      , containers
                      , data-default
                      , directory
+                     , filepath
                      , gitrev
                      , heed-lib
                      , http-conduit

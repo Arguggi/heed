@@ -59,13 +59,14 @@ import Heed.Types
 import Heed.Utils (Port, fork_)
 import Lens.Micro.Platform ((^.))
 import Network.HTTP.Types (badRequest400)
+import Network.Socket (SockAddr)
 import Network.Wai
   ( Application,
     Request,
     requestHeaders,
     responseLBS,
   )
-import Network.Wai.Handler.Warp (run)
+import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setOnOpen)
 import Network.Wai.Handler.WebSockets (websocketsOr)
 import qualified Network.WebSockets as WS
 import qualified Network.WebSockets.Connection as WSC
@@ -99,7 +100,13 @@ import Network.Wai.Middleware.Prometheus ( def, prometheus)
 -- | run our server
 genAuthMain :: BackendConf -> Port -> IO ()
 genAuthMain conf port =
-  run port (prometheus def $ serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
+  runSettings settings (prometheus def $ serveWithContext genAuthAPI (genAuthServerContext conf) (genAuthServer conf))
+    where settings = setOnOpen connected $ setPort port defaultSettings
+
+connected :: SockAddr -> IO Bool
+connected sockAddr = do
+    putStrLn $ (show sockAddr) <> " connected"
+    return True
 
 data UserName = UserName
   { unUserName :: Text,
@@ -150,19 +157,21 @@ genAuthServer conf = checkCreds conf :<|> app conf
 
 checkCreds :: BackendConf -> HC.AuthData -> Handler HC.Token
 checkCreds conf (HC.AuthData usern pw) = do
+  liftIO . TIO.putStrLn $ "Received login request for " <> usern
   userDbM :: Either HeedError [DB.UserH] <- runBe conf $ execSelect (HQ.getUser usern)
   case fmap head userDbM of
     Right userDb ->
       if validatePassword (encodeUtf8 pw) (encodeUtf8 . DB._userPassword $ userDb)
         then do
+          liftIO . TIO.putStrLn $ "Valid password for " <> usern
           newToken <- generateToken
           _ <- runBe conf $ execUpdate $ HQ.saveTokenDb newToken (DB._userId userDb)
           return $ HC.Token newToken
         else do
-          liftIO $ putStrLn "Invalid password"
+          liftIO . TIO.putStrLn $ "Invalid password for " <> usern
           throwError err401
     Left _ -> do
-      liftIO $ putStrLn "No such user"
+      liftIO . TIO.putStrLn $ "No such user " <> usern
       throwError err401
 
 app :: BackendConf -> UserName -> Tagged Handler Application

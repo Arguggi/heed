@@ -9,7 +9,7 @@ where
 
 import qualified Brick.BChan as BChan
 import qualified Brick.Main as M
-import Control.Applicative ((<**>))
+import Control.Applicative (optional, (<**>))
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.MVar
   ( MVar,
@@ -68,7 +68,9 @@ import Options.Applicative
     info,
     infoOption,
     long,
+    metavar,
     short,
+    strOption,
   )
 import Paths_heed_vty (version)
 import System.Directory
@@ -76,23 +78,32 @@ import System.Directory
     createDirectoryIfMissing,
     doesFileExist,
     getXdgDirectory,
+    makeAbsolute,
     withCurrentDirectory,
   )
 import System.Exit (exitSuccess)
+import System.FilePath ((</>))
 import Text.PrettyPrint.ANSI.Leijen (text)
 import Text.Read (readEither)
 import Wuss (runSecureClientWith)
 
 main :: IO ()
 main = do
-  force <- execParser optsParserInfo
-  unless force checkPermission
-  configFolder <- getXdgDirectory XdgConfig progName
-  createDirectoryIfMissing True configFolder
+  options <- execParser optsParserInfo
+  unless (unForceStart . forceStart $ options) checkPermission
+  configFilePath <- case configPath options of
+    Nothing -> do
+      xdgPath <- getXdgDirectory XdgConfig progName
+      createDirectoryIfMissing True xdgPath
+      return $ xdgPath </> (progName ++ ".ini")
+    Just (ConfigPath path) -> return (T.unpack path)
+  absoluteFilePath <- makeAbsolute configFilePath
+  putStrLn $ "Reading config from path " <> absoluteFilePath
   final <-
     runExceptT $ do
-      (req, host, port, secure) <- authRequest configFolder
+      (req, host, port, secure) <- authRequest configFilePath
       liftIO $ putStrLn "Authenticating"
+      liftIO . print $ req
       authCheck <- liftIO $ httpLBS req
       let respToken :: Either String Token
           respToken = decode . toStrict . getResponseBody $ authCheck
@@ -213,8 +224,8 @@ authRequest ::
   -- | Configuration Folder
   FilePath ->
   ExceptT String IO (Request, Host, Port, IsSecure)
-authRequest configFolder = do
-  ini <- ExceptT . readIniFile $ configFolder <> "/" <> progName <> ".ini"
+authRequest path = do
+  ini <- ExceptT . readIniFile $ path
   ExceptT . return $ do
     host <- lookupValue "server" "host" ini
     portT <- lookupValue "server" "port" ini
@@ -237,9 +248,16 @@ authRequest configFolder = do
   where
     isSecure x = T.toLower x == "on"
 
-type ForceStart = Bool
+newtype ForceStart = ForceStart {unForceStart :: Bool}
 
-optsParserInfo :: ParserInfo ForceStart
+newtype ConfigPath = ConfigPath T.Text
+
+data Options = Options
+  { forceStart :: ForceStart,
+    configPath :: Maybe ConfigPath
+  }
+
+optsParserInfo :: ParserInfo Options
 optsParserInfo = info (optsParser <**> versionParser) fullDesc
 
 versionParser :: Parser (a -> a)
@@ -248,15 +266,27 @@ versionParser =
     (concat [showVersion version, " ", $(gitHash)])
     (short 'v' <> long "version" <> help "Show version")
 
-optsParser :: Parser ForceStart
+optsParser :: Parser Options
 optsParser =
-  flag
-    False
-    True
-    ( short 'f'
-        <> long "force"
-        <> helpDoc (Just (text "don't check timestamp"))
-    )
+  Options
+    <$> forceParse
+    <*> optional configParse
+
+forceParse :: Parser ForceStart
+forceParse =
+  ForceStart
+    <$> flag
+      False
+      True
+      ( short 'f' <> long "force" <> helpDoc (Just (text "don't check timestamp"))
+      )
+
+configParse :: Parser ConfigPath
+configParse =
+  ConfigPath
+    <$> strOption
+      ( long "config" <> short 'c' <> metavar "CONFIG" <> help "Config file"
+      )
 
 checkPermission :: IO ()
 checkPermission = do

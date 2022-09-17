@@ -52,6 +52,7 @@ library
                      , microlens-platform
                      , mtl
                      , mwc-random
+                     , network
                      , network-uri
                      , opaleye
                      , optparse-applicative

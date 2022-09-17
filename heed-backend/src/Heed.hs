@@ -53,6 +53,7 @@ main = do
     port <- setupEnvGetPort
     withPool $ \pool -> do
       baConf <- setupBackendConf pool logger
+      putStrLn "Built conf"
       feedsE <- runBe baConf $ execSelect allFeeds
       now <- getCurrentTime
       threads <-
@@ -63,6 +64,7 @@ main = do
             let nameThreadList = zip (feeds ^.. traverse . feedInfoId) threadIds
             return $ Map.fromList nameThreadList
       tvarThreads <- newTVarIO threads
+      putStrLn $ "Started " <> (show . Map.size $ threads) <> " background threads"
       genAuthMain (baConf & (threadMap .~ tvarThreads)) port
 
 -- | Read ini file and setup 'pgEnvVar' variables
