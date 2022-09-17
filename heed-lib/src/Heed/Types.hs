@@ -58,9 +58,10 @@ import Control.Monad.Reader (MonadReader (ask), ReaderT (..), asks)
 import Data.ByteString.Lazy as BSL (ByteString)
 import Data.Int (Int64)
 import qualified Data.Map.Strict as Map
+import Data.Pool (Pool, withResource)
 import Data.Profunctor.Product.Default (Default)
 import Data.Proxy (Proxy (..))
-import Data.Text as T (Text, unpack)
+import Data.Text as T (Text, pack, unpack)
 import Data.Time (UTCTime, getCurrentTime)
 import qualified Database.PostgreSQL.Simple as PG
 import Heed.Database (FeedInfoHR, FeedInfoIdH)
@@ -68,15 +69,16 @@ import Lens.Micro.Platform (makeLenses)
 import Network.HTTP.Client
   ( HttpException,
     Manager,
-    Response (responseBody),
+    Response (responseBody, responseStatus),
     defaultManagerSettings,
     httpLbs,
     newManager,
     parseRequest,
+    parseUrlThrow,
   )
+import Network.HTTP.Types.Status (Status (..))
 import qualified Opaleye as O
 import qualified System.Log.FastLogger as Log
-import Data.Pool (Pool, withResource)
 
 data HeedError where
   InvalidFeedQuery :: HeedError
@@ -190,8 +192,11 @@ instance MonadHttp IO where
 instance MonadHttp Backend where
   downloadUrl url = do
     manager <- asks _httpManager
-    request <- catchHttp InvalidUrl . parseRequest $ "GET " <> T.unpack url
-    catchHttp DownloadFailed . liftIO $ responseBody <$> httpLbs request manager
+    request <- catchHttp InvalidUrl . parseUrlThrow $ "GET " <> T.unpack url
+    response <- catchHttp DownloadFailed . liftIO $ httpLbs request manager
+    let statusText = T.pack . show . statusCode . responseStatus $ response
+    logMsg $ "Request to " <> url <> " completed successfully with status code: " <> statusText
+    return $ responseBody response
 
 -- | mtl class for interacting with the database
 class Monad m => MonadDb m where
@@ -203,19 +208,19 @@ class Monad m => MonadDb m where
 instance MonadDb Backend where
   execSelect select = do
     pool <- asks _dbPool
-    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runSelect conn select
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn -> O.runSelect conn select
 
   execInsert insert = do
     pool <- asks _dbPool
-    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runInsert conn insert
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn -> O.runInsert conn insert
 
   execUpdate update = do
     pool <- asks _dbPool
-    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runUpdate conn update
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn -> O.runUpdate conn update
 
   execDelete delete = do
     pool <- asks _dbPool
-    catchSql HSqlException $ liftIO $ withResource pool $ \conn ->  O.runDelete conn delete
+    catchSql HSqlException $ liftIO $ withResource pool $ \conn -> O.runDelete conn delete
 
 instance MonadDb Testing where
   execSelect select = do

@@ -27,6 +27,7 @@ main = do
   joachimparsed <- parseXml "test/feeds/joachim.xml"
   duplodeparsed <- parseXml "test/feeds/duplode.xml"
   determinateparsed <- parseXml "test/feeds/determinate.xml"
+  gianarbparsed <- parseXml "test/feeds/gianarb.xml"
   hspec $ do
     describe "Filter new items" $ do
       it "Removes duplicates" $
@@ -41,6 +42,11 @@ main = do
         length (filterRep defFeedItem differentTitle) `shouldBe` 1
       it "Keeps items with different urls" $
         length (filterRep defFeedItem differentUrl) `shouldBe` 1
+    describe "Parses ATOM feeds" $ do
+      it "Gianarb" $ do
+        let (info, items) = gianarbparsed
+        info `shouldBe` defFeedInfo {_feedInfoName = "Gianluca Arbezzano - GianArb"}
+        items `shouldBe` [gianarbentry]
     describe "Parses RSS feeds" $ do
       it "Builds the correct url for items with relative urls" $ do
         let (info, items) = laurenceparsed
@@ -128,6 +134,14 @@ determinateentry =
     { _feedItemTitle = "Building a highly optimized home environment with Nix",
       _feedItemUrl = "https://determinate.systems/posts/nix-home-env",
       _feedItemDate = fromJust $ parseISO8601 "2022-09-15T14:00:00+00:00"
+    }
+
+gianarbentry :: FeedItemHW
+gianarbentry =
+  defFeedItem
+    { _feedItemTitle = "My workflow with NixOS. How do I work with it",
+      _feedItemUrl = "https://gianarb.it/blog/my-workflow-with-nixos",
+      _feedItemDate = fromJust $ parseISO8601 "2022-09-12T10:08:27+00:00"
     }
 
 filterRep :: FeedItemHW -> FeedItemHW -> [FeedItemHW]

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+    <title>Gianluca Arbezzano - GianArb</title>
+    <link href="https://gianarb.github.io/atom.xml" rel="self"/>
+    <link href="https://gianarb.github.io/"/>
+    <updated>2022-09-13T13:59:30+00:00</updated>
+    <id>https://gianarb.it</id>
+    <author>
+        <name>Gianluca Arbezzano</name>
+        <uri>https://gianarb.it</uri>
+        <email>gianarb92@gmail.com</email>
+    </author>
+    
+    <entry>
+        <title>My workflow with NixOS. How do I work with it</title>
+        <link rel="alternate" type="text/html" href="https://gianarb.it/blog/my-workflow-with-nixos"/>
+        <description>In the last two years I pick up NixOS as I tool I want to use. The learning curve is steep but I think I have a workflow that I like</description>
+        <image>https://gianarb.it/img/1280px-NixOS_logo.png</image>
+        <updated>2022-09-12T10:08:27+00:00</updated>
+        <pubDate>2022-09-12T10:08:27+00:00</pubDate>
+        <id>https://gianarb.it/blog/my-workflow-with-nixos</id>
+        <content type="html"></content>
+    </entry>
+</feed>

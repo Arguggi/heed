@@ -26,6 +26,7 @@ library
                      , fast-logger
                      , http-api-data
                      , http-client
+                     , http-types
                      , QuickCheck
                      , microlens-platform
                      , mtl
