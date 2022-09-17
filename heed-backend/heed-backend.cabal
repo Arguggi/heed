@@ -1,5 +1,5 @@
 name:                heed-backend
-version:             0.5.7.0
+version:             0.5.8.0
 synopsis:            Backend for the heed rss reader
 license:             BSD3
 license-file:        LICENSE
