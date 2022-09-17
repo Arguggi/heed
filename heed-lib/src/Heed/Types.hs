@@ -75,10 +75,12 @@ import Network.HTTP.Client
     newManager,
     parseRequest,
     parseUrlThrow,
+    requestHeaders
   )
 import Network.HTTP.Types.Status (Status (..))
 import qualified Opaleye as O
 import qualified System.Log.FastLogger as Log
+import Network.HTTP.Types.Header (hUserAgent)
 
 data HeedError where
   InvalidFeedQuery :: HeedError
@@ -193,10 +195,15 @@ instance MonadHttp Backend where
   downloadUrl url = do
     manager <- asks _httpManager
     request <- catchHttp InvalidUrl . parseUrlThrow $ "GET " <> T.unpack url
-    response <- catchHttp DownloadFailed . liftIO $ httpLbs request manager
+    let req = request {
+        requestHeaders = [(hUserAgent, "python-requests/2.25.0")]
+    }
+    response <- catchHttp DownloadFailed . liftIO $ httpLbs req manager
     let statusText = T.pack . show . statusCode . responseStatus $ response
     logMsg $ "Request to " <> url <> " completed successfully with status code: " <> statusText
     return $ responseBody response
+
+
 
 -- | mtl class for interacting with the database
 class Monad m => MonadDb m where
