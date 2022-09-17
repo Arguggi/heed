@@ -123,7 +123,7 @@ initialState =
   S.AddState
     (F.focusRing [S.UrlEdit, S.UpdateEdit])
     (E.editorText S.UrlEdit (Just 1) "")
-    (E.editorText S.UpdateEdit (Just 1) "60")
+    (E.editorText S.UpdateEdit (Just 1) "1440")
     ""
     ""
     False
