@@ -4,9 +4,9 @@
   inputs.nixpkgs.follows = "haskellNix/nixpkgs-unstable";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.flake-compat = {
-      url = "github:edolstra/flake-compat";
-      flake = false;
-    };
+    url = "github:edolstra/flake-compat";
+    flake = false;
+  };
   outputs = { self, nixpkgs, flake-utils, haskellNix, flake-compat }:
     flake-utils.lib.eachDefaultSystem (system:
       let
@@ -16,6 +16,7 @@
             heed-vty = final.haskell-nix.project' {
               src = ./.;
               compiler-nix-name = "ghc924";
+              index-state = "2022-09-17T00:00:00Z";
               shell.tools = {
                 cabal = { };
                 haskell-language-server = { };
@@ -27,9 +28,9 @@
           inherit system overlays;
           inherit (haskellNix) config;
         };
-        flake = pkgs.heed-vty.flake {
-        };
-      in flake // {
+        flake = pkgs.heed-vty.flake { };
+      in
+      flake // {
         # Built by `nix build .`
         defaultPackage = flake.packages."heed-vty:exe:heed-vty";
       });
